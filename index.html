@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Task Board</title>
+<style>
+:root{color-scheme:light;
+ --fg:#1f2421;--muted:#6b7280;--line:#e7e8e5;--bg:#eceee9;--card:#fff;
+ --accent:#2c5f2d;--urgent:#b42318;--high:#b54708;--paper:#f4f5f3;
+ --due-over:#fee4e2;--due-overc:#b42318;
+ --due-soon:#fef3c7;--due-soonc:#92400e;
+ --st-new:#64748b;--st-assigned:#2563eb;
+ --st-in_progress:#d97706;--st-waiting:#7c3aed;
+ --btn:#2c5f2d;--btn-h:#1f4520}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+ background:var(--bg);color:var(--fg);line-height:1.45;padding:18px 12px 44px;
+ -webkit-text-size-adjust:100%}
+.phone{max-width:432px;margin:0 auto;background:var(--paper);
+ border:1px solid #d6d8d3;border-radius:22px;padding:16px 15px 28px;
+ box-shadow:0 6px 26px rgba(0,0,0,.11)}
+.hdr{margin-bottom:10px}
+.hdr h2{font-size:22px;font-weight:700}
+.hdr .sub{color:var(--muted);font-size:13.5px;margin-top:2px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 8px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:9px;
+ padding:7px 10px;min-width:74px;flex:1 1 auto}
+.chip .n{font-size:19px;font-weight:700;line-height:1}
+.chip .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;
+ letter-spacing:.04em;margin-top:3px}
+.chip.over .n{color:var(--urgent)}
+.chip.high .n{color:var(--high)}
+.add-bar{display:flex;justify-content:center;margin:6px 0 0}
+.add-btn{background:var(--btn);color:#fff;border:0;border-radius:9px;
+ padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;
+ box-shadow:0 1px 3px rgba(0,0,0,.13);width:100%}
+.add-btn:hover{background:var(--btn-h)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;
+ padding:14px;margin-top:13px}
+.card h3{font-size:11.5px;font-weight:700;text-transform:uppercase;
+ letter-spacing:.05em;color:var(--accent);margin-bottom:8px}
+.card h3 .ct{color:var(--muted);font-weight:600;margin-left:6px;
+ text-transform:none;letter-spacing:0;font-size:11px}
+.summary{font-size:12.5px;color:var(--muted);margin:-2px 0 6px}
+.t-row{display:block;padding:10px 0;border-top:1px solid var(--line);
+ position:relative}
+.t-row:first-of-type{border-top:0}
+.t-row::before{content:"";position:absolute;left:-14px;top:10px;bottom:10px;
+ width:3px;border-radius:0 3px 3px 0;background:#cbd5e1}
+.t-row.p-urgent::before{background:var(--urgent)}
+.t-row.p-high::before{background:var(--high)}
+.t-row.p-normal::before{background:#9ca3af}
+.t-row.p-low::before{background:#cbd5e1}
+.t-head{cursor:pointer}
+.t-top{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);
+ flex-wrap:wrap}
+.t-id{font-weight:700}
+.t-pri{font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:10px}
+.t-pri.p-urgent{color:var(--urgent)}
+.t-pri.p-high{color:var(--high)}
+.t-pri.p-normal{color:var(--muted)}
+.t-store{margin-left:auto;background:#eef2ee;color:var(--accent);
+ border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600;letter-spacing:.02em}
+.t-title{font-weight:600;font-size:14px;margin:5px 0 6px;line-height:1.35}
+.t-meta{display:flex;gap:5px;flex-wrap:wrap}
+.t-tag{font-size:10.5px;border-radius:5px;padding:1px 7px;
+ border:1px solid var(--line);background:#f4f5f3;color:var(--muted);white-space:nowrap}
+.t-tag.due-over{background:var(--due-over);border-color:#fecaca;color:var(--due-overc);font-weight:600}
+.t-tag.due-soon{background:var(--due-soon);border-color:#fde68a;color:var(--due-soonc)}
+.t-tag.st-new{color:var(--st-new)}
+.t-tag.st-assigned{color:var(--st-assigned)}
+.t-tag.st-in_progress{color:var(--st-in_progress)}
+.t-tag.st-waiting{color:var(--st-waiting)}
+.t-desc{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+ font-size:12px;color:#52525b;white-space:pre-wrap}
+.t-row:not(.open) .t-desc{display:none}
+.t-row:not(.open) .t-actions{display:none}
+.t-row:not(.open) .form-mount{display:none}
+.t-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:9px;
+ border-top:1px dashed var(--line)}
+.act{font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;
+ border:1px solid var(--line);background:#fff}
+.act.primary{background:var(--btn);color:#fff;border-color:var(--btn)}
+.act.danger{color:var(--urgent);border-color:#fecaca;background:#fff7f7}
+.form{background:#fafbf9;border:1px solid var(--line);border-radius:8px;
+ padding:10px;margin-top:9px}
+.form label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+ letter-spacing:.03em;color:var(--muted);margin-bottom:3px;margin-top:6px}
+.form input,.form select,.form textarea{font:inherit;width:100%;
+ border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;
+ background:#fff;color:var(--fg)}
+.form textarea{min-height:60px;resize:vertical}
+.form .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form .row-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end}
+.busy{opacity:.55;pointer-events:none}
+.flash{font-size:13px;padding:8px 11px;border-radius:7px;margin:10px 0 4px}
+.flash.ok{background:#eef9ec;color:var(--accent);border:1px solid #cce6ce}
+.flash.err{background:var(--due-over);color:var(--urgent);border:1px solid #fecaca}
+.metric{display:flex;justify-content:space-between;align-items:baseline;
+ padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}
+.metric:first-of-type{border-top:0}
+.metric .v{font-weight:700;font-size:14.5px}
+.metric .d{font-size:11px;color:var(--muted);margin-left:5px;font-weight:400}
+.up{color:var(--accent)}.dn{color:var(--urgent)}
+.sub2{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+ color:var(--muted);margin:10px 0 4px}
+.sub2:first-child{margin-top:0}
+.mr-tbl{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+.mr-tbl th{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+ color:var(--muted);text-align:right;padding:3px 3px 4px;border-bottom:1px solid var(--line)}
+.mr-tbl th.l{text-align:left}
+.mr-tbl td{padding:4px 3px;border-top:1px solid var(--line);text-align:right;
+ font-variant-numeric:tabular-nums}
+.mr-tbl td.l{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr-tbl tr:first-child td{border-top:0}
+.mr-tbl tr.top td.l{color:var(--accent);font-weight:700}
+.mr-tbl col.c-mgr{width:auto}
+.mr-tbl col.c-sh{width:26px}
+.mr-tbl col.c-oepe{width:38px}
+.mr-tbl col.c-kvs{width:32px}
+.mr-tbl col.c-r2p{width:32px}
+.mr-tbl col.c-lab{width:44px}
+.mr-tbl col.c-pk{width:38px}
+.empty{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0 2px}
+.foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
+.loading{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
+.errbox{max-width:432px;margin:14px auto;background:#fff;border:1px solid var(--line);
+ border-radius:11px;padding:13px;font-size:12.5px}
+.errbox b{color:var(--urgent)}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading…</div></div>
+
+<script>
+const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
+const TOKEN = new URLSearchParams(location.search).get("t") || "";
+const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
+const VISIT_LABEL = {
+  ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
+  rgrv:"Running Great Restaurant Visit", cfv:"Customer First Visit",
+  pbs:"People Brand Standards", health_dept:"Health Dept Inspection", other:"Visit"
+};
+const DAYPART_LABEL = {
+  "Breakfast(4 AM-11 AM)":"Breakfast (4-11 AM)",
+  "Lunch(11 AM-2 PM)":   "Lunch (11 AM-2 PM)",
+  "Snack(2 PM-4 PM)":    "Snack (2-4 PM)",
+  "Dinner(4 PM-9 PM)":   "Dinner (4-9 PM)",
+  "Evening(9 PM-12 AM)": "Evening (9 PM-12 AM)"
+};
+const DAYPART_ORDER = ["Breakfast(4 AM-11 AM)","Lunch(11 AM-2 PM)",
+  "Snack(2 PM-4 PM)","Dinner(4 PM-9 PM)","Evening(9 PM-12 AM)"];
+const PRIORITY_OPTS = ["urgent","high","normal","low"];
+const STATUS_OPTS   = ["new","assigned","in_progress","waiting"];
+
+let STATE = null;  // last server response (data + result + stores + manager)
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function vdate(s){return new Date(String(s).slice(0,10)+"T00:00:00");}
+function today0(){const t=new Date();t.setHours(0,0,0,0);return t;}
+function fmtDate(d){if(!d)return"";
+  const t=(d instanceof Date)?d:new Date(d);
+  if(isNaN(t)) return "";
+  return t.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function fmtNum(v){return (v==null||v==="")?'&mdash;':esc(String(v));}
+function fmtPct(v){return (v==null||v==="")?'&mdash;':esc(Number(v).toFixed(1))+'%';}
+function isoDate(d){if(!d) return "";
+  const t=(d instanceof Date)?d:new Date(d);
+  if(isNaN(t)) return "";
+  return t.toISOString().slice(0,10);}
+
+function shortMgr(name){
+  const s=String(name||"").trim();
+  const i=s.indexOf(",");
+  if(i<0) return s;
+  const last=s.slice(0,i).trim();
+  const first=s.slice(i+1).trim();
+  const tc=t=>t? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : t;
+  return (first.split(/\s+/).map(tc).join(" ")+" "+tc(last)).trim();
+}
+
+function dueTag(due_at){
+  if(!due_at) return "";
+  const d=vdate(due_at), t0=today0();
+  const days=Math.round((d-t0)/864e5);
+  const label=fmtDate(d);
+  if(days<0) return '<span class="t-tag due-over">Overdue '+esc(label)+'</span>';
+  if(days===0) return '<span class="t-tag due-over">Due today</span>';
+  if(days<=7) return '<span class="t-tag due-soon">Due '+esc(label)+'</span>';
+  return '<span class="t-tag">Due '+esc(label)+'</span>';
+}
+function statusTag(status){
+  return '<span class="t-tag st-'+esc(status||"new")+'">'+esc(String(status||"").replace("_"," "))+'</span>';
+}
+function cohortsTag(c){
+  return c ? '<span class="t-tag">w/ '+esc(c)+'</span>' : "";
+}
+
+function storeOptionsHtml(stores, selectedId){
+  let h='<option value=""'+(selectedId==null?' selected':'')+'>— Cross-store / Org —</option>';
+  stores.forEach(s=>{
+    h+='<option value="'+s.id+'"'+(selectedId==s.id?' selected':'')+'>'+esc(s.name)+'</option>';
+  });
+  return h;
+}
+function optionsHtml(arr, sel){
+  return arr.map(v=>'<option value="'+esc(v)+'"'+(v===sel?' selected':'')+'>'+esc(v)+'</option>').join("");
+}
+
+function editFormHtml(t, stores){
+  return ''+
+  '<div class="form" data-mode="edit" data-id="'+t.id+'">'+
+    '<div><label>Title</label>'+
+      '<input type="text" name="title" value="'+esc(t.title||"")+'"></div>'+
+    '<div class="grid">'+
+      '<div><label>Priority</label>'+
+        '<select name="priority">'+optionsHtml(PRIORITY_OPTS, t.priority||"normal")+'</select></div>'+
+      '<div><label>Status</label>'+
+        '<select name="status">'+optionsHtml(STATUS_OPTS, t.status||"new")+'</select></div>'+
+      '<div><label>Due date</label>'+
+        '<input type="date" name="due_at" value="'+(t.due_at?esc(isoDate(t.due_at)):"")+'"></div>'+
+      '<div><label>Store</label>'+
+        '<select name="store_id">'+storeOptionsHtml(stores, t.store_id)+'</select></div>'+
+    '</div>'+
+    '<div><label>Description</label>'+
+      '<textarea name="description">'+esc(t.description||"")+'</textarea></div>'+
+    '<div class="row-actions">'+
+      '<button class="act" onclick="cancelEdit(event,this)">Cancel</button>'+
+      '<button class="act primary" onclick="saveEdit(event,this)">Save</button>'+
+    '</div>'+
+  '</div>';
+}
+function newFormHtml(stores){
+  return ''+
+  '<div class="form" data-mode="new">'+
+    '<div><label>Title</label>'+
+      '<input type="text" name="title" placeholder="e.g. Call J&amp;K to confirm fryer visit"></div>'+
+    '<div class="grid">'+
+      '<div><label>Priority</label>'+
+        '<select name="priority">'+optionsHtml(PRIORITY_OPTS,"normal")+'</select></div>'+
+      '<div><label>Status</label>'+
+        '<select name="status">'+optionsHtml(STATUS_OPTS,"new")+'</select></div>'+
+      '<div><label>Due date</label>'+
+        '<input type="date" name="due_at"></div>'+
+      '<div><label>Store</label>'+
+        '<select name="store_id">'+storeOptionsHtml(stores, null)+'</select></div>'+
+    '</div>'+
+    '<div><label>Description (optional)</label>'+
+      '<textarea name="description" placeholder="Any extra context..."></textarea></div>'+
+    '<div class="row-actions">'+
+      '<button class="act" onclick="closeNewForm(event,this)">Cancel</button>'+
+      '<button class="act primary" onclick="saveNew(event,this)">Add task</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function taskRowHtml(t){
+  const pr=String(t.priority||"normal");
+  const idTag='<span class="t-id">#'+esc(t.id)+'</span>';
+  const priTag='<span class="t-pri p-'+pr+'">'+esc(pr)+'</span>';
+  const storeLabel=t.store_name||"";
+  const storeTag=storeLabel ? '<span class="t-store">'+esc(storeLabel)+'</span>' : "";
+  const top=idTag+' &middot; '+priTag+storeTag;
+  const meta=dueTag(t.due_at)+statusTag(t.status)+cohortsTag(t.cohorts);
+  const desc=(t.description && String(t.description).trim()) ?
+    '<div class="t-desc">'+esc(t.description)+'</div>' : '';
+  return '<div class="t-row p-'+pr+'" data-id="'+t.id+'">'+
+    '<div class="t-head" onclick="toggleRow(this)">'+
+      '<div class="t-top">'+top+'</div>'+
+      '<div class="t-title">'+esc(t.title||'(no title)')+'</div>'+
+      '<div class="t-meta">'+meta+'</div>'+
+    '</div>'+
+    desc+
+    '<div class="t-actions">'+
+      '<button class="act" onclick="openEditForm(event,this)">Edit</button>'+
+      '<button class="act primary" onclick="closeTask(event,this,\'done\')">Mark done</button>'+
+      '<button class="act danger" onclick="closeTask(event,this,\'cancelled\')">Cancel task</button>'+
+    '</div>'+
+    '<div class="form-mount"></div>'+
+  '</div>';
+}
+
+function section(title, rows, sub){
+  let h='<div class="card"><h3>'+esc(title)+'<span class="ct">'+rows.length+'</span></h3>';
+  if(sub) h+='<div class="summary">'+esc(sub)+'</div>';
+  if(!rows.length) h+='<div class="empty">Nothing here right now.</div>';
+  else rows.forEach(r=>{ h+=taskRowHtml(r); });
+  return h+'</div>';
+}
+
+function tasksWithStoreName(tasks, stores){
+  const byId = Object.fromEntries(stores.map(s => [s.id, s.name]));
+  return tasks.map(t => ({...t, store_name: t.store_id ? (byId[t.store_id]||"") : ""}));
+}
+
+function renderVisits(visits, stores){
+  if(!visits || !visits.length) return "";
+  const byStore = Object.fromEntries(stores.map(s => [s.id, s.name]));
+  const t0=today0();
+  const enriched = visits.map(v => ({...v, store_name: byStore[v.store_id]||""}));
+  const upcoming=enriched.filter(v=>v.status==='scheduled' && v.visit_date && vdate(v.visit_date)>=t0)
+    .sort((a,b)=>vdate(a.visit_date)-vdate(b.visit_date));
+  const done=enriched.filter(v=>v.status!=='scheduled')
+    .sort((a,b)=>vdate(b.visit_date)-vdate(a.visit_date));
+  let h='<div class="card"><h3>My Patch &mdash; Visits</h3>';
+  if(upcoming.length){
+    h+='<div class="sub2">Upcoming</div>';
+    upcoming.slice(0,4).forEach(v=>{
+      const lbl=VISIT_LABEL[v.visit_type]||"Visit";
+      h+='<div class="metric"><span>'+esc(lbl)+' &middot; <span style="color:var(--accent);font-weight:600">'+esc(v.store_name)+'</span></span>'+
+         '<span class="v">'+esc(fmtDate(vdate(v.visit_date)))+'</span></div>';
+    });
+  }
+  if(done.length){
+    h+='<div class="sub2">Recent</div>';
+    done.slice(0,6).forEach(v=>{
+      const lbl=VISIT_LABEL[v.visit_type]||"Visit";
+      const score=(v.score!=null)?Number(v.score).toFixed(1)+'%':'&mdash;';
+      const inner='<span>'+esc(lbl)+' &middot; <span style="color:var(--accent);font-weight:600">'+esc(v.store_name)+'</span></span>'+
+                  '<span class="v">'+esc(fmtDate(vdate(v.visit_date)))+'<span class="d">'+score+'</span></span>';
+      if(v.report_url) h+='<a class="metric" style="text-decoration:none;color:inherit" href="'+esc(v.report_url)+'" target="_blank" rel="noopener">'+inner+'</a>';
+      else h+='<div class="metric">'+inner+'</div>';
+    });
+  }
+  return h+'</div>';
+}
+
+function renderVoice(voice, stores, role){
+  if(!voice || !voice.length) return "";
+  const byStore = Object.fromEntries(stores.map(s => [s.id, s.name]));
+  // Group voice rows by store_id (null = Combined for Owner)
+  const groups = new Map();
+  voice.forEach(v=>{
+    const k = v.store_id==null ? "Combined" : (byStore[v.store_id]||"");
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(v);
+  });
+  let h='<div class="card"><h3>Guest Satisfaction (VOICE)</h3>';
+  let any=false;
+  groups.forEach((rows, label)=>{
+    const periods=[...new Set(rows.map(v=>v.period_start))].sort().reverse();
+    const latest=periods[0], prev=periods[1];
+    const at=(metric,p)=>rows.find(v=>v.metric===metric&&v.period_start===p);
+    let any2=false;
+    let inner='';
+    VOICE_ORDER.forEach(metric=>{
+      const cur=at(metric,latest); if(!cur||cur.score==null) return;
+      any2=true; any=true;
+      const pr=prev?at(metric,prev):null;
+      let delta="";
+      if(pr&&pr.score!=null){
+        const d=Number(cur.score)-Number(pr.score);
+        if(Math.abs(d)>=0.05) delta=' <span class="'+(d>0?"up":"dn")+'">'+(d>0?"▲":"▼")+Math.abs(d).toFixed(1)+'</span>';
+      }
+      inner+='<div class="metric"><span>'+esc(metric)+'</span>'+
+            '<span class="v">'+Number(cur.score).toFixed(1)+'%'+
+            '<span class="d">n='+esc(cur.response_count||'-')+'</span>'+delta+'</span></div>';
+    });
+    if(any2){
+      if(groups.size>1) h+='<div class="sub2">'+esc(label)+'</div>';
+      h+=inner;
+      const ld=latest?new Date(latest).toLocaleDateString("en-US",{month:"long",year:"numeric"}):"";
+      h+='<div class="summary" style="margin:6px 0 0">SMG VOICE &middot; '+esc(ld)+'</div>';
+    }
+  });
+  if(!any) return "";
+  return h+'</div>';
+}
+
+function renderLabor(labor){
+  if(!labor || !labor.length) return "";
+  const rows=labor.slice().sort((a,b)=>
+    Number(a.punch_labor_pct==null?999:a.punch_labor_pct)-
+    Number(b.punch_labor_pct==null?999:b.punch_labor_pct));
+  let h='<div class="card"><h3>My Patch &mdash; Daily Labor %</h3>';
+  rows.forEach(l=>{
+    const pct=(l.punch_labor_pct!=null)?Number(l.punch_labor_pct).toFixed(2)+'%':'&mdash;';
+    const avg=(l.avg7!=null)?'7-day avg '+Number(l.avg7).toFixed(2)+'%':'';
+    h+='<div class="metric"><span>'+esc(l.store_name||'')+'</span>'+
+       '<span class="v">'+pct+(avg?'<span class="d">'+esc(avg)+'</span>':'')+'</span></div>';
+  });
+  const d=(labor[0]&&labor[0].stat_date)?fmtDate(vdate(labor[0].stat_date)):'';
+  h+='<div class="summary" style="margin:8px 0 0">QSRSoft punch labor % &middot; lowest first'+(d?' &middot; as of '+esc(d):'')+'</div>';
+  return h+'</div>';
+}
+
+function renderPace(pace){
+  if(!pace || !pace.length) return "";
+  const rows=pace.slice().sort((a,b)=>
+    Number(b.dt_satisfaction==null?-1:b.dt_satisfaction)-
+    Number(a.dt_satisfaction==null?-1:a.dt_satisfaction));
+  let h='<div class="card"><h3>My Patch &mdash; PACE (MTD)</h3>';
+  rows.forEach(p=>{
+    const dt=(p.dt_satisfaction!=null)?Number(p.dt_satisfaction).toFixed(1)+'%':'&mdash;';
+    const ir=(p.ir_satisfaction!=null)?Number(p.ir_satisfaction).toFixed(1)+'%':'&mdash;';
+    h+='<div class="metric"><span>'+esc(p.store_name||'')+'</span>'+
+       '<span class="v">'+dt+'<span class="d">DT</span> &middot; '+
+       ir+'<span class="d">IR</span></span></div>';
+  });
+  const ps=pace[0]&&pace[0].period_start, pe=pace[0]&&pace[0].period_end;
+  const rng=(ps&&pe)?' &middot; '+fmtDate(vdate(ps))+'&ndash;'+fmtDate(vdate(pe)):'';
+  h+='<div class="summary" style="margin:8px 0 0">SMG PACE &middot; DT / IR'+rng+'</div>';
+  return h+'</div>';
+}
+
+function renderManagerRank(rows){
+  if(!rows || !rows.length) return "";
+  const by={};
+  rows.forEach(r=>{(by[r.time_slice]=by[r.time_slice]||[]).push(r);});
+  const asOf=rows[0]&&rows[0].as_of?fmtDate(vdate(rows[0].as_of)):"";
+  let h='<div class="card"><h3>My Patch &mdash; Drive-Thru</h3>'+
+    '<div class="summary">Ranked by OEPE w/o Parked &middot; trailing 30 days'+(asOf?' through '+esc(asOf):'')+' &middot; min 3 shifts</div>';
+  let any=false;
+  DAYPART_ORDER.forEach(slice=>{
+    const list=by[slice]; if(!list||!list.length) return; any=true;
+    list.sort((a,b)=>a.oepe_wo_park-b.oepe_wo_park);
+    h+='<div class="sub2">'+esc(DAYPART_LABEL[slice]||slice)+'</div>'+
+       '<table class="mr-tbl">'+
+       '<colgroup><col class="c-mgr"><col class="c-sh"><col class="c-oepe"><col class="c-kvs"><col class="c-r2p"><col class="c-lab"><col class="c-pk"></colgroup>'+
+       '<thead><tr><th class="l">Manager</th><th>Sh</th><th>OEPE</th><th>KVS</th><th>R2P</th><th>Lab%</th><th>Park%</th></tr></thead><tbody>';
+    list.forEach((r,i)=>{
+      h+='<tr'+(i===0?' class="top"':'')+'>'+
+         '<td class="l" title="'+esc(r.manager_name)+'">'+esc(shortMgr(r.manager_name))+'</td>'+
+         '<td>'+fmtNum(r.shifts)+'</td><td>'+fmtNum(r.oepe_wo_park)+'</td><td>'+fmtNum(r.kvs)+'</td>'+
+         '<td>'+fmtNum(r.r2p)+'</td><td>'+fmtPct(r.punch_labor_pct)+'</td><td>'+fmtPct(r.park_pct)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  });
+  if(!any) return "";
+  return h+'</div>';
+}
+
+function flashHtml(result){
+  if(!result) return "";
+  return '<div class="flash '+(result.ok?'ok':'err')+'">'+esc(result.msg||"")+'</div>';
+}
+
+function renderBoard(payload){
+  STATE = payload;
+  const data = payload.data || {};
+  const result = payload.result;
+  const mgr = data.manager || {};
+  const stores = data.stores || [];
+  const tasks = tasksWithStoreName(data.tasks||[], stores);
+  const t0=today0();
+  let overdue=0, dueSoon=0, hi=0;
+  tasks.forEach(t=>{
+    if(t.due_at){
+      const d=vdate(t.due_at);
+      const days=Math.round((d-t0)/864e5);
+      if(days<0) overdue++; else if(days<=7) dueSoon++;
+    }
+    if(t.priority==="urgent" || t.priority==="high") hi++;
+  });
+
+  const now=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  const storeLine = stores.map(s=>s.name).join(" · ");
+
+  let h='<div class="phone">';
+  h+='<div class="hdr"><h2>Hi, '+esc(mgr.first_name||"")+'</h2>'+
+     '<div class="sub">'+esc(mgr.role||"")+(storeLine?' &middot; '+esc(storeLine):'')+
+     ' &middot; '+esc(now)+'</div></div>';
+  h+=flashHtml(result);
+
+  h+='<div class="chips">'+
+     '<div class="chip"><div class="n">'+tasks.length+'</div><div class="l">Active</div></div>'+
+     '<div class="chip high"><div class="n">'+hi+'</div><div class="l">Hi-pri</div></div>'+
+     '<div class="chip over"><div class="n">'+overdue+'</div><div class="l">Overdue</div></div>'+
+     '<div class="chip"><div class="n">'+dueSoon+'</div><div class="l">Due &le; 7d</div></div>'+
+     '</div>';
+
+  h+='<div class="add-bar">'+
+     '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
+     '<div id="newFormMount"></div>';
+
+  // Hot section: all high/urgent
+  const hot=tasks.filter(t=>t.priority==="urgent"||t.priority==="high")
+    .sort((a,b)=>{
+      const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
+      const bd=b.due_at?vdate(b.due_at).getTime():Infinity;
+      return ad-bd;
+    });
+  h+=section("Hot — high priority", hot, "Across all your stores.");
+
+  // Per-store sections (normal priority only — high already in Hot)
+  stores.forEach(store=>{
+    const list=tasks.filter(t=>t.store_id===store.id && t.priority!=="urgent" && t.priority!=="high");
+    h+=section(store.name, list);
+  });
+
+  // Cross-store
+  const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
+  h+=section("Cross-store / Org", cross);
+
+  // Patch data
+  h+=renderVisits(data.visits||[], stores);
+  h+=renderVoice(data.voice||[], stores, mgr.role);
+  h+=renderLabor(data.labor||[]);
+  h+=renderPace(data.pace||[]);
+  h+=renderManagerRank(data.manager_rank||[]);
+
+  h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
+  h+='</div>';
+  return h;
+}
+
+function showError(msg, raw){
+  document.getElementById("app").innerHTML='<div class="errbox"><b>Could not load.</b><br>'+esc(msg)+(raw?'<pre style="font-size:10px;white-space:pre-wrap">'+esc(typeof raw==="string"?raw:JSON.stringify(raw)).slice(0,2000)+'</pre>':'')+'</div>';
+}
+
+// -- interactions --
+
+function toggleRow(headEl){
+  const row=headEl.parentElement;
+  row.classList.toggle("open");
+}
+function findRow(el){ while(el && !el.classList.contains("t-row")) el=el.parentElement; return el; }
+
+function openEditForm(ev, btn){
+  ev.stopPropagation();
+  const row=findRow(btn);
+  const id=Number(row.dataset.id);
+  const t=(STATE.data.tasks||[]).find(x=>x.id===id);
+  if(!t) return;
+  const stores=STATE.data.stores||[];
+  row.querySelector(".form-mount").innerHTML=editFormHtml(t, stores);
+}
+function cancelEdit(ev, btn){
+  ev.stopPropagation();
+  btn.closest(".form").parentElement.innerHTML="";
+}
+function openNewForm(){
+  const mount=document.getElementById("newFormMount");
+  if(mount.firstChild){ mount.innerHTML=""; return; }
+  const stores=STATE.data.stores||[];
+  mount.innerHTML=newFormHtml(stores);
+}
+function closeNewForm(ev, btn){
+  ev.stopPropagation();
+  document.getElementById("newFormMount").innerHTML="";
+}
+
+async function callApi(body){
+  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function saveEdit(ev, btn){
+  ev.stopPropagation();
+  const form=btn.closest(".form");
+  const id=Number(form.dataset.id);
+  const payload={
+    action: "update", id,
+    title: form.querySelector('[name=title]').value.trim(),
+    priority: form.querySelector('[name=priority]').value,
+    status: form.querySelector('[name=status]').value,
+    due_at: form.querySelector('[name=due_at]').value,
+    store_id: form.querySelector('[name=store_id]').value,
+    description: form.querySelector('[name=description]').value,
+  };
+  form.classList.add("busy");
+  try{
+    const res = await callApi(payload);
+    document.getElementById("app").innerHTML = renderBoard(res);
+  }catch(e){
+    form.classList.remove("busy");
+    alert("Save failed: " + (e && e.message));
+  }
+}
+async function saveNew(ev, btn){
+  ev.stopPropagation();
+  const form=btn.closest(".form");
+  const payload={
+    action: "new",
+    title: form.querySelector('[name=title]').value.trim(),
+    priority: form.querySelector('[name=priority]').value,
+    status: form.querySelector('[name=status]').value,
+    due_at: form.querySelector('[name=due_at]').value,
+    store_id: form.querySelector('[name=store_id]').value,
+    description: form.querySelector('[name=description]').value,
+  };
+  if(!payload.title){ alert("Title is required."); return; }
+  form.classList.add("busy");
+  try{
+    const res = await callApi(payload);
+    document.getElementById("app").innerHTML = renderBoard(res);
+  }catch(e){
+    form.classList.remove("busy");
+    alert("Create failed: " + (e && e.message));
+  }
+}
+async function closeTask(ev, btn, toStatus){
+  ev.stopPropagation();
+  const row=findRow(btn);
+  const id=Number(row.dataset.id);
+  const verb = toStatus==='done' ? 'Mark done' : 'Cancel';
+  if(!confirm(verb + ' #' + id + '?')) return;
+  row.classList.add("busy");
+  try{
+    const res = await callApi({ action: "close", id, to_status: toStatus });
+    document.getElementById("app").innerHTML = renderBoard(res);
+  }catch(e){
+    row.classList.remove("busy");
+    alert(verb + " failed: " + (e && e.message));
+  }
+}
+
+async function init(){
+  if(!TOKEN){
+    showError("Missing token. This link should include ?t=<token>.");
+    return;
+  }
+  try{
+    const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN));
+    if(r.status === 401){ showError("This link has expired or is invalid. Text Eddie for a fresh one."); return; }
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const payload = await r.json();
+    document.getElementById("app").innerHTML = renderBoard(payload);
+  }catch(e){
+    showError("Could not load board: " + (e && e.message));
+  }
+}
+init();
+</script>
+</body>
+</html>
