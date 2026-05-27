@@ -122,6 +122,8 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .mr-tbl col.c-r2p{width:32px}
 .mr-tbl col.c-lab{width:44px}
 .mr-tbl col.c-pk{width:38px}
+.mr-tbl col.c-kpi{width:52px}
+.mr-tbl col.c-pk2{width:58px}
 .empty{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0 2px}
 .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
 .loading{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
@@ -154,7 +156,7 @@ const DAYPART_ORDER = ["Breakfast(4 AM-11 AM)","Lunch(11 AM-2 PM)",
 const PRIORITY_OPTS = ["urgent","high","normal","low"];
 const STATUS_OPTS   = ["new","assigned","in_progress","waiting"];
 
-let STATE = null;  // last server response (data + result + stores + manager)
+let STATE = null;
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>(
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -327,48 +329,6 @@ function renderVisits(visits, stores){
   return h+'</div>';
 }
 
-function renderVoice(voice, stores, role){
-  if(!voice || !voice.length) return "";
-  const byStore = Object.fromEntries(stores.map(s => [s.id, s.name]));
-  // Group voice rows by store_id (null = Combined for Owner)
-  const groups = new Map();
-  voice.forEach(v=>{
-    const k = v.store_id==null ? "Combined" : (byStore[v.store_id]||"");
-    if(!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(v);
-  });
-  let h='<div class="card"><h3>Guest Satisfaction (VOICE)</h3>';
-  let any=false;
-  groups.forEach((rows, label)=>{
-    const periods=[...new Set(rows.map(v=>v.period_start))].sort().reverse();
-    const latest=periods[0], prev=periods[1];
-    const at=(metric,p)=>rows.find(v=>v.metric===metric&&v.period_start===p);
-    let any2=false;
-    let inner='';
-    VOICE_ORDER.forEach(metric=>{
-      const cur=at(metric,latest); if(!cur||cur.score==null) return;
-      any2=true; any=true;
-      const pr=prev?at(metric,prev):null;
-      let delta="";
-      if(pr&&pr.score!=null){
-        const d=Number(cur.score)-Number(pr.score);
-        if(Math.abs(d)>=0.05) delta=' <span class="'+(d>0?"up":"dn")+'">'+(d>0?"▲":"▼")+Math.abs(d).toFixed(1)+'</span>';
-      }
-      inner+='<div class="metric"><span>'+esc(metric)+'</span>'+
-            '<span class="v">'+Number(cur.score).toFixed(1)+'%'+
-            '<span class="d">n='+esc(cur.response_count||'-')+'</span>'+delta+'</span></div>';
-    });
-    if(any2){
-      if(groups.size>1) h+='<div class="sub2">'+esc(label)+'</div>';
-      h+=inner;
-      const ld=latest?new Date(latest).toLocaleDateString("en-US",{month:"long",year:"numeric"}):"";
-      h+='<div class="summary" style="margin:6px 0 0">SMG VOICE &middot; '+esc(ld)+'</div>';
-    }
-  });
-  if(!any) return "";
-  return h+'</div>';
-}
-
 function renderLabor(labor){
   if(!labor || !labor.length) return "";
   const rows=labor.slice().sort((a,b)=>
@@ -383,25 +343,6 @@ function renderLabor(labor){
   });
   const d=(labor[0]&&labor[0].stat_date)?fmtDate(vdate(labor[0].stat_date)):'';
   h+='<div class="summary" style="margin:8px 0 0">QSRSoft punch labor % &middot; lowest first'+(d?' &middot; as of '+esc(d):'')+'</div>';
-  return h+'</div>';
-}
-
-function renderPace(pace){
-  if(!pace || !pace.length) return "";
-  const rows=pace.slice().sort((a,b)=>
-    Number(b.dt_satisfaction==null?-1:b.dt_satisfaction)-
-    Number(a.dt_satisfaction==null?-1:a.dt_satisfaction));
-  let h='<div class="card"><h3>My Patch &mdash; PACE (MTD)</h3>';
-  rows.forEach(p=>{
-    const dt=(p.dt_satisfaction!=null)?Number(p.dt_satisfaction).toFixed(1)+'%':'&mdash;';
-    const ir=(p.ir_satisfaction!=null)?Number(p.ir_satisfaction).toFixed(1)+'%':'&mdash;';
-    h+='<div class="metric"><span>'+esc(p.store_name||'')+'</span>'+
-       '<span class="v">'+dt+'<span class="d">DT</span> &middot; '+
-       ir+'<span class="d">IR</span></span></div>';
-  });
-  const ps=pace[0]&&pace[0].period_start, pe=pace[0]&&pace[0].period_end;
-  const rng=(ps&&pe)?' &middot; '+fmtDate(vdate(ps))+'&ndash;'+fmtDate(vdate(pe)):'';
-  h+='<div class="summary" style="margin:8px 0 0">SMG PACE &middot; DT / IR'+rng+'</div>';
   return h+'</div>';
 }
 
@@ -429,6 +370,70 @@ function renderManagerRank(rows){
     h+='</tbody></table>';
   });
   if(!any) return "";
+  return h+'</div>';
+}
+
+function renderVoiceView(view){
+  if(!view) return "";
+  const kpis=Array.isArray(view.kpis)?view.kpis:[];
+  const peak=Array.isArray(view.peak)?view.peak:[];
+  const hasKpi=kpis.some(r=>r.osat!=null||r.accuracy!=null||r.digital_ead!=null||r.cleanliness!=null);
+  const hasPeak=peak.some(r=>r.breakfast!=null||r.lunch!=null||r.dinner!=null);
+  if(!hasKpi && !hasPeak) return "";
+
+  const pct=v=>(v==null||v==="")?'&mdash;':Number(v).toFixed(1)+'%';
+  const shortName=n=>{
+    const s=String(n||"").trim();
+    if(s.toLowerCase()==="combined") return "Combined";
+    const stripped=s.replace(/^\d{4,6}\s*-\s*/,"").trim();
+    const piece=stripped.split(/[-/]/)[0].trim();
+    return piece || stripped || s;
+  };
+
+  const period = view.period_start
+    ? new Date(view.period_start).toLocaleDateString("en-US",{month:"short",day:"numeric"})
+       + (view.period_end && view.period_end!==view.period_start
+           ? '&ndash;'+new Date(view.period_end).toLocaleDateString("en-US",{month:"short",day:"numeric"})
+           : '')
+    : '';
+  const src = (Array.isArray(view.sources)&&view.sources.length)
+    ? view.sources.join(' / ') : 'SMG Daily Run';
+
+  let h = '<div class="card"><h3>Recommended view</h3>'+
+          '<div class="summary">'+esc(src)+(period?' &middot; '+period:'')+'</div>';
+
+  if(hasKpi){
+    h+='<table class="mr-tbl" style="margin-top:6px">'+
+       '<colgroup><col class="c-mgr"><col class="c-kpi"><col class="c-kpi"><col class="c-kpi"><col class="c-kpi"></colgroup>'+
+       '<thead><tr><th class="l">Store</th><th>OSAT</th><th>Acc</th><th>Dig%EAD</th><th>Clean</th></tr></thead><tbody>';
+    kpis.forEach(r=>{
+      const isCombined = r.store_id==null;
+      h+='<tr'+(isCombined?' class="top"':'')+'>'+
+         '<td class="l" title="'+esc(r.store_name||"")+'">'+esc(shortName(r.store_name))+'</td>'+
+         '<td>'+pct(r.osat)+'</td>'+
+         '<td>'+pct(r.accuracy)+'</td>'+
+         '<td>'+pct(r.digital_ead)+'</td>'+
+         '<td>'+pct(r.cleanliness)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+
+  if(hasPeak){
+    h+='<div class="sub2" style="margin-top:12px">OSAT by peak</div>'+
+       '<table class="mr-tbl">'+
+       '<colgroup><col class="c-mgr"><col class="c-pk2"><col class="c-pk2"><col class="c-pk2"></colgroup>'+
+       '<thead><tr><th class="l">Store</th><th>Bkfst</th><th>Lunch</th><th>Dinner</th></tr></thead><tbody>';
+    peak.forEach(r=>{
+      const isCombined = r.store_id==null;
+      h+='<tr'+(isCombined?' class="top"':'')+'>'+
+         '<td class="l" title="'+esc(r.store_name||"")+'">'+esc(shortName(r.store_name))+'</td>'+
+         '<td>'+pct(r.breakfast)+'</td>'+
+         '<td>'+pct(r.lunch)+'</td>'+
+         '<td>'+pct(r.dinner)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+
   return h+'</div>';
 }
 
@@ -475,7 +480,6 @@ function renderBoard(payload){
      '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
      '<div id="newFormMount"></div>';
 
-  // Hot section: all high/urgent
   const hot=tasks.filter(t=>t.priority==="urgent"||t.priority==="high")
     .sort((a,b)=>{
       const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
@@ -484,21 +488,17 @@ function renderBoard(payload){
     });
   h+=section("Hot — high priority", hot, "Across all your stores.");
 
-  // Per-store sections (normal priority only — high already in Hot)
   stores.forEach(store=>{
     const list=tasks.filter(t=>t.store_id===store.id && t.priority!=="urgent" && t.priority!=="high");
     h+=section(store.name, list);
   });
 
-  // Cross-store
   const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
   h+=section("Cross-store / Org", cross);
 
-  // Patch data
+  h+=renderVoiceView(data.voice_view);
   h+=renderVisits(data.visits||[], stores);
-  h+=renderVoice(data.voice||[], stores, mgr.role);
   h+=renderLabor(data.labor||[]);
-  h+=renderPace(data.pace||[]);
   h+=renderManagerRank(data.manager_rank||[]);
 
   h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
@@ -509,8 +509,6 @@ function renderBoard(payload){
 function showError(msg, raw){
   document.getElementById("app").innerHTML='<div class="errbox"><b>Could not load.</b><br>'+esc(msg)+(raw?'<pre style="font-size:10px;white-space:pre-wrap">'+esc(typeof raw==="string"?raw:JSON.stringify(raw)).slice(0,2000)+'</pre>':'')+'</div>';
 }
-
-// -- interactions --
 
 function toggleRow(headEl){
   const row=headEl.parentElement;
