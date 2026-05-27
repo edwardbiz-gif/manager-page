@@ -72,6 +72,12 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .t-tag.st-assigned{color:var(--st-assigned)}
 .t-tag.st-in_progress{color:var(--st-in_progress)}
 .t-tag.st-waiting{color:var(--st-waiting)}
+.t-tag.cat{font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:9.5px}
+.t-tag.cat-it{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
+.t-tag.cat-maintenance{background:#fef3c7;border-color:#fde68a;color:#92400e}
+.t-tag.cat-office{background:#f3e8ff;border-color:#e9d5ff;color:#6b21a8}
+.t-tag.cat-store{background:#eef9ec;border-color:#cce6ce;color:var(--accent)}
+.t-tag.cat-patch{background:#e0f2fe;border-color:#bae6fd;color:#075985}
 .t-desc{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
  font-size:12px;color:#52525b;white-space:pre-wrap}
 .t-row:not(.open) .t-desc{display:none}
@@ -144,6 +150,72 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .errbox{max-width:432px;margin:14px auto;background:#fff;border:1px solid var(--line);
  border-radius:11px;padding:13px;font-size:12.5px}
 .errbox b{color:var(--urgent)}
+
+/* ---- Open Complaints card ----------------------------------------- */
+.card.complaints h3{color:var(--urgent)}
+.c-row{display:block;padding:11px 0;border-top:1px solid var(--line);position:relative}
+.c-row:first-of-type{border-top:0}
+.c-row::before{content:"";position:absolute;left:-14px;top:11px;bottom:11px;
+ width:3px;border-radius:0 3px 3px 0;background:#cbd5e1}
+.c-row.sla-over::before{background:var(--urgent)}
+.c-row.sla-today::before{background:var(--high)}
+.c-row.sla-tom::before{background:#d97706}
+.c-row.sla-ok::before{background:#9ca3af}
+.c-head{cursor:pointer}
+.c-top{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);flex-wrap:wrap}
+.c-id{font-weight:700}
+.c-store{margin-left:auto;background:#eef2ee;color:var(--accent);border-radius:5px;
+ padding:1px 6px;font-size:10px;font-weight:600;letter-spacing:.02em}
+.c-title{font-weight:600;font-size:14px;margin:5px 0 6px;line-height:1.35}
+.c-title .who{color:var(--fg)}
+.c-title .sep{color:var(--muted);margin:0 5px;font-weight:400}
+.c-title .what{color:var(--muted);font-weight:500;font-size:13px}
+.c-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.sla{font-size:10.5px;border-radius:5px;padding:1px 7px;border:1px solid var(--line);
+ background:#f4f5f3;color:var(--muted);white-space:nowrap;font-weight:700;
+ text-transform:uppercase;letter-spacing:.03em}
+.sla.over{background:var(--due-over);border-color:#fecaca;color:var(--due-overc)}
+.sla.today{background:#fee4e2;border-color:#fecaca;color:var(--due-overc)}
+.sla.tom{background:var(--due-soon);border-color:#fde68a;color:var(--due-soonc)}
+.sla.ok{background:#eef9ec;border-color:#cce6ce;color:var(--accent)}
+.sla.recov{background:var(--urgent);border-color:var(--urgent);color:#fff}
+.c-age{font-size:10.5px;color:var(--muted)}
+.c-body{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+.c-row.open .c-body{display:block}
+.c-section{margin-top:10px}
+.c-section:first-child{margin-top:0}
+.c-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+ color:var(--muted);margin-bottom:4px;display:flex;align-items:center}
+.c-quote{background:#fafbf9;border:1px solid var(--line);border-radius:7px;
+ padding:8px 10px;font-size:12.5px;color:#3f3f46;white-space:pre-wrap;line-height:1.5}
+.c-quote.draft{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+ background:#fff;color:#1f2421;max-height:240px;overflow:auto}
+.c-contact{font-size:12px;color:#3f3f46;line-height:1.65}
+.c-contact .k{color:var(--muted);font-weight:600;margin-right:5px;display:inline-block;
+ min-width:46px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.c-contact a{color:var(--accent);text-decoration:none}
+.c-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px;padding-top:9px;
+ border-top:1px dashed var(--line)}
+.c-actions .act.primary{background:var(--urgent);border-color:var(--urgent);color:#fff}
+.c-actions .act.primary:hover{background:#8a1a13;border-color:#8a1a13}
+.c-copy{font-size:11.5px;color:var(--accent);font-weight:600;margin-left:auto;
+ background:transparent;border:0;cursor:pointer;padding:0}
+.c-copy.ok{color:var(--accent)}
+
+/* ---- GM intake form ("I need something") ------------------------- */
+.intake-bar{margin:10px 0 0}
+.intake-btn{width:100%;background:#1f4520;color:#fff;border:0;border-radius:9px;
+ padding:13px 14px;font-size:14.5px;font-weight:700;cursor:pointer;
+ box-shadow:0 1px 3px rgba(0,0,0,.13);text-align:center;line-height:1.25}
+.intake-btn:hover{background:#143012}
+.intake-btn .sub{display:block;font-weight:500;font-size:11.5px;opacity:.85;margin-top:3px}
+.intake-radios{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.intake-radios label{display:inline-flex;align-items:center;gap:5px;background:#fff;
+ border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;
+ font-weight:600;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer;
+ margin:0}
+.intake-radios label.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.intake-radios input{position:absolute;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -169,6 +241,20 @@ const DAYPART_ORDER = ["Breakfast(4 AM-11 AM)","Lunch(11 AM-2 PM)",
   "Snack(2 PM-4 PM)","Dinner(4 PM-9 PM)","Evening(9 PM-12 AM)"];
 const PRIORITY_OPTS = ["urgent","high","normal","low"];
 const STATUS_OPTS   = ["new","assigned","in_progress","waiting"];
+const CATEGORY_OPTS = ["it","maintenance","office","store","patch"];
+
+// GM intake form ("I need something") — only the four GM-facing buckets;
+// 'store' is excluded (a GM filing a store task should just use + Add task).
+const INTAKE_CATEGORIES = [
+  {value:"it",          label:"IT"},
+  {value:"maintenance", label:"Maintenance"},
+  {value:"office",      label:"Office"},
+  {value:"patch",       label:"Patch help"},
+];
+const INTAKE_SEVERITIES = [
+  {value:"normal", label:"Normal"},
+  {value:"urgent", label:"Urgent"},
+];
 
 // Q1 2026 GM Bonus Plan - from the GM meeting deck. Update each quarter.
 const BONUS_PLAN = {
@@ -230,6 +316,18 @@ function statusTag(status){
 function cohortsTag(c){
   return c ? '<span class="t-tag">w/ '+esc(c)+'</span>' : "";
 }
+function categoryTag(cat){
+  const c=String(cat||"").trim().toLowerCase();
+  if(!c) return "";
+  return '<span class="t-tag cat cat-'+esc(c)+'">'+esc(c)+'</span>';
+}
+function categoryOptionsHtml(sel){
+  let h='<option value=""'+(!sel?' selected':'')+'>— None —</option>';
+  CATEGORY_OPTS.forEach(v=>{
+    h+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+v+'</option>';
+  });
+  return h;
+}
 
 function storeOptionsHtml(stores, selectedId){
   let h='<option value=""'+(selectedId==null?' selected':'')+'>— Cross-store / Org —</option>';
@@ -256,6 +354,8 @@ function editFormHtml(t, stores){
         '<input type="date" name="due_at" value="'+(t.due_at?esc(isoDate(t.due_at)):"")+'"></div>'+
       '<div><label>Store</label>'+
         '<select name="store_id">'+storeOptionsHtml(stores, t.store_id)+'</select></div>'+
+      '<div><label>Category</label>'+
+        '<select name="category">'+categoryOptionsHtml(t.category||"")+'</select></div>'+
     '</div>'+
     '<div><label>Description</label>'+
       '<textarea name="description">'+esc(t.description||"")+'</textarea></div>'+
@@ -279,12 +379,42 @@ function newFormHtml(stores){
         '<input type="date" name="due_at"></div>'+
       '<div><label>Store</label>'+
         '<select name="store_id">'+storeOptionsHtml(stores, null)+'</select></div>'+
+      '<div><label>Category</label>'+
+        '<select name="category">'+categoryOptionsHtml("")+'</select></div>'+
     '</div>'+
     '<div><label>Description (optional)</label>'+
       '<textarea name="description" placeholder="Any extra context..."></textarea></div>'+
     '<div class="row-actions">'+
       '<button class="act" onclick="closeNewForm(event,this)">Cancel</button>'+
       '<button class="act primary" onclick="saveNew(event,this)">Add task</button>'+
+    '</div>'+
+  '</div>';
+}
+
+// GM intake form — "I need something" submission. Posts action=intake; the
+// Edge Function routes to Eddie + the GM's supervisor (per category) and
+// stamps source_type='gm-intake'. Only rendered for mgr.role === 'GM'.
+function intakeFormHtml(){
+  const cats = INTAKE_CATEGORIES.map(c =>
+    '<label data-cat="'+c.value+'" onclick="pickIntakeOpt(event,this)">'+
+      '<input type="radio" name="category" value="'+c.value+'">'+
+      '<span>'+esc(c.label)+'</span></label>').join("");
+  const sev = INTAKE_SEVERITIES.map(s =>
+    '<label data-sev="'+s.value+'"'+(s.value==='normal'?' class="sel"':'')+
+      ' onclick="pickIntakeOpt(event,this)">'+
+      '<input type="radio" name="severity" value="'+s.value+'"'+(s.value==='normal'?' checked':'')+'>'+
+      '<span>'+esc(s.label)+'</span></label>').join("");
+  return ''+
+  '<div class="form" data-mode="intake">'+
+    '<div><label>What kind of help?</label>'+
+      '<div class="intake-radios">'+cats+'</div></div>'+
+    '<div style="margin-top:8px"><label>What do you need?</label>'+
+      '<textarea name="description" placeholder="e.g. Fryer #2 grinding noise, started this morning."></textarea></div>'+
+    '<div style="margin-top:8px"><label>How urgent?</label>'+
+      '<div class="intake-radios">'+sev+'</div></div>'+
+    '<div class="row-actions">'+
+      '<button class="act" onclick="closeIntakeForm(event,this)">Cancel</button>'+
+      '<button class="act primary" onclick="saveIntake(event,this)">Submit</button>'+
     '</div>'+
   '</div>';
 }
@@ -296,7 +426,7 @@ function taskRowHtml(t){
   const storeLabel=t.store_name||"";
   const storeTag=storeLabel ? '<span class="t-store">'+esc(storeLabel)+'</span>' : "";
   const top=idTag+' &middot; '+priTag+storeTag;
-  const meta=dueTag(t.due_at)+statusTag(t.status)+cohortsTag(t.cohorts);
+  const meta=categoryTag(t.category)+dueTag(t.due_at)+statusTag(t.status)+cohortsTag(t.cohorts);
   const desc=(t.description && String(t.description).trim()) ?
     '<div class="t-desc">'+esc(t.description)+'</div>' : '';
   return '<div class="t-row p-'+pr+'" data-id="'+t.id+'">'+
@@ -515,6 +645,128 @@ function renderVoiceView(view){
   return h+'</div>';
 }
 
+// ---- Open Complaints card ------------------------------------------
+// Surfaces complaint rows that pull_complaints.py created from
+// us-care.mcdonalds.com emails. Each row has an SLA badge (Overdue / Due
+// today / Due tomorrow / Within SLA) based on the linked task's 72h due_at,
+// sorted by SLA pressure. Expand reveals the full complaint text + the
+// draft response email (sliced out of task description) + Mark Resolved.
+
+function slaBucket(dueAt){
+  // Returns {key, label} for the SLA badge. Keyed off due_at (the 72h clock).
+  if(!dueAt) return {key:"ok", label:"Within SLA"};
+  const due=new Date(dueAt).getTime(), now=Date.now();
+  const ms=due-now, h=ms/3600000;
+  if(h < 0) return {key:"over", label:"Overdue"};
+  if(h < 24) return {key:"today", label:"Due today"};
+  if(h < 48) return {key:"tom", label:"Due tomorrow"};
+  return {key:"ok", label:"Within SLA"};
+}
+function ageSince(ts){
+  if(!ts) return "";
+  const ms=Date.now()-new Date(ts).getTime();
+  const h=Math.floor(ms/3600000);
+  if(h < 1) return "just now";
+  if(h < 24) return h+"h ago";
+  const d=Math.floor(h/24);
+  return d+"d ago";
+}
+
+// Pull the draft response email out of the task description. The loader
+// (pull_complaints.py / build_task_description) writes a "---" rule then
+// "**Draft response email** (paste...)" then the body. We grab everything
+// after that header and strip the parenthetical.
+function extractDraft(desc){
+  if(!desc) return "";
+  const m=String(desc).match(/\*\*Draft response email\*\*[^\n]*\n+([\s\S]+)$/);
+  return m ? m[1].trim() : "";
+}
+
+function renderComplaints(rows){
+  if(!rows || !rows.length) return "";
+  // Sort: SLA pressure first (over -> today -> tom -> ok), then earliest due.
+  const order={over:0, today:1, tom:2, ok:3};
+  const enriched=rows.map(r=>({...r, _sla: slaBucket(r.due_at)}));
+  enriched.sort((a,b)=>{
+    const oa=order[a._sla.key]??9, ob=order[b._sla.key]??9;
+    if(oa!==ob) return oa-ob;
+    const ad=a.due_at?new Date(a.due_at).getTime():Infinity;
+    const bd=b.due_at?new Date(b.due_at).getTime():Infinity;
+    return ad-bd;
+  });
+
+  let h='<div class="card complaints"><h3>Open Complaints<span class="ct">'+
+        enriched.length+'</span></h3>'+
+        '<div class="summary">McD Customer Care &middot; 72-hour SLA &middot; sorted by SLA pressure</div>';
+
+  enriched.forEach(c=>{
+    const sla=c._sla;
+    const issue=c.issue_subcode || c.issue_reason || c.issue_category || "see details";
+    const cust=c.customer_name || "(unknown customer)";
+    const store=c.store_name || "";
+    const draft=extractDraft(c.task_description);
+    const comment=(c.comment && String(c.comment).trim()) || "(no comment captured)";
+
+    // Row head - intentionally NO phone number (PII; link-leak concern).
+    const recovTag = c.recovery_needed
+      ? '<span class="sla recov">Recovery</span>' : '';
+    const idStr='#'+esc(c.case_number||c.id);
+    const storeTag = store ? '<span class="c-store">'+esc(store)+'</span>' : '';
+
+    // Body - full complaint text + contact (phone/email here, behind tap) +
+    // the draft response in copyable form + Mark Resolved.
+    const phoneLine = c.customer_phone
+      ? '<div><span class="k">Phone</span>'+esc(c.customer_phone)+'</div>' : '';
+    const emailLine = c.customer_email
+      ? '<div><span class="k">Email</span><a href="mailto:'+esc(c.customer_email)+'">'+
+        esc(c.customer_email)+'</a></div>' : '';
+    const closureLine = c.closure_url
+      ? '<div style="margin-top:6px;font-size:11.5px"><a href="'+esc(c.closure_url)+
+        '" target="_blank" rel="noopener" style="color:var(--accent)">'+
+        '&rarr; Close case in McD portal</a></div>' : '';
+    const draftBlock = draft
+      ? '<div class="c-section">'+
+        '<div class="c-label">Draft response email'+
+          '<button class="c-copy" data-copy-id="'+c.id+'" onclick="copyDraft(event,this)">Copy</button>'+
+        '</div>'+
+        '<div class="c-quote draft" id="draft-'+c.id+'">'+esc(draft)+'</div></div>'
+      : '';
+
+    h+='<div class="c-row sla-'+sla.key+'" data-id="'+c.id+'">'+
+       '<div class="c-head" onclick="toggleComplaint(this)">'+
+         '<div class="c-top">'+
+           '<span class="c-id">'+idStr+'</span>'+
+           '<span>'+ageSince(c.received_at)+'</span>'+
+           storeTag+
+         '</div>'+
+         '<div class="c-title">'+
+           '<span class="who">'+esc(cust)+'</span>'+
+           '<span class="sep">&middot;</span>'+
+           '<span class="what">'+esc(issue)+'</span>'+
+         '</div>'+
+         '<div class="c-meta">'+
+           '<span class="sla '+sla.key+'">'+esc(sla.label)+'</span>'+
+           recovTag+
+         '</div>'+
+       '</div>'+
+       '<div class="c-body">'+
+         '<div class="c-section">'+
+           '<div class="c-label">Customer&rsquo;s words</div>'+
+           '<div class="c-quote">'+esc(comment)+'</div>'+
+         '</div>'+
+         (phoneLine||emailLine||closureLine ?
+           '<div class="c-section"><div class="c-label">Contact</div>'+
+           '<div class="c-contact">'+phoneLine+emailLine+closureLine+'</div></div>' : '')+
+         draftBlock+
+         '<div class="c-actions">'+
+           '<button class="act primary" onclick="resolveComplaint(event,this)">Mark resolved</button>'+
+         '</div>'+
+       '</div>'+
+       '</div>';
+  });
+  return h+'</div>';
+}
+
 function flashHtml(result){
   if(!result) return "";
   return '<div class="flash '+(result.ok?'ok':'err')+'">'+esc(result.msg||"")+'</div>';
@@ -554,6 +806,16 @@ function renderBoard(payload){
      '<div class="chip"><div class="n">'+dueSoon+'</div><div class="l">Due &le; 7d</div></div>'+
      '</div>';
 
+  // GM intake — "I need something" CTA. Routes to Eddie + supervisor based
+  // on category server-side. GMs only; other roles use + Add task directly.
+  if(mgr.role==='GM'){
+    h+='<div class="intake-bar">'+
+       '<button class="intake-btn" onclick="openIntakeForm()">I need something'+
+       '<span class="sub">IT, maintenance, office help, or supervisor patch — Eddie sees it immediately.</span>'+
+       '</button></div>'+
+       '<div id="intakeFormMount"></div>';
+  }
+
   h+='<div class="add-bar">'+
      '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
      '<div id="newFormMount"></div>';
@@ -576,6 +838,10 @@ function renderBoard(payload){
   // Cross-store
   const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
   h+=section("Cross-store / Org", cross);
+
+  // Open Complaints - sits between Tasks and Recommended view so it lands
+  // in eyeline as soon as the manager scrolls past their task list.
+  h+=renderComplaints(data.complaints||[]);
 
   // Recommended view (replaces monthly VOICE + PACE only — see renderVoiceView).
   h+=renderVoiceView(data.voice_view);
@@ -626,6 +892,54 @@ function closeNewForm(ev, btn){
   document.getElementById("newFormMount").innerHTML="";
 }
 
+// GM intake form handlers ------------------------------------------------
+function openIntakeForm(){
+  const mount=document.getElementById("intakeFormMount");
+  if(!mount) return;
+  if(mount.firstChild){ mount.innerHTML=""; return; }
+  mount.innerHTML=intakeFormHtml();
+}
+function closeIntakeForm(ev, btn){
+  ev.stopPropagation();
+  document.getElementById("intakeFormMount").innerHTML="";
+}
+function pickIntakeOpt(ev, lbl){
+  // Click on a label sets its radio checked + toggles `.sel` for visual
+  // selection. The native radio input is visually hidden (off-screen) so
+  // labels are the click target; bail out if the click was on the input
+  // itself so the browser's native check still applies.
+  if(ev.target.tagName==='INPUT') return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  lbl.parentElement.querySelectorAll('label').forEach(l=>l.classList.remove('sel'));
+  lbl.classList.add('sel');
+  const inp=lbl.querySelector('input');
+  if(inp) inp.checked=true;
+}
+async function saveIntake(ev, btn){
+  ev.stopPropagation();
+  const form=btn.closest(".form");
+  const cat=form.querySelector('input[name=category]:checked');
+  if(!cat){ alert("Pick a category."); return; }
+  const desc=form.querySelector('[name=description]').value.trim();
+  if(!desc){ alert("Tell us what you need."); return; }
+  const sev=form.querySelector('input[name=severity]:checked');
+  const payload={
+    action: "intake",
+    category: cat.value,
+    description: desc,
+    severity: sev ? sev.value : "normal",
+  };
+  form.classList.add("busy");
+  try{
+    const res = await callApi(payload);
+    document.getElementById("app").innerHTML = renderBoard(res);
+  }catch(e){
+    form.classList.remove("busy");
+    alert("Submit failed: " + (e && e.message));
+  }
+}
+
 async function callApi(body){
   const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
     method: "POST",
@@ -647,6 +961,7 @@ async function saveEdit(ev, btn){
     status: form.querySelector('[name=status]').value,
     due_at: form.querySelector('[name=due_at]').value,
     store_id: form.querySelector('[name=store_id]').value,
+    category: form.querySelector('[name=category]').value,
     description: form.querySelector('[name=description]').value,
   };
   form.classList.add("busy");
@@ -668,6 +983,7 @@ async function saveNew(ev, btn){
     status: form.querySelector('[name=status]').value,
     due_at: form.querySelector('[name=due_at]').value,
     store_id: form.querySelector('[name=store_id]').value,
+    category: form.querySelector('[name=category]').value,
     description: form.querySelector('[name=description]').value,
   };
   if(!payload.title){ alert("Title is required."); return; }
@@ -693,6 +1009,55 @@ async function closeTask(ev, btn, toStatus){
   }catch(e){
     row.classList.remove("busy");
     alert(verb + " failed: " + (e && e.message));
+  }
+}
+
+// ---- Open Complaints interactions ---------------------------------
+function findComplaintRow(el){
+  while(el && !el.classList.contains("c-row")) el=el.parentElement;
+  return el;
+}
+function toggleComplaint(headEl){
+  headEl.parentElement.classList.toggle("open");
+}
+function copyDraft(ev, btn){
+  ev.stopPropagation();
+  const id=btn.dataset.copyId;
+  const pre=document.getElementById("draft-"+id);
+  if(!pre) return;
+  const txt=pre.innerText;
+  const done=()=>{ btn.textContent="Copied!"; btn.classList.add("ok");
+    setTimeout(()=>{ btn.textContent="Copy"; btn.classList.remove("ok"); }, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>{
+      const ta=document.createElement("textarea"); ta.value=txt;
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); done(); }
+      catch(_e){ alert("Copy failed - select the draft manually."); }
+      finally{ document.body.removeChild(ta); }
+    });
+  } else {
+    const ta=document.createElement("textarea"); ta.value=txt;
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); done(); }
+    catch(_e){ alert("Copy failed - select the draft manually."); }
+    finally{ document.body.removeChild(ta); }
+  }
+}
+async function resolveComplaint(ev, btn){
+  ev.stopPropagation();
+  const row=findComplaintRow(btn);
+  if(!row) return;
+  const id=Number(row.dataset.id);
+  // Confirm step - SLA clock is real; bad clicks shouldn't lose progress.
+  if(!confirm("Mark this complaint resolved?\n\nThis closes the linked task and stamps the complaint as handled. You can't undo this from the page.")) return;
+  row.classList.add("busy");
+  try{
+    const res = await callApi({ action: "resolve_complaint", id });
+    document.getElementById("app").innerHTML = renderBoard(res);
+  }catch(e){
+    row.classList.remove("busy");
+    alert("Resolve failed: " + (e && e.message));
   }
 }
 
