@@ -124,6 +124,20 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .mr-tbl col.c-pk{width:38px}
 .mr-tbl col.c-kpi{width:52px}
 .mr-tbl col.c-pk2{width:58px}
+.bgrp{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+ color:var(--muted);margin:11px 0 3px}
+.bgrp:first-child{margin-top:0}
+.brow{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)}
+.brow:first-of-type{border-top:0}
+.bamt{flex:0 0 auto;font-size:12.5px;font-weight:800;color:#fff;background:var(--accent);
+ border-radius:7px;padding:3px 8px;white-space:nowrap;align-self:flex-start}
+.bcrit{font-size:13.5px;font-weight:600}
+.bcrit .s{font-size:11.5px;color:var(--muted);font-weight:400;margin-top:1px}
+.dq{font-size:12.5px;line-height:1.7}
+.dq span{display:inline-block;background:#fee4e2;color:var(--urgent);font-weight:600;
+ border-radius:6px;padding:1px 7px;margin:2px 4px 2px 0;font-size:11.5px}
+.bnote{font-size:11.5px;color:var(--muted);font-style:italic;
+ border-top:1px solid var(--line);margin-top:9px;padding-top:8px}
 .empty{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0 2px}
 .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
 .loading{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
@@ -156,7 +170,24 @@ const DAYPART_ORDER = ["Breakfast(4 AM-11 AM)","Lunch(11 AM-2 PM)",
 const PRIORITY_OPTS = ["urgent","high","normal","low"];
 const STATUS_OPTS   = ["new","assigned","in_progress","waiting"];
 
-let STATE = null;
+// Q1 2026 GM Bonus Plan - from the GM meeting deck. Update each quarter.
+const BONUS_PLAN = {
+  quarter:"Q1", role:"GM",
+  service:[
+    {amt:"$95", crit:"Level 1"},
+    {amt:"$45", crit:"Top 5",
+     sub:"Accuracy % in VOICE · Upsell % (Lg Meals/Total) · Pies per 100k GC"}
+  ],
+  profit:[
+    {amt:"$70/mo",   crit:"Top 5 — monthly", sub:"FOB · Labor vs. Target"},
+    {amt:"$500/qtr", crit:"Up to $500 — PAC $ vs. last year",
+     sub:"+10% → $500 · +5% → $400 · +3% → $300"}
+  ],
+  disqualifiers:["Failed visit (CFV, FS, RGR)","Level 3","50+ hours of overtime",
+                 "Miss P+L projection by >1.5%","Under 85% scheduled attendance"]
+};
+
+let STATE = null;  // last server response (data + result + stores + manager)
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>(
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -297,6 +328,9 @@ function tasksWithStoreName(tasks, stores){
   return tasks.map(t => ({...t, store_name: t.store_id ? (byId[t.store_id]||"") : ""}));
 }
 
+// Patch-data renderers - kept alongside the new Recommended view.
+// (Only monthly VOICE + PACE were replaced; visits/labor/manager-rank stay.)
+
 function renderVisits(visits, stores){
   if(!visits || !visits.length) return "";
   const byStore = Object.fromEntries(stores.map(s => [s.id, s.name]));
@@ -373,6 +407,47 @@ function renderManagerRank(rows){
   return h+'</div>';
 }
 
+// renderVoiceView - SMG Daily Run KPIs + OSAT-by-peak. Replaces the prior
+// SMG-sourced cards (monthly VOICE + PACE). Combined (Owner only) is the
+// first/highlighted row.
+function brow(x){
+  return '<div class="brow"><div class="bamt">'+esc(x.amt)+'</div>'+
+    '<div class="bcrit">'+esc(x.crit)+
+    (x.sub?'<div class="s">'+esc(x.sub)+'</div>':'')+'</div></div>';
+}
+
+// Bonus plan (Q1 GM Bonus Plan reference + earned $ rollup by store).
+// Shown for every role — supervisors review their patch's bonus performance,
+// GMs see their own store, Owner sees all.
+function renderBonus(results){
+  const p=BONUS_PLAN;
+  let h='<div class="card"><h3>'+esc(p.quarter)+' Bonus Plan ('+esc(p.role)+')</h3>';
+  h+='<div class="bgrp">Service &mdash; monthly</div>'+p.service.map(brow).join("");
+  h+='<div class="bgrp">Profit</div>'+p.profit.map(brow).join("");
+  h+='<div class="bgrp">Monthly disqualifiers</div><div class="dq">'+
+     p.disqualifiers.map(d=>'<span>'+esc(d)+'</span>').join("")+'</div>';
+  // Aggregate Q1 dollars earned per store in scope.
+  const by={};
+  (results||[]).forEach(r=>{
+    const k=r.store_name||r.store||"?";
+    if(!by[k]) by[k]={store:k,dollars:0,count:0};
+    by[k].dollars+=Number(r.award_amount||0); by[k].count+=1;
+  });
+  const list=Object.values(by).sort((a,b)=>b.dollars-a.dollars);
+  if(list.length){
+    h+='<div class="bgrp">Q1 results &mdash; bonus earned by store</div>';
+    list.forEach(s=>{
+      h+='<div class="brow"><div class="bamt">$'+s.dollars+'</div>'+
+         '<div class="bcrit">'+esc(s.store)+
+         '<div class="s">'+s.count+' Top-5 placement'+(s.count===1?'':'s')+
+         ' across Q1</div></div></div>';
+    });
+    h+='<div class="bnote">Q1 placements transcribed from the GM meeting decks. '+
+       'Live payout figures arrive with the bonus engine.</div>';
+  }
+  return h+'</div>';
+}
+
 function renderVoiceView(view){
   if(!view) return "";
   const kpis=Array.isArray(view.kpis)?view.kpis:[];
@@ -385,6 +460,7 @@ function renderVoiceView(view){
   const shortName=n=>{
     const s=String(n||"").trim();
     if(s.toLowerCase()==="combined") return "Combined";
+    // Drop any leading "XXXXX - " NSN prefix, then take the first chunk.
     const stripped=s.replace(/^\d{4,6}\s*-\s*/,"").trim();
     const piece=stripped.split(/[-/]/)[0].trim();
     return piece || stripped || s;
@@ -402,6 +478,7 @@ function renderVoiceView(view){
   let h = '<div class="card"><h3>Recommended view</h3>'+
           '<div class="summary">'+esc(src)+(period?' &middot; '+period:'')+'</div>';
 
+  // ---- 4 headline KPIs ----
   if(hasKpi){
     h+='<table class="mr-tbl" style="margin-top:6px">'+
        '<colgroup><col class="c-mgr"><col class="c-kpi"><col class="c-kpi"><col class="c-kpi"><col class="c-kpi"></colgroup>'+
@@ -418,6 +495,7 @@ function renderVoiceView(view){
     h+='</tbody></table>';
   }
 
+  // ---- OSAT by peak (Breakfast / Lunch / Dinner) ----
   if(hasPeak){
     h+='<div class="sub2" style="margin-top:12px">OSAT by peak</div>'+
        '<table class="mr-tbl">'+
@@ -480,6 +558,7 @@ function renderBoard(payload){
      '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
      '<div id="newFormMount"></div>';
 
+  // Hot section: all high/urgent
   const hot=tasks.filter(t=>t.priority==="urgent"||t.priority==="high")
     .sort((a,b)=>{
       const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
@@ -488,17 +567,22 @@ function renderBoard(payload){
     });
   h+=section("Hot — high priority", hot, "Across all your stores.");
 
+  // Per-store sections (normal priority only — high already in Hot)
   stores.forEach(store=>{
     const list=tasks.filter(t=>t.store_id===store.id && t.priority!=="urgent" && t.priority!=="high");
     h+=section(store.name, list);
   });
 
+  // Cross-store
   const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
   h+=section("Cross-store / Org", cross);
 
+  // Recommended view (replaces monthly VOICE + PACE only — see renderVoiceView).
   h+=renderVoiceView(data.voice_view);
+  // Non-SMG patch data — visits, labor, bonus, manager-rank.
   h+=renderVisits(data.visits||[], stores);
   h+=renderLabor(data.labor||[]);
+  h+=renderBonus(data.bonus_results||[]);
   h+=renderManagerRank(data.manager_rank||[]);
 
   h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
@@ -509,6 +593,8 @@ function renderBoard(payload){
 function showError(msg, raw){
   document.getElementById("app").innerHTML='<div class="errbox"><b>Could not load.</b><br>'+esc(msg)+(raw?'<pre style="font-size:10px;white-space:pre-wrap">'+esc(typeof raw==="string"?raw:JSON.stringify(raw)).slice(0,2000)+'</pre>':'')+'</div>';
 }
+
+// -- interactions --
 
 function toggleRow(headEl){
   const row=headEl.parentElement;
