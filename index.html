@@ -524,7 +524,7 @@ function tasksWithStoreName(tasks, stores){
   return tasks.map(t => ({...t, store_name: t.store_id ? (byId[t.store_id]||"") : ""}));
 }
 
-// Patch-data renderers - kept alongside the new Recommended view.
+// Patch-data renderers - kept alongside the VOICE card.
 // (Only monthly VOICE + PACE were replaced; visits/labor/manager-rank stay.)
 
 function renderVisits(visits, stores){
@@ -966,7 +966,7 @@ function renderVoiceView(view){
   const src = (Array.isArray(view.sources)&&view.sources.length)
     ? view.sources.join(' / ') : 'SMG Daily Run';
 
-  let h = '<div class="card"><h3>Recommended view</h3>'+
+  let h = '<div class="card"><h3>VOICE</h3>'+
           '<div class="summary">'+esc(src)+(period?' &middot; '+period:'')+'</div>';
 
   // ---- 4 headline KPIs ----
@@ -1204,11 +1204,11 @@ function renderBoard(payload){
   const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
   h+=section("Cross-store / Org", cross);
 
-  // Open Complaints - sits between Tasks and Recommended view so it lands
+  // Open Complaints - sits between Tasks and VOICE so it lands
   // in eyeline as soon as the manager scrolls past their task list.
   h+=renderComplaints(data.complaints||[]);
 
-  // Recommended view (replaces monthly VOICE + PACE only — see renderVoiceView).
+  // VOICE card (replaces monthly VOICE + PACE — see renderVoiceView).
   h+=renderVoiceView(data.voice_view);
   // Recent low-rated customer comments (rating ≤ 2, last 90 days).
   h+=renderLowComments(data.voice_comments_recent||[]);
