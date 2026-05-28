@@ -636,10 +636,10 @@ function renderLowComments(comments){
 }
 
 // renderTurnover - crew + shift-leader monthly turnover with a 6-month
-// sparkline. One section per role. Each row: store, latest TTM%, latest
-// monthly%, sparkline. Owner sees a synthesized Combined row (from
-// turnover_org view) on top. Color thresholds tuned to org crew avg ~80%:
-// green if TTM < 80, amber 80-119, red >= 120.
+// sparkline. One section per role. Each row: store, # (roster_size),
+// latest TTM%, latest monthly%, sparkline. Owner sees a synthesized
+// Combined row (from turnover_org view) on top. Color thresholds tuned
+// to org crew avg ~80%: green < 80, amber 80-119, red >= 120.
 function renderTurnover(rows){
   if(!Array.isArray(rows) || !rows.length) return "";
   const byRole = {crew: [], shift_leader: []};
@@ -670,11 +670,12 @@ function renderTurnover(rows){
            '<circle cx="'+lastX+'" cy="'+lastY+'" r="2" fill="'+colorOf(last)+'"/>'+
            '</svg>';
   };
+  // Derive "Through {Month YYYY}" from the freshest latest_month across rows.
+  // Parse YYYY-MM parts manually (avoid Date() UTC-shift into the prior month).
   const months = rows.map(r => r.latest_month).filter(Boolean).sort();
   const maxMo = months.length ? months[months.length - 1] : null;
   let throughMo = '';
   if (maxMo) {
-    // Parse YYYY-MM-DD by parts (avoid Date() UTC-shift back into prior month)
     const m = String(maxMo).match(/^(\d{4})-(\d{2})/);
     if (m) {
       const MONTHS = ['January','February','March','April','May','June',
@@ -684,7 +685,8 @@ function renderTurnover(rows){
     }
   }
   let h = '<div class="card"><h3>Turnover</h3>'+
-          '<div class="summary">'+(throughMo ? 'Through '+throughMo+' &middot; ' : '')+'Monthly annualized &middot; trailing 12mo % &middot; 6-mo trend</div>';
+          '<div class="summary">'+(throughMo ? 'Through '+throughMo+' &middot; ' : '')+
+          'Monthly annualized &middot; trailing 12mo % &middot; 6-mo trend</div>';
   for (const role of ['crew','shift_leader']) {
     const list = byRole[role] || [];
     if (!list.length) continue;
@@ -693,6 +695,7 @@ function renderTurnover(rows){
     h += '<table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-top:4px">'+
          '<thead><tr style="text-align:left;color:var(--muted);font-weight:500">'+
          '<th style="padding:4px 6px 4px 0">Store</th>'+
+         '<th style="padding:4px 6px;text-align:right">#</th>'+
          '<th style="padding:4px 6px;text-align:right">TTM%</th>'+
          '<th style="padding:4px 6px;text-align:right">This mo%</th>'+
          '<th style="padding:4px 0 4px 6px;text-align:right">6mo</th>'+
@@ -700,10 +703,12 @@ function renderTurnover(rows){
     list.forEach(r => {
       const ttm = r.latest_ttm_pct == null ? '—' : Number(r.latest_ttm_pct).toFixed(0)+'%';
       const mo  = r.latest_monthly_pct == null ? '—' : Number(r.latest_monthly_pct).toFixed(0)+'%';
+      const ros = r.latest_roster == null ? '—' : Number(r.latest_roster).toLocaleString();
       const isCombined = r.store_id == null;
       h += '<tr style="border-top:1px solid var(--line)">'+
            '<td style="padding:6px 6px 6px 0;'+(isCombined?'font-weight:700':'')+'">'+
              esc(r.store_name||'')+'</td>'+
+           '<td style="padding:6px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+ros+'</td>'+
            '<td style="padding:6px;text-align:right;color:'+colorOf(r.latest_ttm_pct)+';font-weight:600">'+ttm+'</td>'+
            '<td style="padding:6px;text-align:right;color:var(--muted)">'+mo+'</td>'+
            '<td style="padding:6px 0 6px 6px;text-align:right">'+sparkline(r.trend)+'</td>'+
