@@ -20,6 +20,16 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .phone{max-width:432px;margin:0 auto;background:var(--paper);
  border:1px solid #d6d8d3;border-radius:22px;padding:16px 15px 28px;
  box-shadow:0 6px 26px rgba(0,0,0,.11)}
+.rgr-banner{background:var(--accent);color:#fff;border-radius:13px;
+ padding:13px 15px;text-align:center;margin-bottom:8px}
+.rgr-banner.warn{background:var(--high)}
+.rgr-banner.over{background:var(--urgent)}
+.rgr-banner .k{font-size:10.5px;font-weight:700;text-transform:uppercase;
+ letter-spacing:.07em;opacity:.85}
+.rgr-banner .big{font-size:33px;font-weight:800;line-height:1.05;margin:2px 0 0}
+.rgr-banner .big span{font-size:14px;font-weight:600;opacity:.85}
+.rgr-banner .m{font-size:13px;margin-top:3px;opacity:.95}
+.rgr-banner .extra{font-size:11px;margin-top:4px;opacity:.85;font-weight:600}
 .hdr{margin-bottom:10px}
 .hdr h2{font-size:22px;font-weight:700}
 .hdr .sub{color:var(--muted);font-size:13.5px;margin-top:2px}
@@ -302,6 +312,46 @@ function shortMgr(name){
   const first=s.slice(i+1).trim();
   const tc=t=>t? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : t;
   return (first.split(/\s+/).map(tc).join(" ")+" "+tc(last)).trim();
+}
+
+// Surfaces the soonest upcoming RGR visit in the manager's patch as a
+// banner at the top of the board. Shows for any role (Owner / Supervisor /
+// GM) — the Edge Function already scopes `visits` to the manager's stores,
+// so a supervisor sees the next RGR across their patch and a GM sees only
+// their store's. Banner only renders when an RGR is within 45 days.
+function nextRGR(visits){
+  const t0=today0();
+  return (visits||[])
+    .filter(v=>v.visit_type==="rgrv" && v.visit_date && vdate(v.visit_date)>=t0)
+    .sort((a,b)=>vdate(a.visit_date)-vdate(b.visit_date))[0]||null;
+}
+
+function renderCountdown(visits, stores){
+  const r=nextRGR(visits);
+  if(!r) return "";
+  const days=Math.round((vdate(r.visit_date)-today0())/864e5);
+  if(days>45) return "";
+  // Heat tier: <=7 days = over (red), <=14 days = warn (amber), else = accent (green).
+  const tier = days<=7 ? 'over' : (days<=14 ? 'warn' : '');
+  const when=vdate(r.visit_date).toLocaleDateString("en-US",
+    {weekday:"short",month:"long",day:"numeric"});
+  const lbl=days===0?"today":(days===1?"day away":"days away");
+  const big=days===0?'<div class="big">Today</div>'
+    :'<div class="big">'+days+' <span>'+lbl+'</span></div>';
+  // Store name from the visits payload if present, else look up from stores.
+  const byStore = Object.fromEntries((stores||[]).map(s => [s.id, s.name]));
+  const storeName = r.store_name || byStore[r.store_id] || '';
+  // Count other upcoming RGRs in the same window (for supervisors / Owner who manage many stores).
+  const t0=today0();
+  const others = (visits||[])
+    .filter(v=>v.visit_type==="rgrv" && v.visit_date && vdate(v.visit_date)>=t0)
+    .length - 1;
+  const extra = others>0
+    ? '<div class="extra">+ '+others+' more RGR'+(others===1?'':'s')+' upcoming in your patch</div>'
+    : '';
+  return '<div class="rgr-banner'+(tier?' '+tier:'')+'"><div class="k">Next RGR Visit</div>'+big+
+    '<div class="m">'+esc(storeName)+' &middot; '+esc(when)+'</div>'+
+    extra+'</div>';
 }
 
 function dueTag(due_at){
@@ -865,6 +915,10 @@ function renderBoard(payload){
   const storeLine = stores.map(s=>s.name).join(" · ");
 
   let h='<div class="phone">';
+  // RGR countdown — soonest upcoming RGR within 45 days in this manager's patch.
+  // Visits are already scoped to scopeIds in the Edge Function, so Owners see
+  // the next RGR across all 12 stores, Supervisors see theirs, GMs see their store.
+  h+=renderCountdown(data.visits||[], stores);
   h+='<div class="hdr"><h2>Hi, '+esc(mgr.first_name||"")+'</h2>'+
      '<div class="sub">'+esc(mgr.role||"")+(storeLine?' &middot; '+esc(storeLine):'')+
      ' &middot; '+esc(now)+'</div></div>';
