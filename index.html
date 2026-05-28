@@ -271,8 +271,10 @@ const INTAKE_SEVERITIES = [
 ];
 
 // Q1 2026 GM Bonus Plan - from the GM meeting deck. Update each quarter.
+// 2026 Bonus Plan — single set of terms used for both quarters; results
+// are computed separately per quarter from bonus_rankings.quarter.
 const BONUS_PLAN = {
-  quarter:"Q1", role:"GM",
+  year:"2026", role:"GM",
   service:[
     {amt:"$95", crit:"Level 1"},
     {amt:"$45", crit:"Top 5",
@@ -286,6 +288,13 @@ const BONUS_PLAN = {
   disqualifiers:["Failed visit (CFV, FS, RGR)","Level 3","50+ hours of overtime",
                  "Miss P+L projection by >1.5%","Under 85% scheduled attendance"]
 };
+// Quarters to render results for (newest first). Each entry maps to the
+// `quarter` column on bonus_rankings; the `partial` flag adds a label
+// + nudges the UI to show "—" when the quarter has no placements yet.
+const BONUS_QUARTERS = [
+  {key:"Q2 2026", label:"Q2 2026", partial:true},   // April–June 2026, in progress
+  {key:"Q1 2026", label:"Q1 2026", partial:false},  // Jan–Mar 2026, closed
+];
 
 let STATE = null;  // last server response (data + result + stores + manager)
 
@@ -670,33 +679,54 @@ function renderProductSales(rows){
 // Bonus plan (Q1 GM Bonus Plan reference + earned $ rollup by store).
 // Shown for every role — supervisors review their patch's bonus performance,
 // GMs see their own store, Owner sees all.
-function renderBonus(results){
-  const p=BONUS_PLAN;
-  let h='<div class="card"><h3>'+esc(p.quarter)+' Bonus Plan ('+esc(p.role)+')</h3>';
-  h+='<div class="bgrp">Service &mdash; monthly</div>'+p.service.map(brow).join("");
-  h+='<div class="bgrp">Profit</div>'+p.profit.map(brow).join("");
-  h+='<div class="bgrp">Monthly disqualifiers</div><div class="dq">'+
-     p.disqualifiers.map(d=>'<span>'+esc(d)+'</span>').join("")+'</div>';
-  // Aggregate Q1 dollars earned per store in scope.
-  const by={};
-  (results||[]).forEach(r=>{
-    const k=r.store_name||r.store||"?";
-    if(!by[k]) by[k]={store:k,dollars:0,count:0};
-    by[k].dollars+=Number(r.award_amount||0); by[k].count+=1;
-  });
-  const list=Object.values(by).sort((a,b)=>b.dollars-a.dollars);
-  if(list.length){
-    h+='<div class="bgrp">Q1 results &mdash; bonus earned by store</div>';
-    list.forEach(s=>{
-      h+='<div class="brow"><div class="bamt">$'+s.dollars+'</div>'+
-         '<div class="bcrit">'+esc(s.store)+
-         '<div class="s">'+s.count+' Top-5 placement'+(s.count===1?'':'s')+
-         ' across Q1</div></div></div>';
+// Aggregates bonus_rankings rows for ONE quarter (filter by quarter key)
+// into per-store dollar totals, sorted highest-earning first.
+function aggregateBonusByStore(results, quarterKey){
+  const by = {};
+  (results||[])
+    .filter(r => (r.quarter||'').trim() === quarterKey)
+    .forEach(r => {
+      const k = r.store_name || r.store || '?';
+      if(!by[k]) by[k] = { store:k, dollars:0, count:0 };
+      by[k].dollars += Number(r.award_amount || 0);
+      by[k].count += 1;
     });
-    h+='<div class="bnote">Q1 placements transcribed from the GM meeting decks. '+
-       'Live payout figures arrive with the bonus engine.</div>';
-  }
-  return h+'</div>';
+  return Object.values(by).sort((a,b) => b.dollars - a.dollars);
+}
+
+function renderBonus(results){
+  const p = BONUS_PLAN;
+  let h = '<div class="card"><h3>'+esc(p.year)+' Bonus Plan ('+esc(p.role)+')</h3>';
+  h += '<div class="bgrp">Service &mdash; monthly</div>' + p.service.map(brow).join('');
+  h += '<div class="bgrp">Profit</div>' + p.profit.map(brow).join('');
+  h += '<div class="bgrp">Monthly disqualifiers</div><div class="dq">'+
+       p.disqualifiers.map(d => '<span>'+esc(d)+'</span>').join('')+'</div>';
+
+  // Per-quarter results sections. Q2 is "partial" (label says so) — once the
+  // June deck transcribes May placements, Q2 numbers move; the structure
+  // doesn't change.
+  BONUS_QUARTERS.forEach(q => {
+    const list = aggregateBonusByStore(results, q.key);
+    if(!list.length && !q.partial) return;  // skip empty closed quarters silently
+    const label = q.label + (q.partial ? ' results &mdash; partial (in progress)' : ' results &mdash; bonus earned by store');
+    h += '<div class="bgrp">'+esc(label)+'</div>';
+    if(!list.length){
+      h += '<div class="bnote">No placements transcribed yet for '+esc(q.label)+'. '+
+           'Loads after each GM meeting deck.</div>';
+    } else {
+      list.forEach(s => {
+        h += '<div class="brow"><div class="bamt">$'+s.dollars+'</div>'+
+             '<div class="bcrit">'+esc(s.store)+
+             '<div class="s">'+s.count+' Top-5 placement'+(s.count===1?'':'s')+
+             ' across '+esc(q.label)+(q.partial ? ' so far' : '')+'</div></div></div>';
+      });
+    }
+  });
+
+  h += '<div class="bnote">Placements transcribed from the GM meeting decks. '+
+       'Live payout figures arrive with the bonus engine. Q1 Top-5 metrics: '+
+       'Accuracy, Pies, Upsell. Q2 Top-5 metrics: Accuracy, Executed as Designed, Upsell.</div>';
+  return h + '</div>';
 }
 
 function renderVoiceView(view){
