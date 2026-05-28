@@ -939,13 +939,14 @@ function renderBonus(results){
   return h + '</div>';
 }
 
-function renderVoiceView(view){
+function renderVoiceView(view, pace){
   if(!view) return "";
   const kpis=Array.isArray(view.kpis)?view.kpis:[];
   const peak=Array.isArray(view.peak)?view.peak:[];
   const hasKpi=kpis.some(r=>r.osat!=null||r.accuracy!=null||r.digital_ead!=null||r.cleanliness!=null);
   const hasPeak=peak.some(r=>r.breakfast!=null||r.lunch!=null||r.dinner!=null);
-  if(!hasKpi && !hasPeak) return "";
+  const hasPace = Array.isArray(pace) && pace.some(p => p.dt_satisfaction != null || p.ir_satisfaction != null);
+  if(!hasKpi && !hasPeak && !hasPace) return "";
 
   const pct=v=>(v==null||v==="")?'&mdash;':Number(v).toFixed(1)+'%';
   const shortName=n=>{
@@ -968,6 +969,36 @@ function renderVoiceView(view){
 
   let h = '<div class="card"><h3>VOICE</h3>'+
           '<div class="summary">'+esc(src)+(period?' &middot; '+period:'')+'</div>';
+
+  // ---- PACE current-month OSAT (v24) ----
+  // PACE current-month MTD DT + IR OSAT (freshest broad SMG feed).
+  // Shown above the lagged Daily Run KPI/peak rows.
+  const hasPaceData = Array.isArray(pace) && pace.some(p => p.dt_satisfaction != null || p.ir_satisfaction != null);
+  if (hasPaceData) {
+    const sample = pace.find(p => p.period_end) || pace[0];
+    const fmtRange = (a, b) => {
+      try {
+        const da = a ? new Date(a + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : null;
+        const db = b ? new Date(b + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : null;
+        if (da && db) return da + " &ndash; " + db;
+        return db || da || "";
+      } catch (e) { return ""; }
+    };
+    const rangeLabel = fmtRange(sample.period_start, sample.period_end);
+    h += '<div class="sub2" style="margin-top:6px">Current Month OSAT (PACE)' +
+         (rangeLabel ? ' &middot; ' + rangeLabel : '') + '</div>' +
+         '<table class="mr-tbl">' +
+         '<colgroup><col class="c-mgr"><col class="c-kpi"><col class="c-kpi"><col class="c-kpi"></colgroup>' +
+         '<thead><tr><th class="l">Store</th><th>DT OSAT</th><th>IR OSAT</th><th>n</th></tr></thead><tbody>';
+    pace.forEach(p => {
+      h += '<tr>' +
+           '<td class="l" title="' + esc(p.store_name || "") + '">' + esc(shortName(p.store_name)) + '</td>' +
+           '<td>' + pct(p.dt_satisfaction) + '</td>' +
+           '<td>' + pct(p.ir_satisfaction) + '</td>' +
+           '<td>' + (p.survey_count == null ? '&mdash;' : esc(String(p.survey_count))) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
 
   // ---- 4 headline KPIs ----
   if(hasKpi){
@@ -1209,7 +1240,7 @@ function renderBoard(payload){
   h+=renderComplaints(data.complaints||[]);
 
   // VOICE card (replaces monthly VOICE + PACE — see renderVoiceView).
-  h+=renderVoiceView(data.voice_view);
+  h+=renderVoiceView(data.voice_view, data.pace_current||[]);
   // Recent low-rated customer comments (rating ≤ 2, last 90 days).
   h+=renderLowComments(data.voice_comments_recent||[]);
   // Turnover — crew + shift leader, 6mo sparkline + TTM/monthly% per store.
