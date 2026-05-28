@@ -148,6 +148,9 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  color:var(--muted);margin:11px 0 3px}
 .bgrp:first-child{margin-top:0}
 .brow{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)}
+.brow-self{background:#f6fbff;border-left:3px solid #2867d1;padding-left:8px}
+.brow-head{border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin-bottom:4px;color:#6b7280}
+
 .brow:first-of-type{border-top:0}
 .bamt{flex:0 0 auto;font-size:12.5px;font-weight:800;color:#fff;background:var(--accent);
  border-radius:7px;padding:3px 8px;white-space:nowrap;align-self:flex-start}
@@ -804,6 +807,103 @@ function aggregateBonusByStore(results, quarterKey){
   return Object.values(by).sort((a,b) => b.dollars - a.dollars);
 }
 
+// === Adjusted Q1 Bonuses card (compute_q1_2026_trueup) ===
+// Pins per-recipient bonus payouts from public.bonus_adjustments alongside
+// the original Q1 placements from bonus_rankings, so each viewer sees
+// both what they were originally paid AND the true-up total. The Edge
+// Function attaches original_amount, adjusted_amount, and delta_amount
+// to every row (delta = additional dollars to cut in the true-up payroll).
+//
+// Visibility:
+//   GM      -> sees their own row + DM/AM rows at their store
+//   Sup     -> sees their own row + all GM/DM/AM rows in their patch
+//   Owner   -> sees everything
+//   Other   -> card is hidden
+function renderBonusAdjustments(rows, mgr){
+  if(!Array.isArray(rows) || !rows.length) return "";
+  const role = (mgr && mgr.role) || "";
+  if(role !== "GM" && role !== "Supervisor" && role !== "Owner") return "";
+
+  // Group rows by manager so each person has one block, summing original /
+  // adjusted / delta across any sub-rows (a supervisor with one patch row
+  // collapses cleanly; the structure also supports future multi-row cases).
+  const byMgr = new Map();
+  rows.forEach(r => {
+    const k = r.manager_id;
+    if(!byMgr.has(k)) byMgr.set(k, {
+      manager_id: k, manager_name: r.manager_name,
+      is_self: !!r.is_self, role: r.role,
+      rows: [], original: 0, adjusted: 0, delta: 0,
+    });
+    const g = byMgr.get(k);
+    g.rows.push(r);
+    g.original += Number(r.original_amount || 0);
+    g.adjusted += Number(r.adjusted_amount || 0);
+    g.delta    += Number(r.delta_amount || 0);
+    const rank = { supervisor:0, gm:1, am:2, dm:3 };
+    if((rank[r.role] ?? 9) < (rank[g.role] ?? 9)) g.role = r.role;
+  });
+
+  // Sort: self first, then supervisors, then GMs, then DMs/AMs.
+  const tier = { supervisor:1, gm:2, am:3, dm:4 };
+  const groups = Array.from(byMgr.values()).sort((a,b)=>{
+    if(a.is_self !== b.is_self) return a.is_self ? -1 : 1;
+    const ta = tier[a.role] ?? 9, tb = tier[b.role] ?? 9;
+    if(ta !== tb) return ta - tb;
+    return String(a.manager_name).localeCompare(String(b.manager_name));
+  });
+
+  const quarter = esc(rows[0].quarter || "Q1 2026");
+  const totals = rows.reduce((acc,r)=>{
+    acc.original += Number(r.original_amount||0);
+    acc.adjusted += Number(r.adjusted_amount||0);
+    acc.delta    += Number(r.delta_amount||0);
+    return acc;
+  }, {original:0, adjusted:0, delta:0});
+  const scaleSample = rows[0].scale_factor ? Number(rows[0].scale_factor).toFixed(2) : "1.00";
+
+  let h = '<div class="card"><h3>' + quarter + ' Bonuses &mdash; Original + Adjustment</h3>';
+  h += '<div class="bnote">Originally paid: <b>$'+totals.original.toFixed(0)+'</b>. '+
+       'True-up applied (&times;'+esc(scaleSample)+' across all tiers) brings the '+
+       'quarter total to <b>$'+totals.adjusted.toFixed(0)+'</b>. '+
+       'Additional $ to issue: <b>$'+totals.delta.toFixed(0)+'</b>.</div>';
+
+  // Column header row for the per-recipient block
+  h += '<div class="brow brow-head">'+
+       '<div class="bamt" style="text-align:right">Total</div>'+
+       '<div class="bcrit" style="font-weight:600">Recipient'+
+       '<div class="s" style="display:flex;gap:8px;font-weight:400">'+
+         '<span>Originally paid</span>&middot;<span>Adjustment</span>'+
+       '</div></div></div>';
+
+  groups.forEach(g => {
+    const tag = g.role.toUpperCase();
+    const cls = g.is_self ? 'brow brow-self' : 'brow';
+    const labelExtra = g.is_self ? ' &mdash; <em>you</em>' : '';
+    const storesList = Array.from(new Set(g.rows.map(r=>r.store_name).filter(Boolean))).join(', ');
+    const origStr = '$'+g.original.toFixed(0);
+    const deltaStr = (g.delta >= 0 ? '+$' : '-$') + Math.abs(g.delta).toFixed(0);
+    const noOriginalNote = g.original === 0 ? ' <span class="t-tag" style="background:#fff3e0">not paid Q1</span>' : '';
+    h += '<div class="'+cls+'">'+
+         '<div class="bamt">$'+g.adjusted.toFixed(0)+'</div>'+
+         '<div class="bcrit">'+esc(g.manager_name)+' <span class="t-tag">'+tag+'</span>'+labelExtra+noOriginalNote+
+         '<div class="s">'+
+            (storesList ? esc(storesList)+' &middot; ' : '')+
+            'orig '+origStr+' &middot; <b>'+deltaStr+'</b>'+
+         '</div>'+
+         '</div></div>';
+  });
+
+  h += '<div class="bgrp" style="margin-top:8px">Grand total &mdash; this card</div>';
+  h += '<div class="brow"><div class="bamt">$'+totals.adjusted.toFixed(0)+'</div>'+
+       '<div class="bcrit">All recipients visible to you'+
+       '<div class="s">orig $'+totals.original.toFixed(0)+' &middot; <b>+$'+totals.delta.toFixed(0)+' adjustment</b> &middot; '+
+       'source: bonus_q1_2026_pinned</div>'+
+       '</div></div>';
+  h += '</div>';
+  return h;
+}
+
 function renderBonus(results){
   const p = BONUS_PLAN;
   let h = '<div class="card"><h3>'+esc(p.year)+' Bonus Plan ('+esc(p.role)+')</h3>';
@@ -1120,6 +1220,7 @@ function renderBoard(payload){
   h+=renderVisits(data.visits||[], stores);
   h+=renderLabor(data.labor||[]);
   h+=renderBonus(data.bonus_results||[]);
+  h+=renderBonusAdjustments(data.bonus_adjustments||[], mgr);
   h+=renderManagerRank(data.manager_rank||[]);
 
   h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
