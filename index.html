@@ -671,8 +671,15 @@ function renderTurnover(rows){
            '<circle cx="'+lastX+'" cy="'+lastY+'" r="2" fill="'+colorOf(last)+'"/>'+
            '</svg>';
   };
+  const months = rows.map(r => r.latest_month).filter(Boolean).sort();
+  const maxMo = months.length ? months[months.length - 1] : null;
+  let throughMo = '';
+  if (maxMo) {
+    const d = new Date(maxMo);
+    if (!isNaN(d)) throughMo = d.toLocaleString('en-US', {month: 'long', year: 'numeric'});
+  }
   let h = '<div class="card"><h3>Turnover</h3>'+
-          '<div class="summary">Monthly annualized &middot; trailing 12mo % &middot; 6-mo trend</div>';
+          '<div class="summary">'+(throughMo ? 'Through '+throughMo+' &middot; ' : '')+'Monthly annualized &middot; trailing 12mo % &middot; 6-mo trend</div>';
   for (const role of ['crew','shift_leader']) {
     const list = byRole[role] || [];
     if (!list.length) continue;
