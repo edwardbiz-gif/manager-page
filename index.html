@@ -1159,6 +1159,52 @@ function renderComplaints(rows){
   return h+'</div>';
 }
 
+function renderManualReports(rows){
+  // Owner-only: non-Owner payloads omit data.manual_reports entirely, so this
+  // returns "" for everyone else. Two sections (manual feeds vs auto-pipeline
+  // health); overdue first; quiet "all current" headline when nothing's flagged.
+  if(!rows || !rows.length) return "";
+  const rank={overdue:0, unknown:1, ok:2};
+  const fmt=(d)=> d ? esc(String(d).slice(0,10)) : '&mdash;';
+  const badge=(s)=>{
+    const css = (s==='overdue') ? 'background:#c0392b;color:#fff'
+              : (s==='unknown') ? 'background:#f59e0b;color:#fff'
+              :                   'background:#e5e7eb;color:#6b7280';
+    return '<span style="font-size:10px;font-weight:700;text-transform:uppercase;'+
+           'letter-spacing:.04em;padding:2px 7px;border-radius:10px;'+css+'">'+
+           esc(s||'?')+'</span>';
+  };
+  const sortRows=(list)=> list.slice().sort((a,b)=>{
+    const oa=rank[a.status]??9, ob=rank[b.status]??9;
+    if(oa!==ob) return oa-ob;
+    return (b.days_since??-1)-(a.days_since??-1);
+  });
+  const sectionHtml=(title, list)=>{
+    if(!list.length) return '';
+    let s='<div class="c-label" style="margin-top:12px">'+esc(title)+'</div>';
+    sortRows(list).forEach(r=>{
+      s+='<div style="display:flex;justify-content:space-between;align-items:center;'+
+         'gap:8px;padding:6px 0;border-bottom:1px solid var(--line,#eee)">'+
+         '<div><div style="font-weight:600">'+esc(r.label)+'</div>'+
+         '<div style="font-size:11px;color:#6b7280">'+esc(r.cadence)+
+         ' &middot; through '+fmt(r.last_business_date)+'</div></div>'+
+         badge(r.status)+'</div>';
+    });
+    return s;
+  };
+  const manual=rows.filter(r=>r.category==='manual');
+  const auto=rows.filter(r=>r.category==='auto');
+  const flagged=rows.filter(r=>r.status!=='ok').length;
+  const dataThrough=rows.map(r=>r.last_business_date).filter(Boolean).sort().slice(-1)[0];
+  let h='<div class="card"><h3>Manual Reports &mdash; needs attention'+
+        (flagged?'<span class="ct">'+flagged+'</span>':'')+'</h3>'+
+        '<div class="summary">Pipeline freshness &middot; data through '+fmt(dataThrough)+'</div>';
+  if(!flagged) h+='<div class="summary" style="margin-top:4px">&#10003; All feeds current.</div>';
+  h+=sectionHtml('Manual feeds — your action', manual);
+  h+=sectionHtml('Auto pipeline — health', auto);
+  return h+'</div>';
+}
+
 function flashHtml(result){
   if(!result) return "";
   return '<div class="flash '+(result.ok?'ok':'err')+'">'+esc(result.msg||"")+'</div>';
@@ -1201,6 +1247,10 @@ function renderBoard(payload){
      '<div class="chip over"><div class="n">'+overdue+'</div><div class="l">Overdue</div></div>'+
      '<div class="chip"><div class="n">'+dueSoon+'</div><div class="l">Due &le; 7d</div></div>'+
      '</div>';
+
+  // Owner-only "Manual Reports — needs attention" card (lane F). Returns ""
+  // for non-Owner roles (their payload omits data.manual_reports).
+  h+=renderManualReports(data.manual_reports);
 
   // GM intake — "I need something" CTA. Routes to Eddie + supervisor based
   // on category server-side. GMs only; other roles use + Add task directly.
