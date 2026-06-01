@@ -1210,6 +1210,48 @@ function flashHtml(result){
   return '<div class="flash '+(result.ok?'ok':'err')+'">'+esc(result.msg||"")+'</div>';
 }
 
+function renderKeyDates(rows){
+  // Promos & Key Dates - upcoming promo windows, price rounds, deadlines and
+  // events from calendar_events (next 60 days, scope/role-filtered server-side).
+  if(!rows || !rows.length) return "";
+  const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const ymd=(s)=>{ if(!s) return null; const p=String(s).slice(0,10).split("-").map(Number);
+                   return new Date(p[0],p[1]-1,p[2]); };
+  const fmt=(s)=>{ const d=ymd(s); return d? MON[d.getMonth()]+" "+d.getDate() : ""; };
+  const window=(r)=>{ const a=fmt(r.event_date);
+    if(r.end_date && String(r.end_date).slice(0,10)!==String(r.event_date).slice(0,10))
+      return a+" – "+fmt(r.end_date);
+    return a; };
+  const kindCss={promo:"background:#16a34a;color:#fff",
+                 "price-round":"background:#2563eb;color:#fff",
+                 deadline:"background:#c0392b;color:#fff",
+                 event:"background:#6b7280;color:#fff"};
+  const kindLabel={promo:"Promo","price-round":"Price",deadline:"Deadline",event:"Event"};
+  const badge=(k)=> '<span style="font-size:10px;font-weight:700;text-transform:uppercase;'+
+    'letter-spacing:.04em;padding:2px 7px;border-radius:10px;'+(kindCss[k]||kindCss.event)+'">'+
+    esc(kindLabel[k]||k)+'</span>';
+  const t0=today0();
+  const sorted=rows.slice().sort((a,b)=> String(a.event_date).localeCompare(String(b.event_date)));
+  const now=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  let h='<div class="card"><h3>Promos &amp; Key Dates<span class="ct">'+sorted.length+'</span></h3>'+
+        '<div class="summary">Upcoming &middot; next 60 days (as of '+esc(now)+')</div>';
+  sorted.forEach(r=>{
+    const live = ymd(r.event_date) && ymd(r.event_date)<=t0;  // already started, still running
+    const where = r.store_name ? ' &middot; '+esc(r.store_name)
+                : (r.scope==='role' && r.scope_role) ? ' &middot; '+esc(r.scope_role)
+                : '';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;'+
+       'gap:10px;padding:7px 0;border-bottom:1px solid var(--line,#eee)">'+
+       '<div style="min-width:0">'+
+       '<div style="font-weight:600">'+esc(r.title||"")+'</div>'+
+       '<div style="font-size:11px;color:#6b7280">'+esc(window(r))+
+       (live?' &middot; live now':'')+where+
+       (r.notes?' &middot; '+esc(String(r.notes)):'')+'</div></div>'+
+       badge(r.kind)+'</div>';
+  });
+  return h+'</div>';
+}
+
 function renderBoard(payload){
   STATE = payload;
   const data = payload.data || {};
@@ -1251,6 +1293,8 @@ function renderBoard(payload){
   // Owner-only "Manual Reports — needs attention" card (lane F). Returns ""
   // for non-Owner roles (their payload omits data.manual_reports).
   h+=renderManualReports(data.manual_reports);
+  // Promos & Key Dates - upcoming promos/deadlines/events (next 60 days).
+  h+=renderKeyDates(data.key_dates||[]);
 
   // GM intake — "I need something" CTA. Routes to Eddie + supervisor based
   // on category server-side. GMs only; other roles use + Add task directly.
