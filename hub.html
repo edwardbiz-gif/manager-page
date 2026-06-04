@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Schmitt Ops — control center</title>
+<style>
+  :root{--bg:#0a0e13;--card:#141b24;--card2:#1b2632;--ink:#eef4fb;--muted:#8aa0b4;
+        --brand:#ffc72c;--red:#da291c;--line:#22303d}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#15314a,var(--bg) 60%);
+       color:var(--ink);font-family:system-ui,"Segoe UI",Arial;line-height:1.5}
+  .wrap{max-width:840px;margin:0 auto;padding:24px 18px 60px}
+  .top{display:flex;align-items:center;gap:13px;margin-bottom:4px}
+  .arch{width:44px;height:44px;border-radius:12px;background:var(--brand);display:grid;
+        place-items:center;color:var(--red);font-weight:900;font-size:28px}
+  h1{font-size:23px;margin:0}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 22px}
+  h2{font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin:24px 0 11px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  .it{display:block;background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+      border-radius:14px;padding:14px 15px;text-decoration:none;color:var(--ink);position:relative}
+  a.it:hover{border-color:var(--brand)}
+  .it-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .it .t{font-weight:800;font-size:15px} .it .d{color:#c2d0dd;font-size:13px;margin-top:5px}
+  .badge{font-size:10px;font-weight:800;color:#0b0f14;padding:3px 8px;border-radius:999px;
+         text-transform:uppercase;letter-spacing:.5px}
+  .go{display:inline-block;margin-top:9px;color:var(--brand);font-size:12px;font-weight:800}
+  .msg{color:var(--muted);text-align:center;margin-top:30vh;font-size:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="arch">M</div><div>
+    <h1>Schmitt Ops — control center</h1>
+    <div class="sub">Everything we've built, in one place. Tap a live tile to open it.</div>
+  </div></div>
+  <div id="out"><div class="msg">Loading…</div></div>
+</div>
+<script>
+const API = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/hub";
+const T = new URLSearchParams(location.search).get("t") || "";
+const esc = (s) => String(s ?? "").replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+const COLORS = {live:"#27d07a",staged:"#ffc72c",planned:"#5aa9ff",reference:"#6b7d8f"};
+
+function render(rows){
+  const cats=[], byCat={};
+  for(const r of rows){ const c=r.category||"Other"; if(!byCat[c]){byCat[c]=[];cats.push(c);} byCat[c].push(r); }
+  return cats.map(c => {
+    const items = byCat[c].map(r => {
+      const badge = `<span class="badge" style="background:${COLORS[r.status]||'#6b7d8f'}">${esc(r.status)}</span>`;
+      const inner = `<div class="it-h"><span class="t">${esc(r.title)}</span>${badge}</div>
+        <div class="d">${esc(r.description)}</div>`;
+      return r.url
+        ? `<a class="it" href="${esc(r.url)}" target="_blank" rel="noopener">${inner}<span class="go">open ↗</span></a>`
+        : `<div class="it">${inner}</div>`;
+    }).join("");
+    return `<h2>${esc(c)}</h2><div class="grid">${items}</div>`;
+  }).join("");
+}
+
+async function load(){
+  const out = document.getElementById("out");
+  if(!T){ out.innerHTML = '<div class="msg">Missing access token in the link.</div>'; return; }
+  try{
+    const r = await fetch(`${API}?t=${encodeURIComponent(T)}`);
+    const d = await r.json();
+    if(!d.ok){ out.innerHTML = `<div class="msg">${d.error==="unauthorized"?"Link expired or invalid.":esc(d.error)}</div>`; return; }
+    out.innerHTML = render(d.catalog||[]) || '<div class="msg">Nothing catalogued yet.</div>';
+  }catch(e){ out.innerHTML = `<div class="msg">Network error: ${esc(e.message)}</div>`; }
+}
+load();
+</script>
+</body>
+</html>

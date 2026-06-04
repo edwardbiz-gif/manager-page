@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Morning briefing — control</title>
+<style>
+  :root{--bg:#0a0e13;--card:#141b24;--card2:#1b2632;--ink:#eef4fb;--muted:#8aa0b4;
+        --brand:#ffc72c;--red:#da291c;--green:#27d07a;--line:#22303d}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#15314a,var(--bg) 60%);
+       color:var(--ink);font-family:system-ui,"Segoe UI",Arial;line-height:1.5}
+  .wrap{max-width:680px;margin:0 auto;padding:22px 16px 70px}
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .mic{width:44px;height:44px;border-radius:12px;background:var(--brand);display:grid;
+       place-items:center;font-size:24px}
+  h1{font-size:21px;margin:0}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 20px}
+  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+        border-radius:16px;padding:16px;margin:14px 0}
+  .card h2{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:14px}
+  .step button{width:42px;height:42px;border-radius:11px;border:1px solid var(--line);
+       background:#0e151d;color:var(--ink);font-size:22px;font-weight:800;cursor:pointer}
+  .step .v{font-size:30px;font-weight:900;min-width:54px;text-align:center}
+  .step .u{color:var(--muted);font-size:13px}
+  .chip{border:1px solid var(--line);background:#0e151d;color:var(--ink);border-radius:999px;
+        padding:9px 13px;font-size:13px;cursor:pointer;user-select:none}
+  .chip:active{transform:scale(.97)}
+  .chip.on{background:var(--brand);color:#0b0f14;border-color:var(--brand);font-weight:800}
+  textarea,input,select{width:100%;background:#0e151d;color:var(--ink);border:1px solid var(--line);
+        border-radius:11px;padding:11px 12px;font-size:14px;font-family:inherit;resize:vertical}
+  textarea:focus,input:focus,select:focus{outline:none;border-color:var(--brand)}
+  label.fld{display:block;color:var(--muted);font-size:12px;margin:12px 0 5px;text-transform:uppercase;letter-spacing:.6px}
+  .save{position:sticky;bottom:14px;margin-top:18px}
+  .save button{width:100%;padding:15px;border:0;border-radius:14px;background:var(--brand);
+        color:#0b0f14;font-size:16px;font-weight:900;cursor:pointer}
+  .save button:disabled{opacity:.5}
+  .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#0e151d;
+        border:1px solid var(--line);border-radius:11px;padding:11px 16px;font-weight:700;
+        opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+  .toast.show{opacity:1}
+  .toast.ok{border-color:var(--green);color:var(--green)}
+  .toast.err{border-color:var(--red);color:#ff8a80}
+  .ep{display:flex;flex-direction:column;gap:7px;padding:12px 0;border-top:1px solid var(--line)}
+  .ep:first-child{border-top:0}
+  .ep .d{font-weight:800;font-size:14px}
+  .ep audio{width:100%}
+  .muted{color:var(--muted);font-size:13px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="top"><div class="mic">🎙️</div><div>
+    <h1>Morning briefing — control</h1>
+    <div class="sub" id="status">Loading…</div>
+  </div></div>
+
+  <div id="body" class="hide">
+    <div class="card">
+      <h2>Length</h2>
+      <div class="step">
+        <button id="minus" aria-label="shorter">−</button>
+        <div><span class="v" id="mins">5</span> <span class="u">min</span></div>
+        <button id="plus" aria-label="longer">+</button>
+        <span class="muted" style="margin-left:8px">≈ <span id="words">730</span> words</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Quick adjust — tap to add a direction</h2>
+      <div class="row" id="chips"></div>
+    </div>
+
+    <div class="card">
+      <h2>Tell it what to change</h2>
+      <input id="freeform" placeholder="e.g. spend more time on labor and overtime risk">
+      <div class="muted" style="margin-top:7px">Added to the instructions below when you save.</div>
+    </div>
+
+    <div class="card">
+      <h2>Full instructions</h2>
+      <textarea id="instructions" rows="11"></textarea>
+      <label class="fld">News topics to scan</label>
+      <input id="news_query">
+      <label class="fld">Voice</label>
+      <select id="voice">
+        <option value="onyx">Onyx — deep, calm (default)</option>
+        <option value="echo">Echo — warm male</option>
+        <option value="alloy">Alloy — neutral</option>
+        <option value="fable">Fable — expressive</option>
+        <option value="nova">Nova — bright female</option>
+        <option value="shimmer">Shimmer — soft female</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <h2>Recent episodes</h2>
+      <div id="episodes"><div class="muted">None yet.</div></div>
+    </div>
+
+    <div class="save"><button id="savebtn">Save changes</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/podcast-admin";
+const T = new URLSearchParams(location.search).get("t") || "";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+let mins = 5;
+const CHIPS = [
+  "Lead with sales vs. plan and yesterday's variance.",
+  "Call out any store that's an outlier, by name.",
+  "Spend more time on labor and overtime risk.",
+  "Keep industry news to one or two lines.",
+  "Always end with the single most important thing today.",
+  "Be more blunt and direct.",
+  "Mention any complaints that need a reply.",
+  "Note today's promos and calendar events.",
+];
+const chosen = new Set();
+
+function setMins(v){ mins = Math.max(1, Math.min(15, v)); $("mins").textContent = mins;
+  $("words").textContent = Math.round(mins*146); }
+
+function renderChips(){
+  $("chips").innerHTML = "";
+  CHIPS.forEach((c,i) => {
+    const el = document.createElement("div");
+    el.className = "chip" + (chosen.has(i) ? " on" : "");
+    el.textContent = c;
+    el.onclick = () => { chosen.has(i) ? chosen.delete(i) : chosen.add(i);
+      el.classList.toggle("on"); };
+    $("chips").appendChild(el);
+  });
+}
+
+function renderEpisodes(eps){
+  if(!eps || !eps.length){ $("episodes").innerHTML = '<div class="muted">None yet.</div>'; return; }
+  $("episodes").innerHTML = eps.map(e => {
+    const mb = e.bytes ? " · "+(e.bytes/1048576).toFixed(1)+" MB" : "";
+    const au = e.audio_url ? `<audio controls preload="none" src="${esc(e.audio_url)}"></audio>` : "";
+    return `<div class="ep"><div class="d">${esc(e.report_date)}${mb}</div>${au}</div>`;
+  }).join("");
+}
+
+function toast(msg, kind){ const t=$("toast"); t.textContent=msg; t.className="toast show "+(kind||"");
+  setTimeout(()=>t.className="toast",2600); }
+
+async function load(){
+  if(!T){ $("status").textContent = "Missing access token in the link."; return; }
+  try{
+    const r = await fetch(`${API}?t=${encodeURIComponent(T)}`);
+    const d = await r.json();
+    if(!d.ok){ $("status").textContent = d.error==="unauthorized" ? "Link expired or invalid." : ("Error: "+d.error); return; }
+    const c = d.cfg || {};
+    setMins(c.target_minutes || 5);
+    $("instructions").value = c.instructions || "";
+    $("news_query").value = c.news_query || "";
+    $("voice").value = c.voice || "onyx";
+    const last = (d.episodes && d.episodes[0]) ? d.episodes[0].report_date : "—";
+    $("status").textContent = `Edited ${c.updated_at ? c.updated_at.slice(0,10) : "—"} · last episode ${last}`;
+    renderChips(); renderEpisodes(d.episodes);
+    $("body").classList.remove("hide");
+  }catch(e){ $("status").textContent = "Network error: "+e.message; }
+}
+
+async function save(){
+  const btn = $("savebtn"); btn.disabled = true; btn.textContent = "Saving…";
+  let instr = $("instructions").value.trim();
+  const adds = [...chosen].map(i => CHIPS[i]);
+  const ff = $("freeform").value.trim(); if(ff) adds.push(ff);
+  if(adds.length) instr += "\n\nMore direction:\n- " + adds.join("\n- ");
+  try{
+    const r = await fetch(`${API}?t=${encodeURIComponent(T)}`, {
+      method:"POST", headers:{"content-type":"application/json"},
+      body: JSON.stringify({ instructions:instr, target_minutes:mins,
+        news_query:$("news_query").value, voice:$("voice").value })
+    });
+    const d = await r.json();
+    if(d.ok){ toast("Saved — takes effect next briefing","ok"); chosen.clear(); $("freeform").value="";
+      $("instructions").value = instr; renderChips(); }
+    else toast(d.error||"Save failed","err");
+  }catch(e){ toast("Network error","err"); }
+  btn.disabled=false; btn.textContent="Save changes";
+}
+
+$("plus").onclick = () => setMins(mins+1);
+$("minus").onclick = () => setMins(mins-1);
+$("savebtn").onclick = save;
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Manager view — pick an aesthetic</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0f1115;color:#e9eef5;font-family:system-ui,"Segoe UI",Arial;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 60px}
+  h1{font-size:24px;margin:0 0 4px}
+  .lede{color:#9aa7b6;font-size:14px;margin:0 0 22px;max-width:760px}
+  .lede b{color:#e9eef5}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+  .opt{background:#171b22;border:1px solid #262c36;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+  .opt .cap{padding:14px 16px}
+  .opt .cap .n{font-weight:800;font-size:16px}
+  .opt .cap .d{color:#9aa7b6;font-size:12.5px;margin-top:3px;min-height:34px}
+  .frame{position:relative;height:560px;background:#000;border-top:1px solid #262c36;border-bottom:1px solid #262c36;overflow:hidden}
+  .frame iframe{position:absolute;top:0;left:50%;transform:translateX(-50%);width:460px;height:746px;
+    border:0;transform-origin:top center;transform:translateX(-50%) scale(.75)}
+  .opt .act{display:flex;gap:10px;padding:12px 16px}
+  .opt .act a{flex:1;text-align:center;text-decoration:none;font-weight:800;font-size:13px;padding:9px;border-radius:10px}
+  .open{background:#ffc72c;color:#241a00}
+  .note{color:#6f7d8c;font-size:12px;margin-top:26px;border-top:1px solid #262c36;padding-top:16px}
+  .badge{display:inline-block;background:#1d2530;color:#7fc4ff;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:999px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">Sample data · Owner view · same data the live function returns</div>
+  <h1>Pick the look for the new manager views</h1>
+  <p class="lede">All five render the <b>same reformatted layout</b>: unified <b>Customer Feedback</b> at the top
+  (1-800 + SMG + Google), every section trimmed to <b>top 3 or what's due today</b> with a <b>“see all → 10”</b>,
+  and a <b>sticky bottom tab bar</b> that highlights the section as you scroll (tap to jump). Only the aesthetic
+  differs. Tell me a number and I'll wire it to live data and publish it to all three role views.</p>
+
+  <div class="grid" id="grid"></div>
+
+  <p class="note">Previews are scaled to ~75%. Tap “Open full” to use one at real size (scrollspy + see-all are live in each).
+  Converting the winner to production = swap the sample file for a <code>fetch()</code> of the manager-page function — the engine already reads the real shape.</p>
+</div>
+<script>
+  var OPTS = [
+    ["arches","1 · Arches","Dark charcoal with McDonald's gold and red. Bold, on-brand, high-contrast — matches the podcast & hub pages."],
+    ["paper","2 · Paper","Light and clean with franchise green. Closest to today's manager page; easy daytime reading."],
+    ["slate","3 · Slate","Executive dark navy, serif headings, amber accent. Calm, refined, data-room feel."],
+    ["soft","4 · Soft","Light, big rounded cards, soft shadows, teal accent. Friendly modern-app feel, large touch targets."],
+    ["mono","5 · Mono","Near-black on white, monospace numbers, dense and flat. Maximum clarity and fast scanning."]
+  ];
+  document.getElementById("grid").innerHTML = OPTS.map(function(o){
+    return '<div class="opt"><div class="cap"><div class="n">'+o[1]+'</div><div class="d">'+o[2]+'</div></div>'+
+      '<div class="frame"><iframe src="look-'+o[0]+'.html" loading="lazy" scrolling="no"></iframe></div>'+
+      '<div class="act"><a class="open" href="look-'+o[0]+'.html" target="_blank">Open full ↗</a></div></div>';
+  }).join("");
+</script>
+</body>
+</html>
