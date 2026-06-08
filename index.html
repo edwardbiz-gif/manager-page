@@ -837,6 +837,8 @@ function renderTurnover(rows){
 // until we hit a full year.
 function renderProductSales(rows){
   if(!Array.isArray(rows) || !rows.length) return "";
+  rows = rows.filter(r => r.store_id != null);  // drop Combined row; portfolio MTD now lives in the top Sales & Guests card
+  if(!rows.length) return "";
   if(!rows.some(r => r.mtd_product_sales != null || r.t52w_product_sales != null)) return "";
 
   const $$  = v => (v==null) ? '&mdash;' : '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
@@ -1712,16 +1714,17 @@ function renderBoard(payload){
   h+='<div id="sec-race" class="sec"></div>';
   h+=renderCleanlinessRace(data.cleanliness_race);
 
-  // ===== 4) GUEST FEEDBACK — unified feed, then actionable complaints + VOICE =====
+  // ===== 4) GUEST FEEDBACK — unified feed, then actionable complaints =====
   h+='<div id="sec-feedback" class="sec"></div>';
   // Unified Guest Feedback (1-800 + SMG + Google) leads; Low-Rated Comments
-  // folded into it. Open Complaints stays below it for the resolve/draft actions.
+  // folded into it. Open Complaints stays below for the resolve/draft actions.
+  // (VOICE OSAT score tables moved to "More" — they're performance, not comments.)
   h+=renderCustomerFeedback(data.customer_feedback);
   h+=renderComplaints(data.complaints||[]);
-  h+=renderVoiceView(data.voice_view, data.pace_current||[]);
 
   // ===== 5) MORE — operations detail =====
   h+='<div id="sec-more" class="sec"></div>';
+  h+=renderVoiceView(data.voice_view, data.pace_current||[]);
   h+=renderTurnover(data.turnover||[]);
   h+=renderProductSales(data.sales_summary||[]);
   h+=renderVisits(data.visits||[], stores);
