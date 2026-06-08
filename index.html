@@ -5,14 +5,34 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>My Task Board</title>
 <style>
+/* Light "paper" palette is the SAFE DEFAULT (fallback). The live look is the
+   dark "arches" theme set via <body data-theme="arches"> below — remove that one
+   attribute to revert instantly to this proven light board. */
 :root{color-scheme:light;
- --fg:#1f2421;--muted:#6b7280;--line:#e7e8e5;--bg:#eceee9;--card:#fff;
- --accent:#2c5f2d;--urgent:#b42318;--high:#b54708;--paper:#f4f5f3;
+ --fg:#1f2421;--ink2:#3f3f46;--muted:var(--muted);--line:#e7e8e5;--bg:#eceee9;--card:#fff;
+ --accent:#2c5f2d;--on-accent:#fff;--urgent:#b42318;--high:#b54708;--paper:#f4f5f3;
+ --ok:#1a7f4b;--warn:#b54708;
  --due-over:#fee4e2;--due-overc:#b42318;
  --due-soon:#fef3c7;--due-soonc:#92400e;
  --st-new:#64748b;--st-assigned:#2563eb;
  --st-in_progress:#d97706;--st-waiting:#7c3aed;
- --btn:#2c5f2d;--btn-h:#1f4520}
+ --btn:#2c5f2d;--btn-h:#1f4520;
+ --tabbar-bg:rgba(255,255,255,.94);--tab-active-bg:rgba(44,95,45,.10)}
+
+/* ===== ARCHES — dark McDonald's theme (gold + red on charcoal) ===== */
+body[data-theme="arches"]{color-scheme:dark;
+ --fg:#eef4fb;--ink2:#c2d0dd;--muted:#8aa0b4;--line:#26323f;
+ --bg:radial-gradient(900px 480px at 80% -10%, #15314a, #0a0e13 60%);--card:#1b2632;
+ --accent:#ffc72c;--on-accent:#3a2a00;--urgent:#e5484d;--high:#e8a33d;--paper:#141b24;
+ --ok:#43d39e;--warn:#e8a33d;
+ --due-over:#3a1412;--due-overc:#ff8a80;
+ --due-soon:#33290a;--due-soonc:#ffd454;
+ --st-new:#9fb0c2;--st-assigned:#7fb0ff;
+ --st-in_progress:#f0b357;--st-waiting:#c4a3ff;
+ --btn:#da291c;--btn-h:#b21f15;
+ --tabbar-bg:rgba(12,17,23,.92);--tab-active-bg:rgba(255,199,44,.14)}
+body[data-theme="arches"] .phone{background:var(--paper);border-color:var(--line);
+ box-shadow:0 6px 26px rgba(0,0,0,.5)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  background:var(--bg);color:var(--fg);line-height:1.45;padding:18px 12px 44px;
@@ -70,12 +90,12 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .t-pri.p-urgent{color:var(--urgent)}
 .t-pri.p-high{color:var(--high)}
 .t-pri.p-normal{color:var(--muted)}
-.t-store{margin-left:auto;background:#eef2ee;color:var(--accent);
+.t-store{margin-left:auto;background:var(--paper);color:var(--accent);
  border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600;letter-spacing:.02em}
 .t-title{font-weight:600;font-size:14px;margin:5px 0 6px;line-height:1.35}
 .t-meta{display:flex;gap:5px;flex-wrap:wrap}
 .t-tag{font-size:10.5px;border-radius:5px;padding:1px 7px;
- border:1px solid var(--line);background:#f4f5f3;color:var(--muted);white-space:nowrap}
+ border:1px solid var(--line);background:var(--paper);color:var(--muted);white-space:nowrap}
 .t-tag.due-over{background:var(--due-over);border-color:#fecaca;color:var(--due-overc);font-weight:600}
 .t-tag.due-soon{background:var(--due-soon);border-color:#fde68a;color:var(--due-soonc)}
 .t-tag.st-new{color:var(--st-new)}
@@ -89,23 +109,23 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .t-tag.cat-store{background:#eef9ec;border-color:#cce6ce;color:var(--accent)}
 .t-tag.cat-patch{background:#e0f2fe;border-color:#bae6fd;color:#075985}
 .t-desc{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
- font-size:12px;color:#52525b;white-space:pre-wrap}
+ font-size:12px;color:var(--ink2);white-space:pre-wrap}
 .t-row:not(.open) .t-desc{display:none}
 .t-row:not(.open) .t-actions{display:none}
 .t-row:not(.open) .form-mount{display:none}
 .t-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;padding-top:9px;
  border-top:1px dashed var(--line)}
 .act{font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;
- border:1px solid var(--line);background:#fff}
+ border:1px solid var(--line);background:var(--card)}
 .act.primary{background:var(--btn);color:#fff;border-color:var(--btn)}
 .act.danger{color:var(--urgent);border-color:#fecaca;background:#fff7f7}
-.form{background:#fafbf9;border:1px solid var(--line);border-radius:8px;
+.form{background:var(--paper);border:1px solid var(--line);border-radius:8px;
  padding:10px;margin-top:9px}
 .form label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;
  letter-spacing:.03em;color:var(--muted);margin-bottom:3px;margin-top:6px}
 .form input,.form select,.form textarea{font:inherit;width:100%;
  border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;
- background:#fff;color:var(--fg)}
+ background:var(--card);color:var(--fg)}
 .form textarea{min-height:60px;resize:vertical}
 .form .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .form .row-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end}
@@ -148,11 +168,11 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  color:var(--muted);margin:11px 0 3px}
 .bgrp:first-child{margin-top:0}
 .brow{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)}
-.brow-self{background:#f6fbff;border-left:3px solid #2867d1;padding-left:8px}
-.brow-head{border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin-bottom:4px;color:#6b7280}
+.brow-self{background:var(--paper);border-left:3px solid #2867d1;padding-left:8px}
+.brow-head{border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin-bottom:4px;color:var(--muted)}
 
 .brow:first-of-type{border-top:0}
-.bamt{flex:0 0 auto;font-size:12.5px;font-weight:800;color:#fff;background:var(--accent);
+.bamt{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--on-accent);background:var(--accent);
  border-radius:7px;padding:3px 8px;white-space:nowrap;align-self:flex-start}
 .bcrit{font-size:13.5px;font-weight:600}
 .bcrit .s{font-size:11.5px;color:var(--muted);font-weight:400;margin-top:1px}
@@ -164,7 +184,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .empty{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0 2px}
 .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
 .loading{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
-.errbox{max-width:432px;margin:14px auto;background:#fff;border:1px solid var(--line);
+.errbox{max-width:432px;margin:14px auto;background:var(--card);border:1px solid var(--line);
  border-radius:11px;padding:13px;font-size:12.5px}
 .errbox b{color:var(--urgent)}
 
@@ -181,7 +201,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .c-head{cursor:pointer}
 .c-top{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);flex-wrap:wrap}
 .c-id{font-weight:700}
-.c-store{margin-left:auto;background:#eef2ee;color:var(--accent);border-radius:5px;
+.c-store{margin-left:auto;background:var(--paper);color:var(--accent);border-radius:5px;
  padding:1px 6px;font-size:10px;font-weight:600;letter-spacing:.02em}
 .c-title{font-weight:600;font-size:14px;margin:5px 0 6px;line-height:1.35}
 .c-title .who{color:var(--fg)}
@@ -189,7 +209,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .c-title .what{color:var(--muted);font-weight:500;font-size:13px}
 .c-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .sla{font-size:10.5px;border-radius:5px;padding:1px 7px;border:1px solid var(--line);
- background:#f4f5f3;color:var(--muted);white-space:nowrap;font-weight:700;
+ background:var(--paper);color:var(--muted);white-space:nowrap;font-weight:700;
  text-transform:uppercase;letter-spacing:.03em}
 .sla.over{background:var(--due-over);border-color:#fecaca;color:var(--due-overc)}
 .sla.today{background:#fee4e2;border-color:#fecaca;color:var(--due-overc)}
@@ -207,7 +227,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  padding:8px 10px;font-size:12.5px;color:#3f3f46;white-space:pre-wrap;line-height:1.5}
 .c-quote.draft{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
  background:#fff;color:#1f2421;max-height:240px;overflow:auto}
-.c-contact{font-size:12px;color:#3f3f46;line-height:1.65}
+.c-contact{font-size:12px;color:var(--ink2);line-height:1.65}
 .c-contact .k{color:var(--muted);font-weight:600;margin-right:5px;display:inline-block;
  min-width:46px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
 .c-contact a{color:var(--accent);text-decoration:none}
@@ -227,16 +247,70 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .intake-btn:hover{background:#143012}
 .intake-btn .sub{display:block;font-weight:500;font-size:11.5px;opacity:.85;margin-top:3px}
 .intake-radios{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
-.intake-radios label{display:inline-flex;align-items:center;gap:5px;background:#fff;
+.intake-radios label{display:inline-flex;align-items:center;gap:5px;background:var(--card);
  border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;
  font-weight:600;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer;
- margin:0}
-.intake-radios label.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+ margin:0;background:var(--card)}
+.intake-radios label.sel{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .intake-radios input{position:absolute;opacity:0;pointer-events:none}
+
+/* ===== Arches redesign additions (v33 shell) ===================== */
+/* Branded header mark */
+.brand{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+.brand .mark{width:38px;height:38px;border-radius:11px;background:var(--accent);
+ color:var(--on-accent,#3a2a00);display:grid;place-items:center;font-weight:900;
+ font-size:20px;flex:none}
+.brand .mark.rfallback{}
+
+/* Section anchors get scroll offset so the bottom nav jump lands cleanly */
+.sec{scroll-margin-top:10px}
+
+/* Sales/GC comps card — daily YoY pulse + MTD chart */
+.comps{background:var(--card);border:1px solid var(--line);border-radius:13px;
+ padding:14px;margin-top:13px}
+.comps h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+ color:var(--accent);margin-bottom:9px;display:flex;justify-content:space-between;align-items:baseline}
+.comps h3 .meta{color:var(--muted);font-weight:600;font-size:10.5px;text-transform:none;letter-spacing:0}
+.comp-nums{display:flex;gap:9px;margin-bottom:11px}
+.comp{flex:1 1 0;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 11px}
+.comp .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.comp .v{font-size:24px;font-weight:800;line-height:1.05;margin-top:3px;font-variant-numeric:tabular-nums}
+.comp .s{font-size:11px;color:var(--muted);margin-top:2px}
+.comp .v.up{color:var(--ok,#1a7f4b)} .comp .v.dn{color:var(--urgent)}
+.comp-chart{width:100%;height:118px;display:block}
+.comp-legend{display:flex;gap:14px;justify-content:center;margin-top:6px;font-size:10.5px;color:var(--muted)}
+.comp-legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+
+/* "Top 5 tasks" widget + see-all expander wrapping the detailed sections */
+.seeall{width:100%;border:0;background:transparent;color:var(--accent);font-weight:700;
+ font-size:12.5px;padding:11px 0 2px;cursor:pointer;font-family:inherit}
+.seeall:hover{opacity:.8}
+.task-detail{display:none}
+.task-detail.open{display:block}
+
+/* Sticky bottom-tab scrollspy nav */
+body{padding-bottom:74px}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;justify-content:center;
+ background:var(--tabbar-bg,var(--card));border-top:1px solid var(--line);
+ padding:6px 6px calc(6px + env(safe-area-inset-bottom));backdrop-filter:saturate(1.2) blur(8px)}
+.tabbar .inner{display:flex;gap:2px;max-width:432px;width:100%}
+.tabbar .tab{flex:1 1 0;border:0;background:transparent;cursor:pointer;display:flex;
+ flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:10px;
+ color:var(--muted);font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.2px;
+ transition:color .15s,background .15s}
+.tabbar .tab .ic{font-size:17px;line-height:1}
+.tabbar .tab.active{color:var(--accent);background:var(--tab-active-bg,rgba(255,199,44,.12))}
 </style>
 </head>
 <body>
 <div id="app"><div class="loading">Loading…</div></div>
+<nav class="tabbar" id="tabbar" style="display:none"><div class="inner">
+  <button class="tab" data-t="sec-tasks"    onclick="jumpTo('sec-tasks')"><span class="ic">&#9745;</span>Tasks</button>
+  <button class="tab" data-t="sec-sales"    onclick="jumpTo('sec-sales')"><span class="ic">&#128200;</span>Sales</button>
+  <button class="tab" data-t="sec-race"     onclick="jumpTo('sec-race')"><span class="ic">&#127942;</span>Race</button>
+  <button class="tab" data-t="sec-feedback" onclick="jumpTo('sec-feedback')"><span class="ic">&#128172;</span>Guests</button>
+  <button class="tab" data-t="sec-more"     onclick="jumpTo('sec-more')"><span class="ic">&#9776;</span>More</button>
+</div></nav>
 
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
@@ -632,7 +706,7 @@ function renderLowComments(comments){
              (d ? ' &middot; '+esc(d) : '')+
            '</span>'+
          '</div>'+
-         '<div style="margin-top:5px;color:#52525b;white-space:pre-wrap">'+esc(c.comment_text||'')+'</div>'+
+         '<div style="margin-top:5px;color:var(--ink2);white-space:pre-wrap">'+esc(c.comment_text||'')+'</div>'+
          '</div>';
   });
   return h + '</div>';
@@ -1169,7 +1243,7 @@ function renderManualReports(rows){
   const badge=(s)=>{
     const css = (s==='overdue') ? 'background:#c0392b;color:#fff'
               : (s==='unknown') ? 'background:#f59e0b;color:#fff'
-              :                   'background:#e5e7eb;color:#6b7280';
+              :                   'background:#e5e7eb;color:var(--muted)';
     return '<span style="font-size:10px;font-weight:700;text-transform:uppercase;'+
            'letter-spacing:.04em;padding:2px 7px;border-radius:10px;'+css+'">'+
            esc(s||'?')+'</span>';
@@ -1186,7 +1260,7 @@ function renderManualReports(rows){
       s+='<div style="display:flex;justify-content:space-between;align-items:center;'+
          'gap:8px;padding:6px 0;border-bottom:1px solid var(--line,#eee)">'+
          '<div><div style="font-weight:600">'+esc(r.label)+'</div>'+
-         '<div style="font-size:11px;color:#6b7280">'+esc(r.cadence)+
+         '<div style="font-size:11px;color:var(--muted)">'+esc(r.cadence)+
          ' &middot; through '+fmt(r.last_business_date)+'</div></div>'+
          badge(r.status)+'</div>';
     });
@@ -1225,7 +1299,7 @@ function renderKeyDates(rows){
   const kindCss={promo:"background:#16a34a;color:#fff",
                  "price-round":"background:#2563eb;color:#fff",
                  deadline:"background:#c0392b;color:#fff",
-                 event:"background:#6b7280;color:#fff"};
+                 event:"background:var(--muted);color:#fff"};
   const kindLabel={promo:"Promo","price-round":"Price",deadline:"Deadline",event:"Event"};
   const badge=(k)=> '<span style="font-size:10px;font-weight:700;text-transform:uppercase;'+
     'letter-spacing:.04em;padding:2px 7px;border-radius:10px;'+(kindCss[k]||kindCss.event)+'">'+
@@ -1244,7 +1318,7 @@ function renderKeyDates(rows){
        'gap:10px;padding:7px 0;border-bottom:1px solid var(--line,#eee)">'+
        '<div style="min-width:0">'+
        '<div style="font-weight:600">'+esc(r.title||"")+'</div>'+
-       '<div style="font-size:11px;color:#6b7280">'+esc(window(r))+
+       '<div style="font-size:11px;color:var(--muted)">'+esc(window(r))+
        (live?' &middot; live now':'')+where+
        (r.notes?' &middot; '+esc(String(r.notes)):'')+'</div></div>'+
        badge(r.kind)+'</div>';
@@ -1301,6 +1375,133 @@ function renderCleanlinessRace(race){
     'font-size:12.5px;border-collapse:collapse;overflow:hidden"><tbody>'+allRows+'</tbody></table></details></div>';
 }
 
+// ---- Sales & Guests comps — daily YoY pulse + MTD chart -------------
+// Driven by data.sales_comps (Edge Fn v33): { data_through, mtd:{sales,
+// sales_yoy,gc,gc_yoy}, series:[{date,sales,sales_yoy,gc,gc_yoy}] }. Scoped
+// per role server-side (Owner=all 12, Sup=patch, GM=their store). Sales-
+// weighted YoY for $, GC-weighted YoY for guests — mirrors the sales_summary
+// view math. Pinned near the top of the board.
+function renderSalesComps(sc){
+  if(!sc || !Array.isArray(sc.series) || !sc.series.length) return "";
+  const series=sc.series, mtd=sc.mtd||{}, last=series[series.length-1]||{};
+  const fmtK=n=>{ if(n==null) return '&mdash;'; const a=Math.abs(n);
+    if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1e3) return '$'+Math.round(n/1e3)+'K'; return '$'+Math.round(n); };
+  const fmtKn=n=>{ if(n==null) return '&mdash;'; return n>=1e3? (n/1e3).toFixed(1)+'K' : String(Math.round(n)); };
+  const pctTxt=v=> v==null?'&mdash;':(v>0?'+':'')+Number(v).toFixed(1)+'%';
+  const cls=v=> v==null?'':(v>0?'up':(v<0?'dn':''));
+
+  // ---- dual-line SVG chart (sales YoY gold, guests YoY blue), zero baseline
+  const W=300,H=118,L=10,Rp=10,T=10,B=20;
+  const sV=series.map(p=>p.sales_yoy), gV=series.map(p=>p.gc_yoy);
+  const all=sV.concat(gV).filter(v=>v!=null);
+  let lo=Math.min(0,...all), hi=Math.max(0,...all);
+  if(lo===hi){lo-=1;hi+=1;}
+  const padv=(hi-lo)*0.14||1; lo-=padv; hi+=padv;
+  const x=i=> series.length<=1 ? (L+(W-L-Rp)/2) : (L + i*(W-L-Rp)/(series.length-1));
+  const y=v=> T + (H-T-B)*(1-(v-lo)/(hi-lo));
+  const line=(vals,color)=>{
+    const pts=vals.map((v,i)=>v==null?null:[x(i),y(v)]).filter(Boolean);
+    if(!pts.length) return '';
+    const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    const dots=pts.map(p=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="2.1" fill="'+color+'"/>').join('');
+    return '<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+dots;
+  };
+  const SALES='var(--accent)', GUESTS='#3b82f6';
+  const zeroY=y(0).toFixed(1);
+  const dayLbl=iso=>String(iso).slice(8,10).replace(/^0/,'');
+  const svg='<svg class="comp-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'+
+    '<line x1="'+L+'" y1="'+zeroY+'" x2="'+(W-Rp)+'" y2="'+zeroY+'" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>'+
+    '<text x="'+L+'" y="'+(T+7)+'" font-size="9" fill="var(--muted)">'+pctTxt(Math.round(hi))+'</text>'+
+    '<text x="'+L+'" y="'+(H-B+13)+'" font-size="9" fill="var(--muted)">'+pctTxt(Math.round(lo))+'</text>'+
+    '<text x="'+L+'" y="'+(H-3)+'" font-size="9" fill="var(--muted)">'+dayLbl(series[0].date)+'</text>'+
+    '<text x="'+(W-Rp)+'" y="'+(H-3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+dayLbl(last.date)+'</text>'+
+    line(gV,GUESTS)+line(sV,SALES)+'</svg>';
+
+  return '<div class="comps sec" id="sec-sales-card"><h3>Sales &amp; Guests &mdash; YoY'+
+    '<span class="meta">MTD through '+esc(fmtDate(vdate(sc.data_through)))+'</span></h3>'+
+    '<div class="comp-nums">'+
+      '<div class="comp"><div class="l">Sales YoY</div>'+
+        '<div class="v '+cls(mtd.sales_yoy)+'">'+pctTxt(mtd.sales_yoy)+'</div>'+
+        '<div class="s">'+fmtK(mtd.sales)+' MTD &middot; latest '+pctTxt(last.sales_yoy)+'</div></div>'+
+      '<div class="comp"><div class="l">Guests YoY</div>'+
+        '<div class="v '+cls(mtd.gc_yoy)+'">'+pctTxt(mtd.gc_yoy)+'</div>'+
+        '<div class="s">'+fmtKn(mtd.gc)+' MTD &middot; latest '+pctTxt(last.gc_yoy)+'</div></div>'+
+    '</div>'+svg+
+    '<div class="comp-legend"><span><i style="border-color:var(--accent)"></i>Sales YoY</span>'+
+      '<span><i style="border-color:#3b82f6"></i>Guests YoY</span></div>'+
+    '</div>';
+}
+
+// ---- Top-5 tasks widget + expandable detail ------------------------
+const PRANK={urgent:0,high:1,normal:2,low:3};
+function topTasks(tasks,n){
+  return tasks.slice().sort((a,b)=>{
+    const pa=PRANK[a.priority]??2, pb=PRANK[b.priority]??2;
+    if(pa!==pb) return pa-pb;
+    const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
+    const bd=b.due_at?vdate(b.due_at).getTime():Infinity;
+    return ad-bd;
+  }).slice(0,n);
+}
+function renderTasksBlock(tasks, stores){
+  // Full breakdown (Hot / per-store / Cross-store) — same grouping as before.
+  const hot=tasks.filter(t=>t.priority==="urgent"||t.priority==="high")
+    .sort((a,b)=>{const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
+      const bd=b.due_at?vdate(b.due_at).getTime():Infinity;return ad-bd;});
+  let d=section("Hot — high priority", hot, "Across all your stores.");
+  stores.forEach(store=>{
+    const list=tasks.filter(t=>t.store_id===store.id && t.priority!=="urgent" && t.priority!=="high");
+    d+=section(store.name, list);
+  });
+  const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
+  d+=section("Cross-store / Org", cross);
+
+  if(tasks.length<=5) return d;            // few enough: show the full breakdown directly
+  const top=topTasks(tasks,5);
+  let h=section("Your top tasks", top, "Highest priority &amp; soonest due.");
+  h+='<button class="seeall" onclick="toggleDetail(this)">'+
+     '<span class="more">See all '+tasks.length+' tasks &#9662;</span>'+
+     '<span class="less" style="display:none">Show less &#9652;</span></button>';
+  h+='<div class="task-detail">'+d+'</div>';
+  return h;
+}
+function toggleDetail(btn){
+  const d=btn.nextElementSibling; if(!d) return;
+  const open=d.classList.toggle("open");
+  const m=btn.querySelector(".more"), l=btn.querySelector(".less");
+  if(m) m.style.display=open?"none":""; if(l) l.style.display=open?"":"none";
+}
+
+// ---- board chrome: bottom-tab scrollspy nav ------------------------
+function jumpTo(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }
+function setBoard(payload){
+  setBoard(payload);
+  wireChrome();
+}
+function wireChrome(){
+  const bar=document.getElementById("tabbar"); if(!bar) return;
+  const tabs=Array.prototype.slice.call(bar.querySelectorAll(".tab"));
+  let anyVisible=false;
+  const present={};
+  tabs.forEach(t=>{
+    const el=document.getElementById(t.getAttribute("data-t"));
+    if(el){ t.style.display=""; present[t.getAttribute("data-t")]=t; anyVisible=true; }
+    else t.style.display="none";
+  });
+  bar.style.display = anyVisible ? "" : "none";
+  if(!anyVisible || !("IntersectionObserver" in window)) return;
+  const obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        tabs.forEach(b=>b.classList.remove("active"));
+        const t=present[e.target.id]; if(t) t.classList.add("active");
+      }
+    });
+  }, { rootMargin:"-45% 0px -50% 0px", threshold:0 });
+  Object.keys(present).forEach(id=>{ const el=document.getElementById(id); if(el) obs.observe(el); });
+  if(tabs.length){ const first=tabs.find(t=>t.style.display!=="none"); if(first) first.classList.add("active"); }
+}
+
 function renderBoard(payload){
   STATE = payload;
   const data = payload.data || {};
@@ -1323,31 +1524,24 @@ function renderBoard(payload){
   const storeLine = stores.map(s=>s.name).join(" · ");
 
   let h='<div class="phone">';
-  // RGR countdown — soonest upcoming RGR within 45 days in this manager's patch.
-  // Visits are already scoped to scopeIds in the Edge Function, so Owners see
-  // the next RGR across all 12 stores, Supervisors see theirs, GMs see their store.
+  // RGR countdown banner — soonest upcoming RGR within 45 days in this patch.
   h+=renderCountdown(data.visits||[], stores);
-  h+='<div class="hdr"><h2>Hi, '+esc(mgr.first_name||"")+'</h2>'+
+
+  // Branded header — arches mark + greeting.
+  h+='<div class="brand"><div class="mark">M</div>'+
+     '<div class="hdr" style="margin:0"><h2>Hi, '+esc(mgr.first_name||"")+'</h2>'+
      '<div class="sub">'+esc(mgr.role||"")+(storeLine?' &middot; '+esc(storeLine):'')+
-     ' &middot; '+esc(now)+'</div></div>';
+     ' &middot; '+esc(now)+'</div></div></div>';
   h+=flashHtml(result);
 
-  // June Cleanliness Race — gamified leaderboard at the top of every view.
-  h+=renderCleanlinessRace(data.cleanliness_race);
-
+  // ===== 1) TASKS — the action hub, pinned to the top =====
+  h+='<div id="sec-tasks" class="sec"></div>';
   h+='<div class="chips">'+
      '<div class="chip"><div class="n">'+tasks.length+'</div><div class="l">Active</div></div>'+
      '<div class="chip high"><div class="n">'+hi+'</div><div class="l">Hi-pri</div></div>'+
      '<div class="chip over"><div class="n">'+overdue+'</div><div class="l">Overdue</div></div>'+
      '<div class="chip"><div class="n">'+dueSoon+'</div><div class="l">Due &le; 7d</div></div>'+
      '</div>';
-
-  // Owner-only "Manual Reports — needs attention" card (lane F). Returns ""
-  // for non-Owner roles (their payload omits data.manual_reports).
-  h+=renderManualReports(data.manual_reports);
-  // Promos & Key Dates - upcoming promos/deadlines/events (next 60 days).
-  h+=renderKeyDates(data.key_dates||[]);
-
   // GM intake — "I need something" CTA. Routes to Eddie + supervisor based
   // on category server-side. GMs only; other roles use + Add task directly.
   if(mgr.role==='GM'){
@@ -1357,48 +1551,38 @@ function renderBoard(payload){
        '</button></div>'+
        '<div id="intakeFormMount"></div>';
   }
-
   h+='<div class="add-bar">'+
      '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
      '<div id="newFormMount"></div>';
+  // Top-5 tasks + expandable full breakdown (Hot / per-store / Cross-store).
+  h+=renderTasksBlock(tasks, stores);
 
-  // Hot section: all high/urgent
-  const hot=tasks.filter(t=>t.priority==="urgent"||t.priority==="high")
-    .sort((a,b)=>{
-      const ad=a.due_at?vdate(a.due_at).getTime():Infinity;
-      const bd=b.due_at?vdate(b.due_at).getTime():Infinity;
-      return ad-bd;
-    });
-  h+=section("Hot — high priority", hot, "Across all your stores.");
+  // ===== 2) SALES & GUESTS — daily YoY pulse + MTD chart =====
+  h+='<div id="sec-sales" class="sec"></div>';
+  h+=renderSalesComps(data.sales_comps);
 
-  // Per-store sections (normal priority only — high already in Hot)
-  stores.forEach(store=>{
-    const list=tasks.filter(t=>t.store_id===store.id && t.priority!=="urgent" && t.priority!=="high");
-    h+=section(store.name, list);
-  });
+  // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
+  h+='<div id="sec-race" class="sec"></div>';
+  h+=renderCleanlinessRace(data.cleanliness_race);
 
-  // Cross-store
-  const cross=tasks.filter(t=>!t.store_id && t.priority!=="urgent" && t.priority!=="high");
-  h+=section("Cross-store / Org", cross);
-
-  // Open Complaints - sits between Tasks and VOICE so it lands
-  // in eyeline as soon as the manager scrolls past their task list.
+  // ===== 4) GUEST FEEDBACK — complaints, VOICE, low-rated comments =====
+  h+='<div id="sec-feedback" class="sec"></div>';
   h+=renderComplaints(data.complaints||[]);
-
-  // VOICE card (replaces monthly VOICE + PACE — see renderVoiceView).
   h+=renderVoiceView(data.voice_view, data.pace_current||[]);
-  // Recent low-rated customer comments (rating ≤ 2, last 90 days).
   h+=renderLowComments(data.voice_comments_recent||[]);
-  // Turnover — crew + shift leader, 6mo sparkline + TTM/monthly% per store.
+
+  // ===== 5) MORE — operations detail =====
+  h+='<div id="sec-more" class="sec"></div>';
   h+=renderTurnover(data.turnover||[]);
-  // Product Sales — MTD + 52w trailing, driven by sales_summary view.
   h+=renderProductSales(data.sales_summary||[]);
-  // Non-SMG patch data — visits, labor, bonus, manager-rank.
   h+=renderVisits(data.visits||[], stores);
   h+=renderLabor(data.labor||[]);
   h+=renderBonus(data.bonus_results||[]);
   h+=renderBonusAdjustments(data.bonus_adjustments||[], mgr);
   h+=renderManagerRank(data.manager_rank||[]);
+  // Owner-only manual-reports health + promos/key-dates (moved below the fold).
+  h+=renderManualReports(data.manual_reports);
+  h+=renderKeyDates(data.key_dates||[]);
 
   h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
   h+='</div>';
@@ -1482,7 +1666,7 @@ async function saveIntake(ev, btn){
   form.classList.add("busy");
   try{
     const res = await callApi(payload);
-    document.getElementById("app").innerHTML = renderBoard(res);
+    setBoard(res);
   }catch(e){
     form.classList.remove("busy");
     alert("Submit failed: " + (e && e.message));
@@ -1516,7 +1700,7 @@ async function saveEdit(ev, btn){
   form.classList.add("busy");
   try{
     const res = await callApi(payload);
-    document.getElementById("app").innerHTML = renderBoard(res);
+    setBoard(res);
   }catch(e){
     form.classList.remove("busy");
     alert("Save failed: " + (e && e.message));
@@ -1539,7 +1723,7 @@ async function saveNew(ev, btn){
   form.classList.add("busy");
   try{
     const res = await callApi(payload);
-    document.getElementById("app").innerHTML = renderBoard(res);
+    setBoard(res);
   }catch(e){
     form.classList.remove("busy");
     alert("Create failed: " + (e && e.message));
@@ -1554,7 +1738,7 @@ async function closeTask(ev, btn, toStatus){
   row.classList.add("busy");
   try{
     const res = await callApi({ action: "close", id, to_status: toStatus });
-    document.getElementById("app").innerHTML = renderBoard(res);
+    setBoard(res);
   }catch(e){
     row.classList.remove("busy");
     alert(verb + " failed: " + (e && e.message));
@@ -1603,7 +1787,7 @@ async function resolveComplaint(ev, btn){
   row.classList.add("busy");
   try{
     const res = await callApi({ action: "resolve_complaint", id });
-    document.getElementById("app").innerHTML = renderBoard(res);
+    setBoard(res);
   }catch(e){
     row.classList.remove("busy");
     alert("Resolve failed: " + (e && e.message));
@@ -1620,7 +1804,7 @@ async function init(){
     if(r.status === 401){ showError("This link has expired or is invalid. Text Eddie for a fresh one."); return; }
     if(!r.ok) throw new Error("HTTP " + r.status);
     const payload = await r.json();
-    document.getElementById("app").innerHTML = renderBoard(payload);
+    setBoard(payload);
   }catch(e){
     showError("Could not load board: " + (e && e.message));
   }
