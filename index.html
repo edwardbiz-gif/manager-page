@@ -300,6 +300,42 @@ body{padding-bottom:74px}
  transition:color .15s,background .15s}
 .tabbar .tab .ic{font-size:17px;line-height:1}
 .tabbar .tab.active{color:var(--accent);background:var(--tab-active-bg,rgba(255,199,44,.12))}
+
+/* Business Advisor briefing */
+.advisor{background:linear-gradient(180deg,var(--card),var(--paper));border:1px solid var(--line);
+ border-left:3px solid var(--accent);border-radius:13px;padding:13px 14px;margin-top:13px}
+.advisor-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+.advisor-head{font-size:15.5px;font-weight:800;line-height:1.3;margin:5px 0 2px}
+.advisor-ints{margin:8px 0 2px}
+.aint{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:3px 0}
+.adot{width:8px;height:8px;border-radius:50%;flex:none}
+.advisor-body{font-size:12.5px;color:var(--ink2);margin-top:6px}
+.advisor-body p{margin:5px 0}
+.advisor-body .md-h{font-weight:700;color:var(--fg);margin:7px 0 2px}
+.advisor-body .md-ul{margin:5px 0 5px 16px;padding:0}
+.advisor-body li{margin:2px 0}
+.advisor-foot{font-size:10.5px;color:var(--muted);margin-top:8px;font-style:italic}
+
+/* Owner pulse strip */
+.pulse{margin:10px 0 0}
+.pulse-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:5px}
+.pulse-row{display:flex;gap:7px;flex-wrap:wrap}
+.pcell{flex:1 1 0;min-width:60px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 9px}
+.pcell.warn .pn{color:var(--high)} .pcell.bad .pn{color:var(--urgent)}
+.pcell .pn{font-size:18px;font-weight:800;line-height:1}
+.pcell .pl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:3px}
+
+/* Unified Guest Feedback */
+.cfwrap{display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap}
+.cfb{flex:1 1 0;min-width:62px;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:8px 9px}
+.cfn{font-size:19px;font-weight:800;line-height:1}
+.cfl{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:3px}
+.fb-item{padding:9px 0;border-top:1px solid var(--line)}
+.fb-item:first-of-type{border-top:0}
+.fb-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.fb-store{font-weight:700;font-size:13.5px}
+.fb-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.fb-body{font-size:12px;color:var(--ink2);margin-top:4px}
 </style>
 </head>
 <body>
@@ -1502,6 +1538,112 @@ function wireChrome(){
   if(tabs.length){ const first=tabs.find(t=>t.style.display!=="none"); if(first) first.classList.add("active"); }
 }
 
+// ---- Business Advisor briefing (Owner-only, top of board) ----------
+// data.advisor_briefing = {generated_at, data_through, headline, interrupts[],
+// metrics{totals,per_store}, body_md}. Null until build_advisor_briefing.py
+// writes a row — renders nothing when empty.
+function mdLite(s){
+  if(!s) return "";
+  const lines=esc(String(s)).split(/\n/);
+  let out="", inList=false;
+  lines.forEach(ln=>{
+    const b=ln.match(/^\s*[-*]\s+(.+)$/);
+    const hd=ln.match(/^#{1,3}\s+(.+)$/);
+    if(b){ if(!inList){out+='<ul class="md-ul">';inList=true;} out+='<li>'+b[1].replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</li>'; return; }
+    if(inList){ out+='</ul>'; inList=false; }
+    if(hd){ out+='<div class="md-h">'+hd[1].replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</div>'; return; }
+    if(ln.trim()) out+='<p>'+ln.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')+'</p>';
+  });
+  if(inList) out+='</ul>';
+  return out;
+}
+function renderAdvisorBriefing(ab){
+  if(!ab || (!ab.headline && !ab.body_md)) return "";
+  const sevColor={high:'var(--urgent)',medium:'var(--high)',low:'var(--muted)'};
+  const ints=Array.isArray(ab.interrupts)?ab.interrupts:[];
+  let h='<div class="advisor" id="advisor"><div class="advisor-tag">&#9889; Business Advisor</div>';
+  if(ab.headline) h+='<div class="advisor-head">'+esc(ab.headline)+'</div>';
+  if(ints.length){
+    h+='<div class="advisor-ints">';
+    ints.slice(0,5).forEach(it=>{
+      const sev=String(it.severity||'').toLowerCase();
+      h+='<div class="aint"><span class="adot" style="background:'+(sevColor[sev]||'var(--muted)')+'"></span>'+
+         '<span class="atxt">'+esc(it.label||it.type||'')+(it.store?' &middot; '+esc(it.store):'')+
+         (it.hours_over!=null?' &middot; '+Math.round(it.hours_over)+'h over':'')+'</span></div>';
+    });
+    h+='</div>';
+  }
+  if(ab.body_md) h+='<div class="advisor-body">'+mdLite(ab.body_md)+'</div>';
+  const dt=ab.data_through?(' &middot; data through '+esc(fmtDate(vdate(ab.data_through)))):'';
+  return h+'<div class="advisor-foot">Biweekly brief'+dt+'</div></div>';
+}
+
+// ---- Owner pulse strip (Owner-only, above the chips) ----------------
+// data.owner_pulse: complaints + onboarding + intakes snapshot. Shows only
+// what the task chips DON'T already cover (avoids duplicating overdue/urgent).
+function renderOwnerPulse(op){
+  if(!op) return "";
+  const age = op.complaints_oldest_at
+    ? Math.floor((Date.now()-new Date(op.complaints_oldest_at).getTime())/864e5) : null;
+  const cell=(n,l,cls)=> '<div class="pcell'+(cls?' '+cls:'')+'"><div class="pn">'+n+'</div><div class="pl">'+l+'</div></div>';
+  let h='<div class="pulse"><div class="pulse-h">Owner pulse</div><div class="pulse-row">';
+  h+=cell(op.complaints_open||0,'Complaints',op.complaints_open>0?'warn':'');
+  h+=cell(op.complaints_overdue||0,'SLA over',op.complaints_overdue>0?'bad':'');
+  if(age!=null) h+=cell(age+'d','Oldest',age>3?'bad':'');
+  h+=cell((op.onb_opened||0)+'/'+(op.onb_total||0),'Onboard');
+  h+=cell(op.intakes_today||0,'Intakes today');
+  return h+'</div></div>';
+}
+
+// ---- Unified Guest Feedback (all roles) ----------------------------
+// data.customer_feedback = {data_through, summary{...}, items[...]}. Combines
+// 1-800 complaints + SMG comments + Google reviews into one needs-response
+// feed. Leads the feedback section; the actionable Open Complaints card (with
+// resolve + draft-email) stays below it. Replaces the old Low-Rated Comments.
+function renderCustomerFeedback(cf){
+  if(!cf || !Array.isArray(cf.items) || !cf.items.length) return "";
+  const s=cf.summary||{};
+  const SRC={complaint:'1-800',smg:'SMG',google:'Google',review:'Review'};
+  const stars=r=> r==null?'':'★'.repeat(Math.round(r))+'☆'.repeat(Math.max(0,5-Math.round(r)));
+  const sentBadge=it=>{
+    if(it.source==='complaint'||it.sentiment==='negative')
+      return '<span class="t-tag" style="background:var(--due-over);color:var(--due-overc)">'+(it.source==='complaint'?'Complaint':'Low')+'</span>';
+    if(it.sentiment==='neutral')
+      return '<span class="t-tag" style="background:var(--due-soon);color:var(--due-soonc)">Mixed</span>';
+    return '<span class="t-tag" style="background:var(--paper);color:var(--ok)">Praise</span>';
+  };
+  const items=cf.items.slice().sort((a,b)=>{
+    const d=(b.needs_response?1:0)-(a.needs_response?1:0);
+    if(d) return d;
+    return String(b.occurred_at||'').localeCompare(String(a.occurred_at||''));
+  });
+  const itemHtml=it=>{
+    const txt=String(it.body_text||'');
+    const body=txt.length>200 ? esc(txt.slice(0,200))+'&hellip;' : esc(txt);
+    const link=it.link_url ? ' <a href="'+esc(it.link_url)+'" target="_blank" rel="noopener">open &#8599;</a>' : '';
+    return '<div class="fb-item"><div class="fb-top"><span class="fb-store">'+esc(it.store_name||it.store_number||'Org')+'</span>'+sentBadge(it)+'</div>'+
+      '<div class="fb-sub"><span class="src">'+esc(SRC[it.source]||it.source)+'</span> &middot; '+esc(it.topic||'')+
+        ' &middot; '+(it.occurred_at?esc(fmtDate(vdate(it.occurred_at))):'')+
+        (it.rating!=null?' <span style="color:var(--accent)">'+stars(it.rating)+'</span>':'')+link+'</div>'+
+      (body?'<div class="fb-body">'+body+'</div>':'')+'</div>';
+  };
+  const top=items.slice(0,3).map(itemHtml).join('');
+  const rest=items.slice(3,10).map(itemHtml).join('');
+  const byS=(s.by_source||[]).map(b=>esc(SRC[b.source]||b.source)+' '+b.count).join(' &middot; ');
+  let h='<div class="card fb"><h3>Guest Feedback<span class="ct">'+(s.needs_response||0)+' need reply</span></h3>'+
+    '<div class="cfwrap">'+
+      '<div class="cfb"><div class="cfn">'+(s.needs_response||0)+'</div><div class="cfl">Need reply</div></div>'+
+      '<div class="cfb"><div class="cfn">'+(s.avg_rating_30!=null?s.avg_rating_30:'&mdash;')+'</div><div class="cfl">Avg &#9733; 30d</div></div>'+
+      '<div class="cfb"><div class="cfn">'+(s.last30_negative||0)+'</div><div class="cfl">Neg 30d</div></div>'+
+      '<div class="cfb"><div class="cfn">'+(s.last30_total||0)+'</div><div class="cfl">Total 30d</div></div>'+
+    '</div>'+
+    (byS?'<div class="summary" style="margin:0 0 8px">'+byS+(cf.data_through?' &middot; through '+esc(fmtDate(vdate(cf.data_through))):'')+'</div>':'')+
+    top+
+    (rest?'<button class="seeall" onclick="toggleDetail(this)"><span class="more">See more &#9662;</span><span class="less" style="display:none">Show less &#9652;</span></button><div class="task-detail">'+rest+'</div>':'')+
+    '</div>';
+  return h;
+}
+
 function renderBoard(payload){
   STATE = payload;
   const data = payload.data || {};
@@ -1534,8 +1676,13 @@ function renderBoard(payload){
      ' &middot; '+esc(now)+'</div></div></div>';
   h+=flashHtml(result);
 
+  // Business Advisor briefing — Owner-only, very top (renders "" when empty).
+  h+=renderAdvisorBriefing(data.advisor_briefing);
+
   // ===== 1) TASKS — the action hub, pinned to the top =====
   h+='<div id="sec-tasks" class="sec"></div>';
+  // Owner pulse — complaints/onboarding/intakes snapshot above the chips (Owner only).
+  h+=renderOwnerPulse(data.owner_pulse);
   h+='<div class="chips">'+
      '<div class="chip"><div class="n">'+tasks.length+'</div><div class="l">Active</div></div>'+
      '<div class="chip high"><div class="n">'+hi+'</div><div class="l">Hi-pri</div></div>'+
@@ -1565,11 +1712,13 @@ function renderBoard(payload){
   h+='<div id="sec-race" class="sec"></div>';
   h+=renderCleanlinessRace(data.cleanliness_race);
 
-  // ===== 4) GUEST FEEDBACK — complaints, VOICE, low-rated comments =====
+  // ===== 4) GUEST FEEDBACK — unified feed, then actionable complaints + VOICE =====
   h+='<div id="sec-feedback" class="sec"></div>';
+  // Unified Guest Feedback (1-800 + SMG + Google) leads; Low-Rated Comments
+  // folded into it. Open Complaints stays below it for the resolve/draft actions.
+  h+=renderCustomerFeedback(data.customer_feedback);
   h+=renderComplaints(data.complaints||[]);
   h+=renderVoiceView(data.voice_view, data.pace_current||[]);
-  h+=renderLowComments(data.voice_comments_recent||[]);
 
   // ===== 5) MORE — operations detail =====
   h+='<div id="sec-more" class="sec"></div>';
