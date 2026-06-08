@@ -1513,7 +1513,7 @@ function toggleDetail(btn){
 // ---- board chrome: bottom-tab scrollspy nav ------------------------
 function jumpTo(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }
 function setBoard(payload){
-  setBoard(payload);
+  document.getElementById("app").innerHTML = renderBoard(payload);
   wireChrome();
 }
 function wireChrome(){
