@@ -1,0 +1,141 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your Operations Platform — Capabilities</title>
+<style>
+:root{--gold:#ffc72c;--red:#da291c;--ink:#eef4fb;--ink2:#c2d0dd;--muted:#8aa0b4;--card:#1b2632;--line:#26323f}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:radial-gradient(900px 520px at 78% -8%,#15314a,#0a0e13 60%);color:var(--ink);
+ font-family:system-ui,"Segoe UI",Arial,sans-serif;overflow:hidden}
+.deck{height:100vh;display:flex;align-items:center;justify-content:center}
+.slide{display:none;width:min(960px,94vw);padding:34px 38px;animation:f .25s ease}
+.slide.on{display:block}
+@keyframes f{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.kicker{color:var(--gold);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:13px}
+h1{font-size:40px;line-height:1.1;margin:10px 0 6px}
+h2{font-size:30px;line-height:1.15;margin:8px 0 18px}
+.sub{color:var(--ink2);font-size:17px;margin-bottom:18px}
+ul{list-style:none;display:grid;gap:11px}
+li{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);
+ border-radius:12px;padding:13px 16px;font-size:17px;line-height:1.4}
+li b{color:#fff}
+.two{grid-template-columns:1fr 1fr}
+@media(max-width:680px){.two{grid-template-columns:1fr}h1{font-size:30px}h2{font-size:23px}li{font-size:15px}}
+.future li{border-left-color:var(--red)}
+.mark{width:54px;height:54px;border-radius:14px;background:var(--gold);color:#3a2a00;display:grid;
+ place-items:center;font-weight:900;font-size:30px;margin-bottom:14px}
+.big{font-size:23px;line-height:1.4}
+.nav{position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:14px;
+ color:var(--muted);font-size:13px;align-items:center}
+.dot{display:inline-flex;gap:6px}.dot i{width:8px;height:8px;border-radius:50%;background:#33414f;display:block}
+.dot i.on{background:var(--gold)}
+button{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:9px;
+ padding:7px 13px;font:inherit;cursor:pointer}
+.tag{display:inline-block;background:rgba(255,199,44,.14);color:var(--gold);border-radius:6px;
+ padding:2px 9px;font-size:12px;font-weight:700;margin-left:8px}
+</style></head><body>
+<div class="deck" id="deck">
+
+<section class="slide on">
+ <div class="mark">M</div>
+ <div class="kicker">Schmitt McDonald's · Operations Platform</div>
+ <h1>Your store, in your pocket.</h1>
+ <div class="sub">One private link. No login, no app. Built for you — current capabilities and what's next.</div>
+ <div class="big">Scan your QR code → your store's board opens instantly on your phone.</div>
+</section>
+
+<section class="slide">
+ <div class="kicker">What it is</div>
+ <h2>A single page that pulls everything together</h2>
+ <div class="sub">Email, SMG, QSRSoft, complaints, sales, visits — scattered everywhere — now unified and scoped to <b>your</b> store.</div>
+ <ul class="two">
+  <li>🔗 <b>Personal, secure link</b> — unguessable, no password</li>
+  <li>📱 <b>Phone-first</b> — tap the bottom tabs to jump</li>
+  <li>🔄 <b>Always current</b> — reload for fresh numbers</li>
+  <li>🗓️ <b>Every number is dated</b> — you always know "as of when"</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="kicker">Live today</div>
+ <h2>Run your day from the top of the page</h2>
+ <ul>
+  <li>✅ <b>Your top 5 tasks</b> — create, assign, mark done, right from your phone</li>
+  <li>🆘 <b>"I need something"</b> — IT, maintenance, office, supervisor help → routes to Eddie + your supervisor instantly</li>
+  <li>📈 <b>Daily Sales & Guest-count YoY</b> + a month-to-date chart</li>
+  <li>🏆 <b>June Cleanliness Race</b> — live standings, top 3 win $150 / $100 / $50</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="kicker">Live today</div>
+ <h2>Guests, performance & your bonus — in one place</h2>
+ <ul class="two">
+  <li>💬 <b>Guest Feedback</b> — 1-800 complaints, SMG, Google reviews unified; what needs a reply first</li>
+  <li>📣 <b>Complaints with draft replies</b> + 72-hour SLA clock</li>
+  <li>📊 <b>VOICE / OSAT, accuracy, drive-thru OEPE</b> rankings</li>
+  <li>👥 <b>Labor %, turnover, upcoming visits</b> (RGR countdown)</li>
+  <li>💵 <b>Your bonus plan + your placements/earnings</b></li>
+  <li>📲 <b>SMS</b> — updates and quick replies by text</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="kicker">Behind the scenes</div>
+ <h2>It runs itself</h2>
+ <div class="sub">A pipeline pulls your data every 30 minutes and turns email into routed tasks — so the page is ready before you ask.</div>
+ <ul class="two">
+  <li>📥 Auto-ingest: mail, SMG, sales, complaints, labor, calendar</li>
+  <li>🤖 Email → tasks, auto-extracted and routed</li>
+  <li>🔐 Private + audited — every view and change is logged</li>
+  <li>🗂️ One system of record for all 12 stores</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="kicker">Coming soon <span class="tag">next</span></div>
+ <h2>The bonus engine — transparent, by the numbers</h2>
+ <ul class="future">
+  <li>💰 <b>Live July 1</b> — monthly Top-5 placements + a quarterly profit accelerator</li>
+  <li>📈 <b>Paid through your paycheck</b>, every period — no guessing</li>
+  <li>🔍 <b>Open formula</b> — you'll see exactly how you earned it, on your board</li>
+  <li>🎉 <b>Your bonus amount shown at the top of your page</b> when it's issued</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="kicker">Coming soon <span class="tag">next</span></div>
+ <h2>More ways to win — and a smarter platform</h2>
+ <ul class="future two">
+  <li>🍟 <b>Kitchen quality game</b> — crew earn bonuses for winning months</li>
+  <li>🧠 <b>Business Advisor brief</b> — what to fix first, every two weeks</li>
+  <li>🔗 <b>Live R365</b> — real-time FOB, PAC, labor targets</li>
+  <li>📡 <b>Direct data feeds</b> — faster, no email scraping</li>
+  <li>👤 <b>Shift-leader & crew views</b> next</li>
+  <li>🚀 <b>You asked, we build</b> — bottom-up, fast</li>
+ </ul>
+</section>
+
+<section class="slide">
+ <div class="mark">M</div>
+ <h1>This is built around <em>you.</em></h1>
+ <div class="big">Scan your code. Open it tonight. Tell us what would make your day easier — that's the next feature.</div>
+</section>
+
+</div>
+<div class="nav">
+ <button onclick="go(-1)">◀ Prev</button>
+ <span class="dot" id="dots"></span>
+ <button onclick="go(1)">Next ▶</button>
+</div>
+<script>
+var s=[].slice.call(document.querySelectorAll('.slide')),i=0,d=document.getElementById('dots');
+s.forEach(function(){d.innerHTML+='<i></i>'});
+function show(){s.forEach(function(x,n){x.classList.toggle('on',n===i);});
+ [].forEach.call(d.children,function(x,n){x.classList.toggle('on',n===i)});}
+function go(n){i=Math.max(0,Math.min(s.length-1,i+n));show();}
+document.addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);});
+document.addEventListener('click',function(e){if(e.target.closest('.nav'))return;go(1);});
+show();
+</script>
+</body></html>
