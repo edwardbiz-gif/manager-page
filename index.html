@@ -391,7 +391,7 @@ const TOKEN = new URLSearchParams(location.search).get("t") || "";
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v42";
+const SHELL_VERSION = "v43";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1203,15 +1203,23 @@ function vtGraph(series,bu,lowerBetter){
   const labels=series.map((d,i)=>(i%2===0)?'<text x="'+x(i).toFixed(1)+'" y="'+(H-1)+'" fill="#94a3b8" font-size="8" text-anchor="middle">'+d.p+'</text>':'').join("");
   return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:84px;display:block;margin-top:4px">'+buline+'<polyline points="'+pts+'" fill="none" stroke="'+stroke+'" stroke-width="2"/><circle cx="'+x(series.length-1).toFixed(1)+'" cy="'+y(last.v).toFixed(1)+'" r="3.2" fill="'+stroke+'"/>'+labels+'</svg>';
 }
+var VT_LOW_N=30;
 function vtMrow(c){ const col=vtVsBU(c);
+  const lowN=(c.n!=null&&c.n<VT_LOW_N);
+  const star=lowN?'<span style="color:#d97706" title="small sample (n&lt;'+VT_LOW_N+')">*</span>':'';
+  const nstr=(c.n!=null)?' · n'+c.n:'';
   return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line)">'+
     '<span style="flex:1;font-size:13px">'+esc(c.label)+'</span>'+
-    '<span style="font-weight:800;font-size:15px;padding:2px 8px;border-radius:7px;min-width:50px;text-align:center;background:'+col[0]+';color:'+col[1]+'">'+vtFmt(c.june)+'</span>'+
-    '<span style="font-size:10.5px;color:var(--muted);text-align:right;min-width:74px">'+vtArrow(c.delta)+'<br>BU '+vtFmt(c.bu)+' '+vtRank(c)+'</span></div>';
+    '<span style="font-weight:800;font-size:15px;padding:2px 8px;border-radius:7px;min-width:50px;text-align:center;background:'+col[0]+';color:'+col[1]+'">'+vtFmt(c.june)+star+'</span>'+
+    '<span style="font-size:10.5px;color:var(--muted);text-align:right;min-width:78px">'+vtArrow(c.delta)+'<br>BU '+vtFmt(c.bu)+' '+vtRank(c)+nstr+'</span></div>';
 }
+// Render a metric group, skipping any metric with no cell for this entity/daypart
+// (e.g. Cleanliness/EAD aren't in the per-daypart feeds, so they drop out there).
 function vtSection(title,keys,cells){
+  const ks=(keys||[]).filter(k=>cells&&cells[k]);
+  if(!ks.length) return "";
   return '<div style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:12px 2px 2px">'+title+'</div>'+
-    '<div>'+keys.map(k=>vtMrow(cells[k])).join("")+'</div>';
+    '<div>'+ks.map(k=>vtMrow(cells[k])).join("")+'</div>';
 }
 function vtRenderEntity(e,vt){
   const o=e.cells["Overall Satisfaction"]; let h='';
@@ -1224,14 +1232,12 @@ function vtRenderEntity(e,vt){
       vtGraph(e.hist_watch,w.bu,w.lower_better);
   }
   h+=vtSection("OSAT numbers",vt.groups.osat,e.cells);
-  h+=vtSection("QSC",vt.groups.qsc,e.cells);
+  h+=vtSection("QSC · quality · service · cleanliness",vt.groups.qsc,e.cells);
+  h+=vtSection("Food &amp; value",vt.groups.food,e.cells);
+  h+=vtSection("Service &amp; speed",vt.groups.service,e.cells);
+  h+=vtSection("Problems (lower = better)",vt.groups.problems,e.cells);
+  h+=vtSection("DT peaks (OSAT)",vt.groups.peaks,e.cells);
   h+=vtSection("B2B numbers (lower = better)",vt.groups.b2b,e.cells);
-  // All-day only: Cleanliness/Digital + DT peaks (these live in the Digital feed,
-  // so they aren't present in the per-daypart cells).
-  if(vt.groups.digital&&vt.groups.digital.some(k=>e.cells[k]&&e.cells[k].june!=null))
-    h+=vtSection("Cleanliness &amp; Digital",vt.groups.digital,e.cells);
-  if(vt.groups.peaks&&vt.groups.peaks.some(k=>e.cells[k]&&e.cells[k].june!=null))
-    h+=vtSection("DT peaks (OSAT)",vt.groups.peaks,e.cells);
   return h;
 }
 var VT_EI=0, VT_DP="all";
@@ -1269,7 +1275,10 @@ function renderVoiceTrend(vt){
     h+='<div style="display:flex;gap:6px;overflow:auto;padding:0 0 8px;border-bottom:1px solid var(--line);margin-bottom:2px">'+
       dps.map(d=>vtChip(d.label, d.key==="all", "vtdp", 'data-k="'+esc(d.key)+'" onclick="vtPickDp(\''+esc(d.key)+'\')"')).join("")+'</div>';
   }
-  h+='<div id="vtMount">'+vtRenderView()+'</div></div>';
+  h+='<div id="vtMount">'+vtRenderView()+'</div>'+
+     '<div style="font-size:10.5px;color:var(--muted);margin-top:10px;border-top:1px solid var(--line);padding-top:7px">'+
+     '<b style="color:#d97706">*</b> fewer than '+VT_LOW_N+' responses — small sample, read with caution. <b>n</b> = responses this period.</div>'+
+     '</div>';
   return h;
 }
 function vtPick(i){
