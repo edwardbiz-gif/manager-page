@@ -391,7 +391,7 @@ const TOKEN = new URLSearchParams(location.search).get("t") || "";
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v44";
+const SHELL_VERSION = "v45";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -482,15 +482,24 @@ function shortMgr(name){
 // GM) — the Edge Function already scopes `visits` to the manager's stores,
 // so a supervisor sees the next RGR across their patch and a GM sees only
 // their store's. Banner only renders when an RGR is within 45 days.
-function nextRGR(visits){
-  const t0=today0();
-  return (visits||[])
-    .filter(v=>v.visit_type==="rgrv" && v.visit_date && vdate(v.visit_date)>=t0)
-    .sort((a,b)=>vdate(a.visit_date)-vdate(b.visit_date))[0]||null;
+// Upcoming RGRs (soonest first, deduped by store+date). Drawn from BOTH the scoped
+// visits feed AND the active checklist runs (data.rgr) — the latter covers a run
+// broadcast to a supervisor outside their patch, which won't be in their visits.
+function nextRGR(visits, rgr){
+  const t0=today0(), cand=[];
+  (visits||[]).forEach(v=>{ if(v.visit_type==="rgrv" && v.visit_date && vdate(v.visit_date)>=t0)
+    cand.push({store_id:v.store_id, visit_date:v.visit_date, store_name:v.store_name}); });
+  (Array.isArray(rgr)?rgr:[]).forEach(r=>{ if(r.visit_date && vdate(r.visit_date)>=t0)
+    cand.push({store_id:r.store_id, visit_date:r.visit_date, store_name:r.store_name}); });
+  cand.sort((a,b)=>vdate(a.visit_date)-vdate(b.visit_date));
+  const seen={}, uniq=[];
+  cand.forEach(c=>{ const k=c.store_id+'|'+c.visit_date; if(!seen[k]){seen[k]=1;uniq.push(c);} });
+  return uniq;
 }
 
 function renderCountdown(visits, stores, rgr){
-  const r=nextRGR(visits);
+  const list=nextRGR(visits, rgr);
+  const r=list[0];
   if(!r) return "";
   const days=Math.round((vdate(r.visit_date)-today0())/864e5);
   if(days>45) return "";
@@ -501,16 +510,12 @@ function renderCountdown(visits, stores, rgr){
   const lbl=days===0?"today":(days===1?"day away":"days away");
   const big=days===0?'<div class="big">Today</div>'
     :'<div class="big">'+days+' <span>'+lbl+'</span></div>';
-  // Store name from the visits payload if present, else look up from stores.
+  // Store name from the candidate (visits/rgr) if present, else look up from stores.
   const byStore = Object.fromEntries((stores||[]).map(s => [s.id, s.name]));
   const storeName = r.store_name || byStore[r.store_id] || '';
-  // Count other upcoming RGRs in the same window (for supervisors / Owner who manage many stores).
-  const t0=today0();
-  const others = (visits||[])
-    .filter(v=>v.visit_type==="rgrv" && v.visit_date && vdate(v.visit_date)>=t0)
-    .length - 1;
+  const others = list.length - 1;
   const extra = others>0
-    ? '<div class="extra">+ '+others+' more RGR'+(others===1?'':'s')+' upcoming in your patch</div>'
+    ? '<div class="extra">+ '+others+' more RGR'+(others===1?'':'s')+' upcoming</div>'
     : '';
   // If a prep checklist is live for this RGR, link straight to it.
   const hasChecklist=Array.isArray(rgr) && rgr.some(x=>x.store_id===r.store_id);
@@ -545,7 +550,7 @@ function rgrItemRow(it, run){
     '<div class="rgr-main"><div class="rgr-lbl">'+esc(it.label)+tag+'</div>'+stamp+photo+'</div>'+
     '<div class="rgr-actions">'+cam+del+'</div></div>';
 }
-function rgrRunCard(run){
+function rgrRunCard(run, mgr){
   const t0=today0(), vd=vdate(run.visit_date);
   const days=Math.round((vd-t0)/864e5);
   const when=vd.toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric"});
@@ -559,16 +564,23 @@ function rgrRunCard(run){
       '<button class="add-btn" onclick="rgrAddItem(event,this,'+run.run_id+',\''+esc(sec.name)+'\')">Add</button></div>';
     return '<div class="rgr-sec"><div class="rgr-sec-h">'+esc(sec.name)+'</div>'+intro+rows+add+'</div>';
   }).join("");
+  // Collapsible list: expanded by default for the store's GM (who works it);
+  // collapsed for Owner/Supervisor (awareness / cross-patch broadcast) to keep the
+  // top tidy. Default expanded for GM also avoids re-collapsing after each check.
+  const open = !!(mgr && mgr.role==="GM");
+  const toggle='<button class="seeall" onclick="toggleDetail(this)" style="margin-top:2px">'+
+    '<span class="more" style="display:'+(open?'none':'')+'">Show checklist &#9662;</span>'+
+    '<span class="less" style="display:'+(open?'':'none')+'">Hide checklist &#9652;</span></button>';
   return '<div class="card rgr-card" id="rgr-checklist">'+
     '<h3>RGR Prep &mdash; '+esc(run.store_name)+'<span class="ct">'+run.done+'/'+run.total+' ready</span></h3>'+
     '<div class="rgr-meta">Visit '+esc(when)+' &middot; '+esc(dlabel)+'</div>'+
     '<div class="rgr-bar"><div class="rgr-bar-fill" style="width:'+pct+'%"></div></div>'+
-    secs+'</div>';
+    toggle+'<div class="task-detail'+(open?' open':'')+'">'+secs+'</div></div>';
 }
-function renderRgrChecklist(rgr){
+function renderRgrChecklist(rgr, mgr){
   const list=Array.isArray(rgr)?rgr:[];
   if(!list.length) return "";
-  return list.map(rgrRunCard).join("");
+  return list.map(r=>rgrRunCard(r, mgr)).join("");
 }
 async function rgrCheck(runId, kind, id, checked){
   const body={action:"rgr_check", run_id:runId, checked:checked};
@@ -2133,7 +2145,7 @@ function renderBoard(payload){
   // RGR countdown banner — soonest upcoming RGR within 45 days in this patch,
   // followed by the live prep checklist for any in-window store (Owner Hub tool #2).
   h+=sect(()=>renderCountdown(data.visits||[], stores, data.rgr));
-  h+=sect(()=>renderRgrChecklist(data.rgr));
+  h+=sect(()=>renderRgrChecklist(data.rgr, mgr));
 
   // Branded header — arches mark + greeting.
   h+='<div class="brand"><div class="mark">M</div>'+
