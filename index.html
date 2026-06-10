@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Always revalidate the shell so a redeploy can't leave a stale/half-cached copy
+     (root cause of the 2026-06-10 "white but clickable" incident — rapid redeploys). -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>My Task Board</title>
 <style>
 /* Light "paper" palette is the SAFE DEFAULT (fallback). The live look is the
@@ -1706,9 +1710,22 @@ function toggleDetail(btn){
 
 // ---- board chrome: bottom-tab scrollspy nav ------------------------
 function jumpTo(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }
+// sect() — render one card defensively so a single section's error can NEVER
+// blank the whole board (graceful degradation, not "all white").
+function sect(fn){
+  try { return fn() || ""; }
+  catch(e){ console.error("manager-page: a section failed to render —", e); return ""; }
+}
 function setBoard(payload){
-  document.getElementById("app").innerHTML = renderBoard(payload);
-  wireChrome();
+  let html;
+  try { html = renderBoard(payload); }
+  catch(e){
+    console.error("manager-page: renderBoard failed —", e);
+    html = '<div class="phone"><div class="errbox"><b>Some of your board couldn’t load.</b><br>'+
+           'Pull down to refresh, or text Eddie.</div></div>';
+  }
+  document.getElementById("app").innerHTML = html;
+  try { wireChrome(); } catch(e){ console.error("manager-page: wireChrome failed —", e); }
 }
 function wireChrome(){
   const bar=document.getElementById("tabbar"); if(!bar) return;
@@ -1901,7 +1918,7 @@ function renderBoard(payload){
 
   let h='<div class="phone">';
   // RGR countdown banner — soonest upcoming RGR within 45 days in this patch.
-  h+=renderCountdown(data.visits||[], stores);
+  h+=sect(()=>renderCountdown(data.visits||[], stores));
 
   // Branded header — arches mark + greeting.
   h+='<div class="brand"><div class="mark">M</div>'+
@@ -1911,20 +1928,20 @@ function renderBoard(payload){
   h+=flashHtml(result);
 
   // Business Advisor briefing — Owner-only, very top (renders "" when empty).
-  h+=renderAdvisorBriefing(data.advisor_briefing);
+  h+=sect(()=>renderAdvisorBriefing(data.advisor_briefing));
 
   // Store Submissions — campaign CTA (GM upload) / tracker (Owner-Sup), pinned
   // near the top so the ask/visibility is unmissable. Renders "" when there's
   // nothing for this role (GM with no targeted campaign; non-owner with none).
   h+='<div id="sec-campaigns" class="sec"></div>';
-  h+=renderCampaigns(data.campaigns, mgr);
+  h+=sect(()=>renderCampaigns(data.campaigns, mgr));
   // Crew Listening survey results banner — directly below the campaign card (all views, role-scoped).
-  h+=renderCrewListeningBanner(mgr, data.scope_all, data.crew_readouts);
+  h+=sect(()=>renderCrewListeningBanner(mgr, data.scope_all, data.crew_readouts));
 
   // ===== 1) TASKS — the action hub, pinned to the top =====
   h+='<div id="sec-tasks" class="sec"></div>';
   // Owner pulse — complaints/onboarding/intakes snapshot above the chips (Owner only).
-  h+=renderOwnerPulse(data.owner_pulse);
+  h+=sect(()=>renderOwnerPulse(data.owner_pulse));
   h+='<div class="chips">'+
      '<div class="chip"><div class="n">'+tasks.length+'</div><div class="l">Active</div></div>'+
      '<div class="chip high"><div class="n">'+hi+'</div><div class="l">Hi-pri</div></div>'+
@@ -1944,37 +1961,37 @@ function renderBoard(payload){
      '<button class="add-btn" onclick="openNewForm()">+ Add task</button></div>'+
      '<div id="newFormMount"></div>';
   // Top-5 tasks + expandable full breakdown (Hot / per-store / Cross-store).
-  h+=renderTasksBlock(tasks, stores);
+  h+=sect(()=>renderTasksBlock(tasks, stores));
 
   // ===== 2) SALES & GUESTS — daily YoY pulse + MTD chart =====
   h+='<div id="sec-sales" class="sec"></div>';
-  h+=renderSalesComps(data.sales_comps);
+  h+=sect(()=>renderSalesComps(data.sales_comps));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
-  h+=renderCleanlinessRace(data.cleanliness_race);
+  h+=sect(()=>renderCleanlinessRace(data.cleanliness_race));
 
   // ===== 4) GUEST FEEDBACK — unified feed, then actionable complaints =====
   h+='<div id="sec-feedback" class="sec"></div>';
   // Unified Guest Feedback (1-800 + SMG + Google) leads; Low-Rated Comments
   // folded into it. Open Complaints stays below for the resolve/draft actions.
   // (VOICE OSAT score tables moved to "More" — they're performance, not comments.)
-  h+=renderCustomerFeedback(data.customer_feedback);
-  h+=renderComplaints(data.complaints||[]);
+  h+=sect(()=>renderCustomerFeedback(data.customer_feedback));
+  h+=sect(()=>renderComplaints(data.complaints||[]));
 
   // ===== 5) MORE — operations detail =====
   h+='<div id="sec-more" class="sec"></div>';
-  h+=renderVoiceTrend(data.voice_trend);
-  h+=renderTurnover(data.turnover||[]);
-  h+=renderProductSales(data.sales_summary||[]);
-  h+=renderVisits(data.visits||[], stores);
-  h+=renderLabor(data.labor||[]);
-  h+=renderBonus(data.bonus_results||[]);
-  h+=renderBonusAdjustments(data.bonus_adjustments||[], mgr);
-  h+=renderManagerRank(data.manager_rank||[]);
+  h+=sect(()=>renderVoiceTrend(data.voice_trend));
+  h+=sect(()=>renderTurnover(data.turnover||[]));
+  h+=sect(()=>renderProductSales(data.sales_summary||[]));
+  h+=sect(()=>renderVisits(data.visits||[], stores));
+  h+=sect(()=>renderLabor(data.labor||[]));
+  h+=sect(()=>renderBonus(data.bonus_results||[]));
+  h+=sect(()=>renderBonusAdjustments(data.bonus_adjustments||[], mgr));
+  h+=sect(()=>renderManagerRank(data.manager_rank||[]));
   // Owner-only manual-reports health + promos/key-dates (moved below the fold).
-  h+=renderManualReports(data.manual_reports);
-  h+=renderKeyDates(data.key_dates||[]);
+  h+=sect(()=>renderManualReports(data.manual_reports));
+  h+=sect(()=>renderKeyDates(data.key_dates||[]));
 
   h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
   h+='</div>';
