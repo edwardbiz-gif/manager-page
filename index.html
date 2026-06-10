@@ -44,6 +44,10 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .phone{max-width:432px;margin:0 auto;background:var(--paper);
  border:1px solid #d6d8d3;border-radius:22px;padding:16px 15px 28px;
  box-shadow:0 6px 26px rgba(0,0,0,.11)}
+.ver{text-align:right;font-size:10px;color:var(--muted);letter-spacing:.04em;
+ margin:-6px 0 4px;font-weight:600}
+.ver b{color:var(--accent)}
+.ver .mism{color:var(--urgent)}
 .rgr-banner{background:var(--accent);color:#fff;border-radius:13px;
  padding:13px 15px;text-align:center;margin-bottom:8px}
 .rgr-banner.warn{background:var(--high)}
@@ -384,6 +388,10 @@ body{padding-bottom:74px}
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
+// Visible deploy marker — bump on every shell push so propagation is verifiable
+// at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
+// two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
+const SHELL_VERSION = "v41";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2061,6 +2069,12 @@ function renderBoard(payload){
   const storeLine = stores.map(s=>s.name).join(" · ");
 
   let h='<div class="phone">';
+  // Visible version stamp (top): shell version + backend version. If they differ,
+  // the backend tag goes red — an at-a-glance "is my deploy live / cache stale" check.
+  const fnV = data.fn_version || "?";
+  const mism = (fnV !== "?" && fnV !== SHELL_VERSION);
+  h+='<div class="ver">Ed Ops &middot; <b>'+esc(SHELL_VERSION)+'</b>'+
+     ' <span'+(mism?' class="mism"':'')+'>api '+esc(fnV)+'</span></div>';
   // RGR countdown banner — soonest upcoming RGR within 45 days in this patch,
   // followed by the live prep checklist for any in-window store (Owner Hub tool #2).
   h+=sect(()=>renderCountdown(data.visits||[], stores, data.rgr));
