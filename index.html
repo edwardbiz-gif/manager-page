@@ -388,10 +388,11 @@ body{padding-bottom:74px}
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
+const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v45";
+const SHELL_VERSION = "v46";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1935,11 +1936,91 @@ function sect(fn){
   try { return fn() || ""; }
   catch(e){ console.error("manager-page: a section failed to render —", e); return ""; }
 }
+// ---- Supervisor Meeting (Owner Hub tool #3) — owner-only agenda + editor ----
+// Light Markdown -> HTML: #/##/### headings, **bold**, - lists, | tables |, ---.
+function mdToHtml(md){
+  const lines=String(md||"").replace(/\r/g,"").split("\n");
+  const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  let h="", i=0;
+  while(i<lines.length){
+    if(/^\s*\|/.test(lines[i])){
+      const rows=[]; while(i<lines.length && /^\s*\|/.test(lines[i])){ rows.push(lines[i]); i++; }
+      const cellsOf=r=>r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+      let body=''; rows.forEach((r,ri)=>{ if(/^[\s|:\-]+$/.test(r)) return; const cs=cellsOf(r); const tag=ri===0?'th':'td';
+        body+='<tr>'+cs.map(c=>'<'+tag+' style="border:1px solid var(--line);padding:4px 6px;font-size:11px;text-align:left">'+inline(c)+'</'+tag+'>').join('')+'</tr>'; });
+      h+='<table style="border-collapse:collapse;width:100%;margin:6px 0">'+body+'</table>'; continue;
+    }
+    if(/^\s*-\s+/.test(lines[i])){
+      let items=''; while(i<lines.length && /^\s*-\s+/.test(lines[i])){ items+='<li style="margin:2px 0">'+inline(lines[i].replace(/^\s*-\s+/,''))+'</li>'; i++; }
+      h+='<ul style="margin:4px 0 4px 18px;padding:0">'+items+'</ul>'; continue;
+    }
+    const ln=lines[i]; i++;
+    if(/^\s*###\s+/.test(ln)) h+='<div style="font-weight:700;font-size:13px;margin:10px 2px 2px">'+inline(ln.replace(/^\s*###\s+/,''))+'</div>';
+    else if(/^\s*##\s+/.test(ln)) h+='<div style="font-weight:800;font-size:15px;margin:13px 2px 3px;color:var(--accent)">'+inline(ln.replace(/^\s*##\s+/,''))+'</div>';
+    else if(/^\s*#\s+/.test(ln)) h+='<div style="font-weight:800;font-size:18px;margin:6px 2px 4px">'+inline(ln.replace(/^\s*#\s+/,''))+'</div>';
+    else if(/^\s*---\s*$/.test(ln)) h+='<hr style="border:0;border-top:1px solid var(--line);margin:8px 0">';
+    else if(/^\s*$/.test(ln)) {}
+    else h+='<div style="font-size:13px;margin:3px 2px;line-height:1.45">'+inline(ln)+'</div>';
+  }
+  return h;
+}
+function mtgDateLabel(d){ try{ return d?new Date(d+'T00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):''; }catch(e){ return esc(d||''); } }
+// Compact card in the Owner Hub (owner board): link to full agenda + Update.
+function renderMeeting(meeting, mgr){
+  if(!meeting || (mgr.role||"")!=="Owner") return "";
+  const when=mtgDateLabel(meeting.meeting_date);
+  const upd=meeting.updated_at?new Date(meeting.updated_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  const link='?t='+encodeURIComponent(TOKEN)+'&view=meeting';
+  return '<div class="card" style="border-color:#7c3aed">'+
+    '<h3 style="color:#7c3aed">&#128203; '+esc(meeting.title||'Supervisor Meeting')+(when?'<span class="ct">'+esc(when)+'</span>':'')+'</h3>'+
+    '<div class="summary">Owner-only agenda'+(upd?' &middot; updated '+esc(upd):'')+'</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">'+
+      '<a class="add-btn" style="width:auto;text-decoration:none;background:#7c3aed" href="'+link+'">&#9654; Open agenda</a>'+
+      '<button class="add-btn" style="width:auto;background:rgba(124,58,237,.14);color:#7c3aed" onclick="openMeetingEdit()">&#9998; Update</button>'+
+    '</div><div id="mtgEdit"></div></div>';
+}
+// Full-screen focused agenda (?view=meeting), owner-only.
+function renderMeetingFull(payload){
+  const data=payload.data||{}, mgr=data.manager||{}, m=data.meeting;
+  if((mgr.role||"")!=="Owner") return '<div class="phone"><div class="errbox">This view is owner-only.</div></div>';
+  if(!m) return '<div class="phone"><div class="errbox">No meeting agenda yet.</div></div>';
+  return '<div class="phone">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a>'+
+      '<button class="add-btn" style="width:auto;margin-left:auto;background:#7c3aed" onclick="openMeetingEdit()">&#9998; Update</button>'+
+    '</div>'+flashHtml(payload.result)+'<div id="mtgEdit"></div>'+
+    '<div class="card"><div class="mtg-body">'+mdToHtml(m.agenda_md||'')+'</div></div></div>';
+}
+function openMeetingEdit(){
+  const m=STATE.data&&STATE.data.meeting; if(!m) return;
+  const mount=document.getElementById('mtgEdit'); if(!mount) return;
+  mount.innerHTML='<div class="form" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0">'+
+    '<input id="mtgTitle" value="'+esc(m.title||'')+'" placeholder="Title" style="width:100%;box-sizing:border-box;margin-bottom:6px">'+
+    '<input id="mtgDate" type="date" value="'+esc(m.meeting_date||'')+'" style="margin-bottom:6px">'+
+    '<textarea id="mtgMd" rows="16" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:12px;line-height:1.4">'+esc(m.agenda_md||'')+'</textarea>'+
+    '<div style="font-size:10.5px;color:var(--muted);margin:4px 0">Markdown: # heading · **bold** · - list · | table |</div>'+
+    '<div style="display:flex;gap:6px">'+
+      '<button class="add-btn" style="width:auto;background:#7c3aed" onclick="saveMeeting(event,this)">Save</button>'+
+      '<button class="add-btn" style="width:auto;background:rgba(0,0,0,.08);color:var(--fg)" onclick="document.getElementById(\'mtgEdit\').innerHTML=\'\'">Cancel</button>'+
+    '</div></div>';
+}
+async function saveMeeting(ev,btn){
+  ev.stopPropagation();
+  const m=STATE.data&&STATE.data.meeting; if(!m) return;
+  btn.disabled=true;
+  const payload={action:"meeting_update", meeting_id:m.id,
+    title:(document.getElementById('mtgTitle')||{}).value,
+    meeting_date:(document.getElementById('mtgDate')||{}).value,
+    agenda_md:(document.getElementById('mtgMd')||{}).value};
+  try{ setBoard(await callApi(payload)); }
+  catch(e){ btn.disabled=false; alert('Save failed: '+(e&&e.message)); }
+}
+
 function setBoard(payload){
   let html;
-  try { html = renderBoard(payload); }
+  try { html = (VIEW==="meeting") ? renderMeetingFull(payload) : renderBoard(payload); }
   catch(e){
-    console.error("manager-page: renderBoard failed —", e);
+    console.error("manager-page: render failed —", e);
     html = '<div class="phone"><div class="errbox"><b>Some of your board couldn’t load.</b><br>'+
            'Pull down to refresh, or text Eddie.</div></div>';
   }
@@ -2156,6 +2237,9 @@ function renderBoard(payload){
 
   // Business Advisor briefing — Owner-only, very top (renders "" when empty).
   h+=sect(()=>renderAdvisorBriefing(data.advisor_briefing));
+
+  // Supervisor Meeting — Owner-only agenda card (Owner Hub tool #3): link + Update.
+  h+=sect(()=>renderMeeting(data.meeting, mgr));
 
   // Store Submissions — campaign CTA (GM upload) / tracker (Owner-Sup), pinned
   // near the top so the ask/visibility is unmissable. Renders "" when there's
