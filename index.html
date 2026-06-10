@@ -54,6 +54,35 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .rgr-banner .big span{font-size:14px;font-weight:600;opacity:.85}
 .rgr-banner .m{font-size:13px;margin-top:3px;opacity:.95}
 .rgr-banner .extra{font-size:11px;margin-top:4px;opacity:.85;font-weight:600}
+.rgr-banner .cta{display:inline-block;margin-top:8px;background:rgba(255,255,255,.92);
+ color:var(--accent);font-weight:700;font-size:12px;padding:6px 12px;border-radius:8px;
+ text-decoration:none}
+.rgr-card .rgr-meta{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
+.rgr-bar{height:7px;background:var(--line);border-radius:5px;overflow:hidden;margin:0 0 10px}
+.rgr-bar-fill{height:100%;background:var(--accent);border-radius:5px;transition:width .25s}
+.rgr-sec{margin-top:6px}
+.rgr-sec-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+ color:var(--accent);margin:8px 0 2px}
+.rgr-intro{font-size:12px;color:var(--muted);margin:0 0 6px}
+.rgr-row{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-top:1px solid var(--line)}
+.rgr-row.done .rgr-lbl{color:var(--muted);text-decoration:line-through}
+.rgr-box{flex:0 0 auto;width:23px;height:23px;border-radius:6px;border:2px solid var(--accent);
+ background:#fff;color:#fff;font-size:14px;font-weight:800;line-height:1;cursor:pointer;
+ display:flex;align-items:center;justify-content:center;margin-top:1px}
+.rgr-box.on{background:var(--accent)}
+.rgr-main{flex:1 1 auto;min-width:0}
+.rgr-lbl{font-size:13px;line-height:1.32}
+.rgr-tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+ color:var(--muted);background:var(--line);border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+.rgr-by{font-size:11px;color:var(--muted);margin-top:2px}
+.rgr-thumb{width:46px;height:46px;object-fit:cover;border-radius:6px;cursor:pointer;
+ border:1px solid var(--line);margin-top:6px}
+.rgr-actions{flex:0 0 auto;display:flex;gap:4px;align-items:flex-start}
+.rgr-cam,.rgr-del{background:none;border:0;cursor:pointer;font-size:16px;padding:2px 3px;line-height:1}
+.rgr-del{color:var(--urgent);font-weight:700}
+.rgr-add{display:flex;gap:6px;margin-top:9px}
+.rgr-add input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 9px;font-size:13px}
+.rgr-add .add-btn{width:auto;padding:8px 14px}
 .hdr{margin-bottom:10px}
 .hdr h2{font-size:22px;font-weight:700}
 .hdr .sub{color:var(--muted);font-size:13.5px;margin-top:2px}
@@ -452,7 +481,7 @@ function nextRGR(visits){
     .sort((a,b)=>vdate(a.visit_date)-vdate(b.visit_date))[0]||null;
 }
 
-function renderCountdown(visits, stores){
+function renderCountdown(visits, stores, rgr){
   const r=nextRGR(visits);
   if(!r) return "";
   const days=Math.round((vdate(r.visit_date)-today0())/864e5);
@@ -475,9 +504,91 @@ function renderCountdown(visits, stores){
   const extra = others>0
     ? '<div class="extra">+ '+others+' more RGR'+(others===1?'':'s')+' upcoming in your patch</div>'
     : '';
+  // If a prep checklist is live for this RGR, link straight to it.
+  const hasChecklist=Array.isArray(rgr) && rgr.some(x=>x.store_id===r.store_id);
+  const cta=hasChecklist
+    ? '<a class="cta" href="#rgr-checklist">&#128203; Open prep checklist</a>'
+    : '';
   return '<div class="rgr-banner'+(tier?' '+tier:'')+'"><div class="k">Next RGR Visit</div>'+big+
     '<div class="m">'+esc(storeName)+' &middot; '+esc(when)+'</div>'+
-    extra+'</div>';
+    extra+cta+'</div>';
+}
+
+// ---- RGR Prep Checklist (Owner Hub tool #2) — renders under the RGR banner ----
+// data.rgr is role-scoped server-side: one card per active in-window store.
+// Base items are locked; any in-scope user ticks/photos/adds; GM+ delete customs.
+const RGR_SECTION_INTRO = { "Paperwork":"The items below should be readily available for review:" };
+function rgrItemRow(it, run){
+  const checked=!!it.checked;
+  const idRef=it.is_base ? ("'tmpl',"+it.template_item_id) : ("'entry',"+it.entry_id);
+  const inputId="rgrf_"+run.run_id+"_"+(it.entry_id||("t"+it.template_item_id));
+  const box='<button class="rgr-box'+(checked?' on':'')+'" title="Mark ready" '+
+    'onclick="rgrCheck('+run.run_id+','+idRef+','+(checked?'false':'true')+')">'+(checked?'&#10003;':'')+'</button>';
+  const stamp=(checked&&it.checked_by)
+    ? '<div class="rgr-by">&#10003; '+esc(it.checked_by)+(it.checked_at?' &middot; '+esc(fmtDate(vdate(it.checked_at))):'')+'</div>' : '';
+  const photo=it.photo_url?'<img class="rgr-thumb" src="'+esc(it.photo_url)+'" onclick="lb(this.src)">':'';
+  const tag=it.is_base?'':'<span class="rgr-tag">added</span>';
+  const cam='<input type="file" id="'+inputId+'" accept="image/*,application/pdf" capture style="display:none" '+
+    'onchange="rgrPhoto(this,'+run.run_id+','+idRef+')">'+
+    '<button class="rgr-cam" title="Attach photo/file" onclick="document.getElementById(\''+inputId+'\').click()">&#128247;</button>';
+  const del=(!it.is_base && run.can_delete)
+    ? '<button class="rgr-del" title="Remove item" onclick="rgrDelete('+it.entry_id+')">&times;</button>' : '';
+  return '<div class="rgr-row'+(checked?' done':'')+'">'+box+
+    '<div class="rgr-main"><div class="rgr-lbl">'+esc(it.label)+tag+'</div>'+stamp+photo+'</div>'+
+    '<div class="rgr-actions">'+cam+del+'</div></div>';
+}
+function rgrRunCard(run){
+  const t0=today0(), vd=vdate(run.visit_date);
+  const days=Math.round((vd-t0)/864e5);
+  const when=vd.toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric"});
+  const dlabel=days<0?(Math.abs(days)+" day"+(days===-1?"":"s")+" ago"):(days===0?"today":(days+" day"+(days===1?"":"s")+" away"));
+  const pct=run.total?Math.round(run.done/run.total*100):0;
+  const secs=(run.sections||[]).map(sec=>{
+    const intro=RGR_SECTION_INTRO[sec.name]?'<div class="rgr-intro">'+esc(RGR_SECTION_INTRO[sec.name])+'</div>':'';
+    const rows=(sec.items||[]).map(it=>rgrItemRow(it,run)).join("");
+    const add='<div class="rgr-add">'+
+      '<input type="text" placeholder="Add an item…" onkeydown="if(event.key===\'Enter\'){this.nextElementSibling.click();}">'+
+      '<button class="add-btn" onclick="rgrAddItem(event,this,'+run.run_id+',\''+esc(sec.name)+'\')">Add</button></div>';
+    return '<div class="rgr-sec"><div class="rgr-sec-h">'+esc(sec.name)+'</div>'+intro+rows+add+'</div>';
+  }).join("");
+  return '<div class="card rgr-card" id="rgr-checklist">'+
+    '<h3>RGR Prep &mdash; '+esc(run.store_name)+'<span class="ct">'+run.done+'/'+run.total+' ready</span></h3>'+
+    '<div class="rgr-meta">Visit '+esc(when)+' &middot; '+esc(dlabel)+'</div>'+
+    '<div class="rgr-bar"><div class="rgr-bar-fill" style="width:'+pct+'%"></div></div>'+
+    secs+'</div>';
+}
+function renderRgrChecklist(rgr){
+  const list=Array.isArray(rgr)?rgr:[];
+  if(!list.length) return "";
+  return list.map(rgrRunCard).join("");
+}
+async function rgrCheck(runId, kind, id, checked){
+  const body={action:"rgr_check", run_id:runId, checked:checked};
+  if(kind==="tmpl") body.template_item_id=id; else body.entry_id=id;
+  try{ setBoard(await callApi(body)); }
+  catch(e){ alert("Couldn't save: "+(e&&e.message)); }
+}
+async function rgrPhoto(input, runId, kind, id){
+  if(!input.files||!input.files.length) return;
+  const fd=new FormData(); fd.append("action","rgr_photo"); fd.append("run_id",String(runId));
+  if(kind==="tmpl") fd.append("template_item_id",String(id)); else fd.append("entry_id",String(id));
+  fd.append("file", input.files[0]);
+  input.disabled=true;
+  try{ setBoard(await callApiForm(fd)); }
+  catch(e){ input.disabled=false; alert("Upload failed: "+(e&&e.message)); }
+}
+async function rgrAddItem(ev, btn, runId, section){
+  ev.stopPropagation();
+  const inp=btn.previousElementSibling;
+  const label=(inp&&inp.value||"").trim();
+  if(!label){ if(inp) inp.focus(); return; }
+  try{ setBoard(await callApi({action:"rgr_add_item", run_id:runId, label:label, section:section})); }
+  catch(e){ alert("Add failed: "+(e&&e.message)); }
+}
+async function rgrDelete(entryId){
+  if(!confirm("Remove this added item?")) return;
+  try{ setBoard(await callApi({action:"rgr_delete_item", entry_id:entryId})); }
+  catch(e){ alert("Delete failed: "+(e&&e.message)); }
 }
 
 function dueTag(due_at){
@@ -1420,24 +1531,57 @@ function renderKeyDates(rows){
     'letter-spacing:.04em;padding:2px 7px;border-radius:10px;'+(kindCss[k]||kindCss.event)+'">'+
     esc(kindLabel[k]||k)+'</span>';
   const t0=today0();
-  const sorted=rows.slice().sort((a,b)=> String(a.event_date).localeCompare(String(b.event_date)));
-  const now=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
-  let h='<div class="card"><h3>Promos &amp; Key Dates<span class="ct">'+sorted.length+'</span></h3>'+
-        '<div class="summary">Upcoming &middot; next 60 days (as of '+esc(now)+')</div>';
-  sorted.forEach(r=>{
-    const live = ymd(r.event_date) && ymd(r.event_date)<=t0;  // already started, still running
+  const DAY=86400000;
+  // Two sections: Current Offers = already live (started, still running);
+  // Upcoming Offers = not yet started. Within each, sort by urgency first
+  // (relevant date within 7 days floats up), then kind tier
+  // (deadline > price-round > promo > event), then soonest date, then title.
+  const kindRank={deadline:0,"price-round":1,promo:2,event:3};
+  const effEnd=(r)=> ymd(r.end_date) || ymd(r.event_date);
+  const days=(d)=> d? Math.round((d.getTime()-t0.getTime())/DAY) : null; // whole days from today
+  const URGENT=7;
+  const current=[], upcoming=[];
+  rows.forEach(r=>{ const s=ymd(r.event_date);
+    if(s && s<=t0) current.push(r); else upcoming.push(r); });
+  const sortSec=(arr,dateOf)=> arr.slice().sort((a,b)=>{
+    const ua=days(dateOf(a)), ub=days(dateOf(b));
+    const au=(ua!=null&&ua<=URGENT)?0:1, bu=(ub!=null&&ub<=URGENT)?0:1;
+    if(au!==bu) return au-bu;
+    const ka=kindRank[a.kind]??9, kb=kindRank[b.kind]??9;
+    if(ka!==kb) return ka-kb;
+    const da=ua==null?1e9:ua, db=ub==null?1e9:ub;
+    if(da!==db) return da-db;
+    return String(a.title||"").localeCompare(String(b.title||""));
+  });
+  const cur=sortSec(current, effEnd);
+  const up =sortSec(upcoming, r=>ymd(r.event_date));
+  const dayWord=(n)=> n<=0?"today": n===1?"tomorrow": ("in "+n+" days");
+  const curHint=(r)=>{ const n=days(effEnd(r)); return (n!=null&&n<=URGENT)?"ends "+dayWord(n):""; };
+  const upHint =(r)=>{ const n=days(ymd(r.event_date)); return (n!=null&&n<=URGENT)?"starts "+dayWord(n):""; };
+  const rowHtml=(r,hint)=>{
     const where = r.store_name ? ' &middot; '+esc(r.store_name)
                 : (r.scope==='role' && r.scope_role) ? ' &middot; '+esc(r.scope_role)
                 : '';
-    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;'+
+    return '<div style="display:flex;justify-content:space-between;align-items:flex-start;'+
        'gap:10px;padding:7px 0;border-bottom:1px solid var(--line,#eee)">'+
        '<div style="min-width:0">'+
        '<div style="font-weight:600">'+esc(r.title||"")+'</div>'+
        '<div style="font-size:11px;color:var(--muted)">'+esc(window(r))+
-       (live?' &middot; live now':'')+where+
+       (hint?' &middot; <span style="color:#c0392b;font-weight:600">'+esc(hint)+'</span>':'')+
+       where+
        (r.notes?' &middot; '+esc(String(r.notes)):'')+'</div></div>'+
        badge(r.kind)+'</div>';
-  });
+  };
+  const section=(label,arr,hintFn)=> !arr.length?"":
+    '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;'+
+    'color:var(--muted);margin:11px 0 1px">'+esc(label)+
+    ' <span style="opacity:.6">('+arr.length+')</span></div>'+
+    arr.map(r=>rowHtml(r,hintFn(r))).join("");
+  const now=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  let h='<div class="card"><h3>Promos &amp; Key Dates<span class="ct">'+rows.length+'</span></h3>'+
+        '<div class="summary">Next 60 days (as of '+esc(now)+')</div>';
+  h+=section("Current Offers", cur, curHint);
+  h+=section("Upcoming Offers", up, upHint);
   return h+'</div>';
 }
 
@@ -1917,8 +2061,10 @@ function renderBoard(payload){
   const storeLine = stores.map(s=>s.name).join(" · ");
 
   let h='<div class="phone">';
-  // RGR countdown banner — soonest upcoming RGR within 45 days in this patch.
-  h+=sect(()=>renderCountdown(data.visits||[], stores));
+  // RGR countdown banner — soonest upcoming RGR within 45 days in this patch,
+  // followed by the live prep checklist for any in-window store (Owner Hub tool #2).
+  h+=sect(()=>renderCountdown(data.visits||[], stores, data.rgr));
+  h+=sect(()=>renderRgrChecklist(data.rgr));
 
   // Branded header — arches mark + greeting.
   h+='<div class="brand"><div class="mark">M</div>'+
