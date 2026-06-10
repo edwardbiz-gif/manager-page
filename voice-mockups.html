@@ -1,0 +1,127 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOICE — design options</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--ink:#f3f5f7;--mut:#9aa3af;--line:#262b34;
+ --good:#16a34a;--ok:#65a30d;--warn:#d97706;--bad:#dc2626;--accent:#b42318;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+ font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:60px}
+.wrap{max-width:460px;margin:0 auto;padding:14px}
+h1{font-size:18px;margin:6px 2px 2px}.sub{color:var(--mut);font-size:12px;margin:0 2px 12px}
+.picker{position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;display:flex;gap:6px;overflow:auto}
+.pick{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--ink);
+ padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:600;cursor:pointer}
+.pick.on{background:var(--accent);border-color:var(--accent)}
+.look{display:none}.look.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin:9px 0}
+.row{display:flex;align-items:center;gap:8px}.name{font-weight:700}.num{color:var(--mut);font-size:11px}
+.watch{margin-top:7px;background:rgba(217,119,6,.14);border:1px solid rgba(217,119,6,.35);
+ border-radius:9px;padding:6px 9px;font-size:12px}.watch b{color:#fbbf24}
+.delta{font-weight:700;font-size:12px}.up{color:var(--good)}.dn{color:#f87171}.flat{color:var(--mut)}
+.big{font-size:34px;font-weight:800;line-height:1}.unit{font-size:14px;color:var(--mut);font-weight:600}
+.mini{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chip{background:#11141a;border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:11px;min-width:0}
+.chip .l{color:var(--mut);font-size:10px}.chip .v{font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:11.5px}td,th{padding:5px 4px;text-align:center}
+th{color:var(--mut);font-weight:600;font-size:10px}td.s{text-align:left;font-weight:600}
+.cell{border-radius:6px;padding:4px 2px;font-weight:700}
+.rank{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+ font-weight:800;font-size:12px;background:#11141a;border:1px solid var(--line)}
+.bar{height:6px;border-radius:4px;background:#11141a;overflow:hidden;margin-top:4px}
+.bar>span{display:block;height:100%}
+.foot{color:var(--mut);font-size:11px;text-align:center;margin:18px 4px}
+.legend{color:var(--mut);font-size:11px;margin:4px 2px 0}
+</style></head><body><div class="wrap">
+<h1>VOICE — pick a look</h1>
+<div class="sub">Live new SMG feeds · <b>June month-to-date</b> · data through Jun 9, 2026 · vs May (full month).
+ 6 metrics the new feed delivers today — Cleanliness/Digital come once those feeds are fixed.</div>
+<div class="picker" id="picker"></div>
+<div id="stage"></div>
+<div class="foot">Same real data, 4 treatments. Tap a chip up top. Tell me the number you like.</div>
+</div>
+<script>
+const DATA = {"data_through": "Jun 9, 2026", "metrics": [{"key": "Overall Satisfaction", "label": "OSAT"}, {"key": "Overall Quality", "label": "Quality"}, {"key": "Accuracy", "label": "Accuracy"}, {"key": "Fast", "label": "Fast"}, {"key": "Drive Thru Overall Satisfaction", "label": "Drive-Thru"}, {"key": "In Restaurant Satisfaction", "label": "In-Restaurant"}], "entities": [{"id": null, "name": "Org (Combined)", "number": "", "metrics": {"Overall Satisfaction": {"june": 61.8, "may": 66.8, "delta": -5.0, "n": 327}, "Overall Quality": {"june": 61.0, "may": 64.7, "delta": -3.7, "n": 326}, "Accuracy": {"june": 71.3, "may": 70.4, "delta": 0.9, "n": 327}, "Fast": {"june": 63.5, "may": 67.2, "delta": -3.7, "n": 326}, "Drive Thru Overall Satisfaction": {"june": 59.4, "may": 63.4, "delta": -4.0, "n": 187}, "In Restaurant Satisfaction": {"june": 65.9, "may": 71.2, "delta": -5.3, "n": 138}}, "watch": "In Restaurant Satisfaction", "watch_reason": "drop"}, {"id": 1, "name": "Lake St", "number": "72", "metrics": {"Overall Satisfaction": {"june": 55.6, "may": 63.7, "delta": -8.1, "n": 27}, "Overall Quality": {"june": 50.0, "may": 60.4, "delta": -10.4, "n": 26}, "Accuracy": {"june": 48.1, "may": 65.9, "delta": -17.8, "n": 27}, "Fast": {"june": 50.0, "may": 67.0, "delta": -17.0, "n": 26}, "Drive Thru Overall Satisfaction": {"june": 30.0, "may": 44.8, "delta": -14.8, "n": 10}, "In Restaurant Satisfaction": {"june": 70.6, "may": 72.6, "delta": -2.0, "n": 17}}, "watch": "Accuracy", "watch_reason": "drop"}, {"id": 2, "name": "Lisle", "number": "3199", "metrics": {"Overall Satisfaction": {"june": 64.5, "may": 65.0, "delta": -0.5, "n": 31}, "Overall Quality": {"june": 64.5, "may": 63.0, "delta": 1.5, "n": 31}, "Accuracy": {"june": 83.9, "may": 75.0, "delta": 8.9, "n": 31}, "Fast": {"june": 80.6, "may": 68.0, "delta": 12.6, "n": 31}, "Drive Thru Overall Satisfaction": {"june": 65.0, "may": 58.8, "delta": 6.2, "n": 20}, "In Restaurant Satisfaction": {"june": 63.6, "may": 70.2, "delta": -6.6, "n": 11}}, "watch": "In Restaurant Satisfaction", "watch_reason": "drop"}, {"id": 3, "name": "Boulder Hill", "number": "3444", "metrics": {"Overall Satisfaction": {"june": 55.3, "may": 67.0, "delta": -11.7, "n": 38}, "Overall Quality": {"june": 55.3, "may": 67.0, "delta": -11.7, "n": 38}, "Accuracy": {"june": 65.8, "may": 69.9, "delta": -4.1, "n": 38}, "Fast": {"june": 44.7, "may": 67.0, "delta": -22.3, "n": 38}, "Drive Thru Overall Satisfaction": {"june": 47.1, "may": 66.0, "delta": -18.9, "n": 17}, "In Restaurant Satisfaction": {"june": 65.0, "may": 67.9, "delta": -2.9, "n": 20}}, "watch": "Fast", "watch_reason": "drop"}, {"id": 4, "name": "Farnsworth", "number": "4152", "metrics": {"Overall Satisfaction": {"june": 73.3, "may": 74.4, "delta": -1.1, "n": 15}, "Overall Quality": {"june": 66.7, "may": 76.9, "delta": -10.2, "n": 15}, "Accuracy": {"june": 66.7, "may": 74.4, "delta": -7.7, "n": 15}, "Fast": {"june": 66.7, "may": 75.6, "delta": -8.9, "n": 15}, "Drive Thru Overall Satisfaction": {"june": null, "may": 69.6, "delta": null, "n": null}, "In Restaurant Satisfaction": {"june": null, "may": 81.3, "delta": null, "n": null}}, "watch": "Overall Quality", "watch_reason": "drop"}, {"id": 5, "name": "Yorkville 1", "number": "4188", "metrics": {"Overall Satisfaction": {"june": 68.2, "may": 62.6, "delta": 5.6, "n": 22}, "Overall Quality": {"june": 68.2, "may": 67.0, "delta": 1.2, "n": 22}, "Accuracy": {"june": 86.4, "may": 70.3, "delta": 16.1, "n": 22}, "Fast": {"june": 68.2, "may": 60.4, "delta": 7.8, "n": 22}, "Drive Thru Overall Satisfaction": {"june": 75.0, "may": 60.0, "delta": 15.0, "n": 12}, "In Restaurant Satisfaction": {"june": null, "may": 65.9, "delta": null, "n": null}}, "watch": "Overall Satisfaction", "watch_reason": "low"}, {"id": 6, "name": "River Road", "number": "11965", "metrics": {"Overall Satisfaction": {"june": 57.7, "may": 70.0, "delta": -12.3, "n": 26}, "Overall Quality": {"june": 53.8, "may": 65.0, "delta": -11.2, "n": 26}, "Accuracy": {"june": 69.2, "may": 71.4, "delta": -2.2, "n": 26}, "Fast": {"june": 61.5, "may": 71.4, "delta": -9.9, "n": 26}, "Drive Thru Overall Satisfaction": {"june": 61.5, "may": 69.2, "delta": -7.7, "n": 13}, "In Restaurant Satisfaction": {"june": 53.8, "may": 72.9, "delta": -19.1, "n": 13}}, "watch": "In Restaurant Satisfaction", "watch_reason": "drop"}, {"id": 7, "name": "Eola BP", "number": "16669", "metrics": {"Overall Satisfaction": {"june": 60.0, "may": 66.7, "delta": -6.7, "n": 20}, "Overall Quality": {"june": 65.0, "may": 67.9, "delta": -2.9, "n": 20}, "Accuracy": {"june": 75.0, "may": 71.6, "delta": 3.4, "n": 20}, "Fast": {"june": 60.0, "may": 69.1, "delta": -9.1, "n": 20}, "Drive Thru Overall Satisfaction": {"june": 66.7, "may": 74.4, "delta": -7.7, "n": 15}, "In Restaurant Satisfaction": {"june": null, "may": 57.9, "delta": null, "n": null}}, "watch": "Fast", "watch_reason": "drop"}, {"id": 8, "name": "Oswego 2", "number": "20065", "metrics": {"Overall Satisfaction": {"june": 68.8, "may": 76.4, "delta": -7.6, "n": 32}, "Overall Quality": {"june": 65.6, "may": 72.7, "delta": -7.1, "n": 32}, "Accuracy": {"june": 84.4, "may": 80.0, "delta": 4.4, "n": 32}, "Fast": {"june": 68.8, "may": 75.5, "delta": -6.7, "n": 32}, "Drive Thru Overall Satisfaction": {"june": 75.0, "may": 77.8, "delta": -2.8, "n": 16}, "In Restaurant Satisfaction": {"june": 62.5, "may": 73.0, "delta": -10.5, "n": 16}}, "watch": "In Restaurant Satisfaction", "watch_reason": "drop"}, {"id": 10, "name": "Orchard", "number": "31728", "metrics": {"Overall Satisfaction": {"june": 59.4, "may": 60.0, "delta": -0.6, "n": 32}, "Overall Quality": {"june": 59.4, "may": 47.1, "delta": 12.3, "n": 32}, "Accuracy": {"june": 62.5, "may": 64.3, "delta": -1.8, "n": 32}, "Fast": {"june": 62.5, "may": 55.7, "delta": 6.8, "n": 32}, "Drive Thru Overall Satisfaction": {"june": 61.5, "may": 57.1, "delta": 4.4, "n": 26}, "In Restaurant Satisfaction": {"june": null, "may": 66.7, "delta": null, "n": null}}, "watch": "Accuracy", "watch_reason": "drop"}, {"id": 11, "name": "North Naperville", "number": "35354", "metrics": {"Overall Satisfaction": {"june": 62.5, "may": 64.0, "delta": -1.5, "n": 40}, "Overall Quality": {"june": 65.0, "may": 63.1, "delta": 1.9, "n": 40}, "Accuracy": {"june": 70.0, "may": 67.6, "delta": 2.4, "n": 40}, "Fast": {"june": 67.5, "may": 65.8, "delta": 1.7, "n": 40}, "Drive Thru Overall Satisfaction": {"june": 57.7, "may": 53.8, "delta": 3.9, "n": 26}, "In Restaurant Satisfaction": {"june": 71.4, "may": 78.3, "delta": -6.9, "n": 14}}, "watch": "In Restaurant Satisfaction", "watch_reason": "drop"}, {"id": 12, "name": "Plano", "number": "37131", "metrics": {"Overall Satisfaction": {"june": 64.5, "may": 57.8, "delta": 6.7, "n": 31}, "Overall Quality": {"june": 61.3, "may": 53.1, "delta": 8.2, "n": 31}, "Accuracy": {"june": 74.2, "may": 56.3, "delta": 17.9, "n": 31}, "Fast": {"june": 67.7, "may": 53.1, "delta": 14.6, "n": 31}, "Drive Thru Overall Satisfaction": {"june": 52.6, "may": 51.6, "delta": 1.0, "n": 19}, "In Restaurant Satisfaction": {"june": 83.3, "may": 67.7, "delta": 15.6, "n": 12}}, "watch": "Drive Thru Overall Satisfaction", "watch_reason": "low"}, {"id": 9, "name": "Kirk", "number": "31637", "metrics": {"Overall Satisfaction": {"june": 53.8, "may": 69.5, "delta": -15.7, "n": 13}, "Overall Quality": {"june": 61.5, "may": 66.1, "delta": -4.6, "n": 13}, "Accuracy": {"june": 69.2, "may": 71.2, "delta": -2.0, "n": 13}, "Fast": {"june": 69.2, "may": 69.5, "delta": -0.3, "n": 13}, "Drive Thru Overall Satisfaction": {"june": null, "may": 58.6, "delta": null, "n": null}, "In Restaurant Satisfaction": {"june": null, "may": 80.0, "delta": null, "n": null}}, "watch": "Overall Satisfaction", "watch_reason": "drop"}]};
+const LOOKS = [["A","Trend"],["B","Scorecard"],["C","Leaderboard"],["D","Heat grid"]];
+const fmt = v => v==null?"—":(Math.round(v*10)/10);
+function color(v){ if(v==null) return "#2a2f38"; if(v>=70)return "#14532d"; if(v>=62)return "#3f6212";
+  if(v>=55)return "#854d0e"; return "#7f1d1d"; }
+function dArrow(d){ if(d==null) return '<span class="delta flat">·</span>';
+  if(d>0) return '<span class="delta up">▲'+fmt(d)+'</span>';
+  if(d<0) return '<span class="delta dn">▼'+fmt(Math.abs(d))+'</span>';
+  return '<span class="delta flat">▬0</span>'; }
+const mlabel = k => (DATA.metrics.find(m=>m.key===k)||{}).label||k;
+
+// LOOK A — Trend-forward: per-store card, each metric with score + MoM arrow + bar
+function lookA(){
+  return DATA.entities.map(e=>{
+    const cells = DATA.metrics.map(m=>{
+      const c=e.metrics[m.key]; const v=c.june;
+      return '<div class="chip"><div class="l">'+m.label+'</div>'+
+        '<div class="v">'+fmt(v)+' '+dArrow(c.delta)+'</div>'+
+        '<div class="bar"><span style="width:'+(v||0)+'%;background:'+color(v)+'"></span></div></div>';
+    }).join("");
+    const w=e.watch;
+    return '<div class="card"><div class="row"><span class="name">'+e.name+'</span>'+
+      (e.number?'<span class="num">#'+e.number+'</span>':'')+'</div>'+
+      '<div class="mini">'+cells+'</div>'+
+      (w?'<div class="watch">👁 <b>Watch:</b> '+mlabel(w)+' '+fmt(e.metrics[w].june)+
+         ' '+dArrow(e.metrics[w].delta)+'</div>':'')+'</div>';
+  }).join("");
+}
+// LOOK B — Big-number scorecard: hero OSAT + watch chip + small supporting chips
+function lookB(){
+  return DATA.entities.map(e=>{
+    const o=e.metrics["Overall Satisfaction"]; const w=e.watch;
+    const supp = DATA.metrics.filter(m=>m.key!=="Overall Satisfaction").slice(0,3).map(m=>{
+      const c=e.metrics[m.key];
+      return '<div class="chip"><div class="l">'+m.label+'</div><div class="v">'+fmt(c.june)+' '+dArrow(c.delta)+'</div></div>';
+    }).join("");
+    return '<div class="card"><div class="row"><span class="name">'+e.name+'</span>'+
+      (e.number?'<span class="num">#'+e.number+'</span>':'')+
+      '<span style="flex:1"></span><span class="big" style="color:'+color(o.june)+'">'+fmt(o.june)+
+      '<span class="unit">% OSAT</span></span> '+dArrow(o.delta)+'</div>'+
+      (w?'<div class="watch">👁 <b>Watch:</b> '+mlabel(w)+' is '+(e.watch_reason==="drop"?"down":"lowest")+
+         ' at '+fmt(e.metrics[w].june)+' '+dArrow(e.metrics[w].delta)+'</div>':'')+
+      '<div class="mini">'+supp+'</div></div>';
+  }).join("");
+}
+// LOOK C — Leaderboard: rank by OSAT, medals, movers
+function lookC(){
+  const ranked = DATA.entities.filter(e=>e.id!=null)
+    .sort((a,b)=>(b.metrics["Overall Satisfaction"].june||0)-(a.metrics["Overall Satisfaction"].june||0));
+  const medal=["#f4c430","#c8cdd4","#cd7f32"];
+  const rows = ranked.map((e,i)=>{
+    const o=e.metrics["Overall Satisfaction"]; const w=e.watch;
+    return '<div class="card" style="padding:10px"><div class="row">'+
+      '<span class="rank" style="'+(i<3?'background:'+medal[i]+';color:#222;border:none':'')+'">'+(i+1)+'</span>'+
+      '<span class="name" style="flex:1">'+e.name+'</span>'+
+      '<span style="font-weight:800;font-size:17px;color:'+color(o.june)+'">'+fmt(o.june)+'</span> '+dArrow(o.delta)+'</div>'+
+      (w?'<div class="watch" style="margin-top:6px">👁 '+mlabel(w)+' '+fmt(e.metrics[w].june)+' '+dArrow(e.metrics[w].delta)+'</div>':'')+
+      '</div>';
+  }).join("");
+  return '<div class="legend">Ranked by OSAT · June MTD. Medals = top 3. ▲▼ = vs May.</div>'+rows;
+}
+// LOOK D — Heat grid: stores × metrics matrix, worst cell ringed (watch)
+function lookD(){
+  const head='<tr><th class="s">Store</th>'+DATA.metrics.map(m=>'<th>'+m.label.slice(0,5)+'</th>').join("")+'</tr>';
+  const body=DATA.entities.map(e=>{
+    const tds=DATA.metrics.map(m=>{
+      const c=e.metrics[m.key]; const ring=(e.watch===m.key);
+      return '<td><div class="cell" style="background:'+color(c.june)+';'+
+        (ring?'outline:2px solid #fbbf24;':'')+'">'+fmt(c.june)+'</div></td>';
+    }).join("");
+    return '<tr><td class="s">'+e.name.replace(" (Combined)","")+'</td>'+tds+'</tr>';
+  }).join("");
+  return '<div class="legend">Whole org at a glance · darker green = higher. <b style="color:#fbbf24">Gold ring</b> = each store\'s watch metric.</div>'+
+    '<div class="card"><table>'+head+body+'</table></div>';
+}
+const RENDER=[lookA,lookB,lookC,lookD];
+function show(i){
+  document.querySelectorAll(".pick").forEach((p,j)=>p.classList.toggle("on",j===i));
+  document.getElementById("stage").innerHTML='<div class="look on">'+RENDER[i]()+'</div>';
+}
+const pk=document.getElementById("picker");
+LOOKS.forEach((l,i)=>{const b=document.createElement("button");b.className="pick";b.textContent=l[0]+" · "+l[1];
+  b.onclick=()=>show(i);pk.appendChild(b);});
+show(0);
+</script></body></html>
