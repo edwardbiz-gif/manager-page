@@ -1844,17 +1844,23 @@ function renderCustomerFeedback(cf){
 // Links to the private "2026 Crew Experience Survey - Ed Org" results sheet, so
 // it's owner-scoped (GMs would hit an access wall + responses are sensitive).
 // Update the counts / remove when the survey wraps.
-function renderCrewListeningBanner(mgr){
+function renderCrewListeningBanner(mgr, readouts){
   if((mgr.role||"")!=='Owner') return "";
-  const SHEET="https://docs.google.com/spreadsheets/d/1C0JghAYc61qbnRVMf1yq6hr04c0fYECDRSSsZmZoOcM/edit";
+  const list=Array.isArray(readouts)?readouts.filter(r=>r.url):[];
+  const chips=list.map(r=>
+    '<a href="'+esc(r.url)+'" target="_blank" rel="noopener" style="flex:0 0 auto;background:#fff;color:#1d4ed8;'+
+    'font-weight:700;font-size:12px;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap">'+
+    '&#128202; '+esc(String(r.store_name||r.nsn).split(/[-/]/)[0].trim())+'</a>').join("");
   return '<div class="card" style="border-color:#1d4ed8;background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff">'+
     '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#128226;</span>'+
     '<b style="font-size:15px">Crew Listening &mdash; results are in</b>'+
     '<span style="margin-left:auto;font-weight:800;font-size:14px;white-space:nowrap">10 / 12 stores</span></div>'+
-    '<div style="font-size:12.5px;opacity:.95;margin-top:5px">Responses are in for 10 of 12 stores. We still need <b>~20 more responses</b> from <b>Plano</b> and <b>Lisle</b> to close it out.</div>'+
-    '<a href="'+SHEET+'" target="_blank" rel="noopener" '+
-      'style="display:inline-block;margin-top:9px;background:#fff;color:#1d4ed8;font-weight:700;font-size:13px;'+
-      'padding:8px 14px;border-radius:9px;text-decoration:none">&#128202; Open results sheet</a></div>';
+    '<div style="font-size:12.5px;opacity:.95;margin-top:5px">Per-store analysis is ready for 10 of 12 stores. We still need <b>~20 more responses</b> from <b>Plano</b> and <b>Lisle</b> to close those out.</div>'+
+    (chips
+      ? '<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;opacity:.85;margin:9px 0 4px">Open a store’s analysis</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div>'
+      : '<div style="font-size:12px;opacity:.85;margin-top:8px">Readouts are uploading… reload shortly.</div>')+
+    '</div>';
 }
 
 function renderBoard(payload){
@@ -1898,7 +1904,7 @@ function renderBoard(payload){
   h+='<div id="sec-campaigns" class="sec"></div>';
   h+=renderCampaigns(data.campaigns, mgr);
   // Crew Listening survey results banner — directly below the campaign card (Owner only).
-  h+=renderCrewListeningBanner(mgr);
+  h+=renderCrewListeningBanner(mgr, data.crew_readouts);
 
   // ===== 1) TASKS — the action hub, pinned to the top =====
   h+='<div id="sec-tasks" class="sec"></div>';
