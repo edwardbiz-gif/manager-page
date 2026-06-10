@@ -1413,6 +1413,127 @@ function renderCleanlinessRace(race){
     'font-size:12.5px;border-collapse:collapse;overflow:hidden"><tbody>'+allRows+'</tbody></table></details></div>';
 }
 
+// ---- Submission Campaigns (Owner Hub tool #1) ----------------------
+// data.campaigns rows are role-scoped server-side. GM: their store + an upload
+// button. Owner/Sup: a per-store done/not-done roster with signed-URL thumbnails
+// (tap = lightbox). Owner also gets create + close controls (the Tools panel).
+function cdate(d){ try{ return new Date(d+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return esc(d); } }
+function campThumbs(files, sz){
+  const t=(files||[]).filter(f=>f.url).slice(0,8).map(f=>
+    '<img src="'+esc(f.url)+'" onclick="lb(this.src)" style="width:'+sz+'px;height:'+sz+'px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,.4)">').join("");
+  return t?'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">'+t+'</div>':'';
+}
+function campaignCard(c, mgr){
+  const isGM = !!c.can_upload;
+  const due = c.due_at ? ' &middot; due '+cdate(c.due_at) : '';
+  let head = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18)">'+
+    '<div style="display:flex;align-items:center;gap:8px">'+
+    '<b style="flex:1;font-size:14px">'+esc(c.title)+'</b>'+
+    (isGM ? '' : '<span style="font-weight:800;font-size:13px">'+c.done+'/'+c.total+'</span>')+'</div>'+
+    (c.prompt ? '<div style="font-size:12px;opacity:.93;margin-top:3px">'+esc(c.prompt)+due+'</div>'
+              : (due ? '<div style="font-size:12px;opacity:.85;margin-top:3px">due '+cdate(c.due_at)+'</div>' : ''));
+  let body="";
+  if(isGM){
+    const me=(c.stores&&c.stores[0])?c.stores[0]:null;
+    const done=me&&me.done;
+    const accept=c.campaign_type==='file'?'*/*':'image/*';
+    const cap=c.campaign_type==='file'?'':'capture';
+    body='<div style="margin-top:8px">'+
+      (done?'<div style="font-weight:700;margin-bottom:4px">&#9989; Submitted ('+me.count+' file'+(me.count===1?'':'s')+')</div>'+campThumbs(me.files,46):'')+
+      '<input type="file" id="cf_'+c.id+'" accept="'+accept+'" '+cap+' multiple style="display:none" onchange="submitCampaignUpload(this,'+c.id+')">'+
+      '<button class="add-btn" style="background:#fff;color:#0f766e" onclick="document.getElementById(\'cf_'+c.id+'\').click()">&#128247; '+(done?'Add more':'Upload photos')+'</button>'+
+      '</div>';
+  } else {
+    const chips=(c.stores||[]).map(s=>{
+      const ic=s.done?'&#9989;':'&#9898;';
+      return '<div style="background:rgba(255,255,255,'+(s.done?'.18':'.08')+');border-radius:9px;padding:7px 9px;margin-top:6px">'+
+        '<div style="display:flex;align-items:center;gap:7px;font-size:12.5px">'+
+        '<span>'+ic+'</span><span style="flex:1;font-weight:600">'+esc(s.store_name)+'</span>'+
+        '<span style="opacity:.8">'+esc(s.store_number||'')+'</span></div>'+
+        campThumbs(s.files,34)+'</div>';
+    }).join("");
+    body='<div style="margin-top:6px">'+chips+'</div>';
+  }
+  let ownerCtl="";
+  if((mgr.role||"")==='Owner'){
+    ownerCtl='<div style="margin-top:8px"><button class="add-btn" style="background:rgba(255,255,255,.16);color:#fff;font-size:12px;padding:6px 10px" onclick="closeCampaign(event,this,'+c.id+')">Close campaign</button></div>';
+  }
+  return head + body + ownerCtl + '</div>';
+}
+function renderCampaigns(campaigns, mgr){
+  const isOwner=(mgr.role||"")==='Owner';
+  const list=Array.isArray(campaigns)?campaigns:[];
+  if(!list.length && !isOwner) return "";
+  const cards=list.map(c=>campaignCard(c, mgr)).join("");
+  const empty=(!list.length && isOwner)?'<div style="font-size:12.5px;opacity:.9;padding:4px 0">No active campaigns. Create one to collect photos, files, or sign-offs from every store.</div>':"";
+  const ownerTools=isOwner?'<div class="add-bar" style="margin-top:8px"><button class="add-btn" onclick="openNewCampaignForm()">+ New campaign</button></div><div id="campNewMount"></div>':"";
+  return '<div style="background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;border-radius:14px;padding:14px 14px 12px;margin-bottom:10px;box-shadow:0 4px 16px rgba(15,118,110,.25)">'+
+    '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#128203;</span>'+
+    '<b style="font-size:16px">Store Submissions</b></div>'+
+    empty + cards + ownerTools + '</div>';
+}
+function campaignFormHtml(){
+  return '<div class="form" style="background:rgba(255,255,255,.12);border-radius:10px;padding:10px;margin-top:8px">'+
+    '<input name="title" placeholder="Campaign title" style="width:100%;box-sizing:border-box;margin-bottom:6px">'+
+    '<textarea name="prompt" placeholder="Instructions shown to each GM" rows="2" style="width:100%;box-sizing:border-box;margin-bottom:6px"></textarea>'+
+    '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+      '<select name="campaign_type" style="flex:1"><option value="photo">Photos</option><option value="file">Files</option></select>'+
+      '<input name="due_at" type="date" style="flex:1">'+
+    '</div>'+
+    '<div style="display:flex;gap:6px">'+
+      '<button class="add-btn" style="background:#fff;color:#0f766e" onclick="saveCampaign(event,this)">Create</button>'+
+      '<button class="add-btn" style="background:rgba(255,255,255,.16)" onclick="this.closest(\'.form\').parentElement.innerHTML=\'\'">Cancel</button>'+
+    '</div></div>';
+}
+async function callApiForm(fd){
+  const r=await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), { method:"POST", body: fd });
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function submitCampaignUpload(input, campaignId){
+  if(!input.files || !input.files.length) return;
+  const fd=new FormData();
+  fd.append("action","campaign_upload");
+  fd.append("campaign_id", String(campaignId));
+  for(const f of input.files) fd.append("files", f);
+  input.disabled=true;
+  try{ const res=await callApiForm(fd); setBoard(res); }
+  catch(e){ input.disabled=false; alert("Upload failed: " + (e && e.message)); }
+}
+function lb(url){
+  let o=document.getElementById('lbox');
+  if(!o){
+    o=document.createElement('div'); o.id='lbox';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+    o.onclick=function(){ o.style.display='none'; };
+    o.innerHTML='<img id="lboxImg" style="max-width:100%;max-height:100%;border-radius:8px">';
+    document.body.appendChild(o);
+  }
+  document.getElementById('lboxImg').src=url; o.style.display='flex';
+}
+function openNewCampaignForm(){ const m=document.getElementById('campNewMount'); if(m) m.innerHTML=campaignFormHtml(); }
+async function saveCampaign(ev, btn){
+  ev.stopPropagation();
+  const form=btn.closest(".form");
+  const title=form.querySelector('[name=title]').value.trim();
+  if(!title){ alert("Title is required."); return; }
+  const payload={ action:"campaign_create", title,
+    prompt: form.querySelector('[name=prompt]').value.trim(),
+    campaign_type: form.querySelector('[name=campaign_type]').value,
+    due_at: form.querySelector('[name=due_at]').value,
+    target_store_ids: "all" };
+  form.classList.add("busy");
+  try{ const res=await callApi(payload); setBoard(res); }
+  catch(e){ form.classList.remove("busy"); alert("Create failed: " + (e && e.message)); }
+}
+async function closeCampaign(ev, btn, id){
+  ev.stopPropagation();
+  if(!confirm("Close this campaign? It will stop accepting uploads.")) return;
+  btn.disabled=true;
+  try{ const res=await callApi({ action:"campaign_close", campaign_id:id }); setBoard(res); }
+  catch(e){ btn.disabled=false; alert("Close failed: " + (e && e.message)); }
+}
+
 // ---- Sales & Guests comps — daily YoY pulse + MTD chart -------------
 // Driven by data.sales_comps (Edge Fn v33): { data_through, mtd:{sales,
 // sales_yoy,gc,gc_yoy}, series:[{date,sales,sales_yoy,gc,gc_yoy}] }. Scoped
@@ -1680,6 +1801,12 @@ function renderBoard(payload){
 
   // Business Advisor briefing — Owner-only, very top (renders "" when empty).
   h+=renderAdvisorBriefing(data.advisor_briefing);
+
+  // Store Submissions — campaign CTA (GM upload) / tracker (Owner-Sup), pinned
+  // near the top so the ask/visibility is unmissable. Renders "" when there's
+  // nothing for this role (GM with no targeted campaign; non-owner with none).
+  h+='<div id="sec-campaigns" class="sec"></div>';
+  h+=renderCampaigns(data.campaigns, mgr);
 
   // ===== 1) TASKS — the action hub, pinned to the top =====
   h+='<div id="sec-tasks" class="sec"></div>';
