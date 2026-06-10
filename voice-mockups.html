@@ -89,8 +89,8 @@ function render(e){
     graph(e.hist_watch, w.bu, w.lower_better)+'</div>';
  }
  h+=section("OSAT numbers", DATA.groups.osat, e.cells);
+ h+=section("QSC", DATA.groups.rest, e.cells);
  h+=section("B2B numbers (lower = better)", DATA.groups.b2b, e.cells);
- h+=section("The rest", DATA.groups.rest, e.cells);
  return h;
 }
 const pk=document.getElementById("picker");
