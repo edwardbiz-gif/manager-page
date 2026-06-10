@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v46";
+const SHELL_VERSION = "v47";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -521,7 +521,7 @@ function renderCountdown(visits, stores, rgr){
   // If a prep checklist is live for this RGR, link straight to it.
   const hasChecklist=Array.isArray(rgr) && rgr.some(x=>x.store_id===r.store_id);
   const cta=hasChecklist
-    ? '<a class="cta" href="#rgr-checklist">&#128203; Open prep checklist</a>'
+    ? '<a class="cta" href="#rgr-checklist" onclick="rgrOpenChecklist();return false;">&#128203; Open prep checklist</a>'
     : '';
   return '<div class="rgr-banner'+(tier?' '+tier:'')+'"><div class="k">Next RGR Visit</div>'+big+
     '<div class="m">'+esc(storeName)+' &middot; '+esc(when)+'</div>'+
@@ -582,6 +582,21 @@ function renderRgrChecklist(rgr, mgr){
   const list=Array.isArray(rgr)?rgr:[];
   if(!list.length) return "";
   return list.map(r=>rgrRunCard(r, mgr)).join("");
+}
+// Banner CTA: expand the (collapsed-for-sup/owner) checklist AND scroll to it.
+function rgrOpenChecklist(){
+  const cards=document.querySelectorAll('.rgr-card');
+  cards.forEach(card=>{
+    const d=card.querySelector('.task-detail');
+    if(d && !d.classList.contains('open')){
+      d.classList.add('open');
+      const btn=card.querySelector('.seeall');
+      if(btn){ const m=btn.querySelector('.more'), l=btn.querySelector('.less');
+        if(m) m.style.display='none'; if(l) l.style.display=''; }
+    }
+  });
+  const first=document.getElementById('rgr-checklist');
+  if(first) first.scrollIntoView({behavior:'smooth', block:'start'});
 }
 async function rgrCheck(runId, kind, id, checked){
   const body={action:"rgr_check", run_id:runId, checked:checked};
