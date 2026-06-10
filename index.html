@@ -391,7 +391,7 @@ const TOKEN = new URLSearchParams(location.search).get("t") || "";
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v43";
+const SHELL_VERSION = "v44";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1238,6 +1238,14 @@ function vtRenderEntity(e,vt){
   h+=vtSection("Problems (lower = better)",vt.groups.problems,e.cells);
   h+=vtSection("DT peaks (OSAT)",vt.groups.peaks,e.cells);
   h+=vtSection("B2B numbers (lower = better)",vt.groups.b2b,e.cells);
+  // Collapsible drawer of lower-signal Digital metrics (all-day only).
+  if(Array.isArray(vt.more)){
+    const inner=vt.more.map(sec=>vtSection(sec.title,sec.keys,e.cells)).join("");
+    if(inner) h+='<button class="seeall" onclick="toggleDetail(this)" style="margin-top:8px">'+
+      '<span class="more">+ More Digital detail &#9662;</span>'+
+      '<span class="less" style="display:none">Hide Digital detail &#9652;</span></button>'+
+      '<div class="task-detail">'+inner+'</div>';
+  }
   return h;
 }
 var VT_EI=0, VT_DP="all";
