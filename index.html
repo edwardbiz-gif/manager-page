@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v51";
+const SHELL_VERSION = "v52";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2063,59 +2063,195 @@ function renderHazelLink(mgr){
       '<b style="font-size:15px;letter-spacing:.01em">Showcase view</b>'+
       '<span style="margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;background:rgba(0,0,0,.18);padding:2px 7px;border-radius:999px">Owner only</span>'+
     '</div>'+
-    '<div style="font-size:12.5px;margin-top:5px;opacity:.92">Curated org highlights across all 12 stores, then a hand-off to a live GM view. Demo-ready for Hazel.</div>'+
+    '<div style="font-size:12.5px;margin-top:5px;opacity:.92">The full showcase: welcome, results vs the business unit, the operating system &amp; in-store screens, then a live GM view. Demo-ready for Hazel.</div>'+
     '<a class="add-btn" style="width:auto;text-decoration:none;background:#1a1205;color:#fbbf24;margin-top:8px" href="'+link+'">&#9654; Open showcase</a>'+
     '</div>';
 }
-// Full-screen 3-act showcase (?view=hazel), owner-only.
-//  Act 1 — org business-results highlights (reuses the live all-store board data).
-//  Act 2 — hand-off to a live GM view (Alejandra / Lake Street); the link is provided
-//          server-side as data.hazel_gm_link so a GM token never lands in this public shell.
-//  Act 3 — "and now, back to PowerPoint!" cue back to the asymmetric-thesis deck.
-function renderHazelHero(hl){
-  // Big curated stat tile for Act 1. Each carries its own data-through date.
-  // small_sample tiles get a trailing asterisk (footnote rendered below the grid).
-  const good=hl.good!==false;
-  const delta=hl.delta?'<span style="font-size:12px;font-weight:800;color:'+(good?'#15803d':'#b91c1c')+';margin-left:5px">'+esc(hl.delta)+'</span>':'';
-  const star=hl.small_sample?'<span style="font-size:15px;color:var(--muted);vertical-align:super">*</span>':'';
-  const thru=hl.through?'<div style="font-size:9.5px;color:var(--muted);margin-top:3px">thru '+esc(String(hl.through).slice(0,10))+'</div>':'';
-  return '<div style="flex:1 1 46%;min-width:140px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px">'+
-    '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(hl.label||"")+'</div>'+
-    '<div style="font-size:24px;font-weight:800;line-height:1.15;margin-top:2px">'+esc(hl.value||"—")+star+delta+'</div>'+
-    (hl.sub?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+esc(hl.sub)+'</div>':'')+thru+
-    '</div>';
+// Full-screen cinematic showcase (?view=hazel), owner-only. A scroll narrative:
+//  Welcome (MOCNI) -> Results vs the Business Unit -> How it's built (infra + data
+//  sources) -> Surfaces (kitchen screen, oil-quality gauge, OT tracker, shift-leader
+//  ratings, gamification, manager pages/podcast/bonus) -> What we need (data-access
+//  asks) -> live GM view (Boulder Hill / Rodrigo) -> back to PowerPoint.
+//  gm_link + kitchen_link come server-side (data.hazel) so no GM/kitchen token ships
+//  in this public shell. Static demo/sample data is clearly labelled.
+function galaGauge(label,score){
+  const c = score>=85?"#27d07a" : score>=70?"#ffc72c" : "#da291c";
+  return '<div class="ogw"><div class="ogauge" style="--p:'+score+';--c:'+c+'"><b>'+score+'</b></div>'+
+         '<div class="ogl">'+esc(label)+'</div></div>';
 }
 function renderHazelFull(payload){
   const data=payload.data||{}, mgr=data.manager||{};
   if((mgr.role||"")!=="Owner") return '<div class="phone"><div class="errbox">This view is owner-only.</div></div>';
-  const hz=data.hazel||{}, hls=hz.highlights||[], gmLink=hz.gm_link||"";
-  let h='<div class="phone">';
-  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-     '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a></div>';
-  // ===== Act 1 — curated org highlights =====
-  h+='<div class="card" style="border:none;background:linear-gradient(135deg,#b45309,#f59e0b);color:#1a1205;text-align:center">'+
-     '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.8">12 Stores &middot; Western Chicago Suburbs</div>'+
-     '<div style="font-size:19px;font-weight:800;margin-top:2px">Organization Results</div></div>';
-  if(hls.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 4px">'+hls.map(renderHazelHero).join("")+'</div>';
-    if(hls.some(x=>x.small_sample))
-      h+='<div style="font-size:10.5px;color:var(--muted);margin:0 2px 8px">* VOICE month-to-date June &mdash; early small sample, not yet representative.</div>';
-  }
-  // Supporting depth — the live board cards below the hero tiles.
-  h+=sect(()=>renderSalesComps(data.sales_comps));
-  h+=sect(()=>renderCleanlinessRace(data.cleanliness_race));
-  h+=sect(()=>renderVoiceTrend(data.voice_trend));
-  h+=sect(()=>renderCustomerFeedback(data.customer_feedback));
-  // ===== Act 2 + 3 — transition to the GM view, then back to the deck =====
-  h+='<div class="card" style="border-color:#1d4ed8;text-align:center">'+
-     '<div style="font-size:13px;font-weight:700;margin-bottom:6px">Now, the GM experience</div>'+
-     (gmLink
-        ? '<a class="add-btn" style="width:auto;text-decoration:none;background:#1d4ed8" href="'+esc(gmLink)+'">&#9654; Open '+esc(hz.gm_label||"the GM view")+'</a>'
-        : '<div class="summary" style="color:var(--muted)">GM hand-off link not configured.</div>')+
-     '<div style="font-size:15px;font-weight:800;margin-top:14px;color:#7c3aed">&hellip;and now, back to PowerPoint! &#127916;</div>'+
-     '</div>';
-  h+='</div>';
-  return h;
+  const hz=data.hazel||{}, p=hz.platform||{}, gmLink=hz.gm_link||"", kitchenLink=hz.kitchen_link||"";
+  const nf=n=> n==null?"—":Number(n).toLocaleString("en-US");
+  const today=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const back='?t='+encodeURIComponent(TOKEN);
+  // Oil-quality sample (illustrative — the live Jolt feed is the "coming soon" ask).
+  const oil=galaGauge("Fryer 1",88)+galaGauge("Fryer 2",73)+galaGauge("Fryer 3",95)+galaGauge("Fryer 4",64);
+  return `<div class="gala"><style>
+  .gala{--gbg:#0a0e13;--gink:#eaf1f8;--gmut:#90a4b8;--gbrand:#ffc72c;--gred:#da291c;--ggood:#27d07a;--gcard:#121b25;--gline:#1f2c39;
+    background:var(--gbg);color:var(--gink);min-height:100vh;font-family:"Segoe UI",system-ui,Arial,sans-serif;line-height:1.5;padding-bottom:50px;animation:gfade .5s ease}
+  @keyframes gfade{from{opacity:0}to{opacity:1}}
+  .gala *{box-sizing:border-box}
+  .gwrap{max-width:640px;margin:0 auto;padding:0 18px}
+  .gala .gtop{position:sticky;top:0;background:rgba(10,14,19,.92);backdrop-filter:blur(6px);padding:10px 18px;border-bottom:1px solid var(--gline);z-index:5}
+  .gala .gtop a{color:var(--gbrand);text-decoration:none;font-weight:700;font-size:13px}
+  .gala .gsec{padding:30px 0;border-bottom:1px solid var(--gline)}
+  .gala .gkick{color:var(--gbrand);font-weight:800;font-size:11.5px;letter-spacing:2px;text-transform:uppercase}
+  .gala h1{font-size:30px;line-height:1.14;margin:10px 0 10px}
+  .gala h2{font-size:21px;line-height:1.2;margin:6px 0 10px}
+  .gala p{color:#cdd8e4;font-size:15px;margin:0 0 12px}
+  .gala .gmut{color:var(--gmut);font-size:12.5px}
+  .gala .garch{width:46px;height:46px;border-radius:12px;background:var(--gbrand);display:grid;place-items:center;color:var(--gred);font-weight:900;font-size:30px;line-height:1}
+  .gala .gcard{background:var(--gcard);border:1px solid var(--gline);border-radius:14px;padding:14px;margin-bottom:10px}
+  .gala .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .gala .gstat{background:var(--gcard);border:1px solid var(--gline);border-radius:14px;padding:14px;text-align:center}
+  .gala .gstat .v{font-size:26px;font-weight:900;color:var(--gbrand);font-variant-numeric:tabular-nums;line-height:1}
+  .gala .gstat .l{color:var(--gmut);font-size:12px;margin-top:6px}
+  .gala table.gtab{width:100%;border-collapse:collapse;margin-top:4px}
+  .gala .gtab th,.gala .gtab td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--gline);font-size:14px}
+  .gala .gtab th{color:var(--gmut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .gala .gtab td:first-child,.gala .gtab th:first-child{text-align:left;color:var(--gink)}
+  .gala .gpos{color:var(--ggood);font-weight:800;font-variant-numeric:tabular-nums}
+  .gala .gpipe{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding-bottom:4px}
+  .gala .gpstep{flex:1 0 130px;background:var(--gcard);border:1px solid var(--gline);border-radius:12px;padding:11px}
+  .gala .gpstep .t{font-weight:800;font-size:13px}
+  .gala .gpstep .d{color:var(--gmut);font-size:11.5px;margin-top:3px}
+  .gala .garrow{align-self:center;color:var(--gbrand);font-weight:900}
+  .gala .glist{list-style:none;padding:0;margin:0}
+  .gala .glist li{padding:6px 0;border-bottom:1px solid var(--gline);font-size:13.5px;display:flex;gap:8px;align-items:center}
+  .gala .gtick{color:var(--ggood);font-weight:900}.gala .gsoon{color:var(--gbrand);font-weight:900}
+  .gala .gsurf{display:block;text-decoration:none;color:var(--gink);background:var(--gcard);border:1px solid var(--gline);border-radius:14px;padding:14px;margin-bottom:10px;transition:border-color .2s}
+  .gala a.gsurf:hover{border-color:var(--gbrand)}
+  .gala .gsurf .e{font-size:22px}.gala .gsurf b{display:block;margin-top:4px}.gala .gsurf span{color:var(--gmut);font-size:12.5px}
+  .gala .gbadge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:999px}
+  .gala .blive{background:rgba(39,208,122,.16);color:var(--ggood)}.gala .bsoon{background:rgba(255,199,44,.16);color:var(--gbrand)}
+  .gala .goil{display:flex;gap:14px;justify-content:space-around;flex-wrap:wrap;margin-top:6px}
+  .gala .ogw{text-align:center}
+  .gala .ogauge{position:relative;width:78px;height:78px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*3.6deg), #1f2c39 0);display:grid;place-items:center;margin:0 auto}
+  .gala .ogauge b{position:absolute;inset:9px;border-radius:50%;background:var(--gcard);display:grid;place-items:center;font-size:20px;font-weight:900}
+  .gala .ogl{color:var(--gmut);font-size:11.5px;margin-top:6px}
+  .gala .gbtn{display:inline-block;text-decoration:none;font-weight:800;border-radius:10px;padding:12px 16px}
+  .gala .gend{text-align:center}
+  .gala .gmocni{display:inline-block;border:2px solid var(--gbrand);color:var(--gbrand);font-weight:900;letter-spacing:3px;padding:8px 14px;border-radius:8px;font-size:18px}
+</style>
+  <div class="gtop"><a href="${back}">&#8592; Back to board</a></div>
+  <div class="gwrap">
+
+    <section class="gsec gend">
+      <div style="display:flex;justify-content:center;gap:12px;align-items:center;margin-bottom:14px">
+        <div class="garch">M</div><span class="gmocni">MOCNI</span>
+      </div>
+      <div class="gkick">McDonald's Operations Officer &middot; ${esc(today)}</div>
+      <h1>Welcome, Hazel Kraft.</h1>
+      <p style="font-size:17px">Schmitt McDonald's @ Boulder Hill</p>
+      <p class="gmut">Before the slides — a short scroll. First the operating system I built to run 12 restaurants as one, then why I think it's a model McDonald's needs. &darr;</p>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">Results first</div>
+      <h2>Every year since we started, we beat the business unit.</h2>
+      <div class="gcard">
+        <table class="gtab">
+          <tr><th>YTD vs MOCNI BU</th><th>2024</th><th>2025</th><th>2026</th></tr>
+          <tr><td>Guest Counts vs BU</td><td class="gpos">+3.18%</td><td class="gpos">+3.01%</td><td class="gpos">+0.97%</td></tr>
+          <tr><td>Sales vs BU</td><td class="gpos">+1.92%</td><td class="gpos">+2.31%</td><td class="gpos">+0.77%</td></tr>
+        </table>
+        <div class="gmut" style="margin-top:8px">Org comp vs the Chicago&middot;MOCNI business unit, year-to-date (QSRSoft 1-Year Comp). Guest counts — real people through the door — ahead of the BU three years running.</div>
+      </div>
+      <div class="gmut">Support: the system also tracks brand-standards visits, complaint recovery within the 72h SLA, VOICE guest scores, labor and food cost — per restaurant, every day.</div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">What I built</div>
+      <h2>Every signal lands in one place.</h2>
+      <p>The work used to live in seven systems — email, R365, McD portals, SMS, decks, and our heads. Now one brain holds it all, refreshed every 30 minutes. Built solo, nights and weekends.</p>
+      <div class="grid2">
+        <div class="gstat"><div class="v">${nf(p.restaurants||12)}</div><div class="l">restaurants, one picture</div></div>
+        <div class="gstat"><div class="v">${nf(p.people)}</div><div class="l">people in the directory</div></div>
+        <div class="gstat"><div class="v">${nf(p.work_items)}</div><div class="l">work items managed</div></div>
+        <div class="gstat"><div class="v">${nf(p.emails)}</div><div class="l">emails auto-triaged</div></div>
+      </div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">How it works (the plain version)</div>
+      <h2>Sources &rarr; one brain &rarr; the surfaces that need it.</h2>
+      <div class="gpipe">
+        <div class="gpstep"><div class="t">1 &middot; Sources</div><div class="d">Email, POS, guest scores, labor, finance, delivery — wherever the data lives.</div></div>
+        <div class="garrow">&rarr;</div>
+        <div class="gpstep"><div class="t">2 &middot; Ingest</div><div class="d">Automated pullers, every 30 min. Each one idempotent — no double-counting.</div></div>
+        <div class="garrow">&rarr;</div>
+        <div class="gpstep"><div class="t">3 &middot; One brain</div><div class="d">A single secure database — the system of record for all 12 restaurants.</div></div>
+        <div class="garrow">&rarr;</div>
+        <div class="gpstep"><div class="t">4 &middot; Surfaces</div><div class="d">Manager boards, in-store screens, the morning briefing, the bonus engine.</div></div>
+      </div>
+      <div class="gmut" style="margin-top:10px">Under the hood: ~51 data tables, 13 views, 6 cloud services, 80+ automations — all built and run by one operator-developer.</div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">The data behind it</div>
+      <h2>What's flowing in — and what we'd add next.</h2>
+      <div class="grid2">
+        <div class="gcard"><b style="color:var(--ggood)">Integrated</b>
+          <ul class="glist">
+            <li><span class="gtick">&check;</span> M365 email &rarr; tasks</li>
+            <li><span class="gtick">&check;</span> Salesmsg SMS</li>
+            <li><span class="gtick">&check;</span> SMG VOICE (guest scores)</li>
+            <li><span class="gtick">&check;</span> QSRSoft labor &amp; sales</li>
+            <li><span class="gtick">&check;</span> R365 financials (OData)</li>
+            <li><span class="gtick">&check;</span> Adyen + DoorDash + UberEats</li>
+            <li><span class="gtick">&check;</span> Visits, complaints, surveys</li>
+          </ul></div>
+        <div class="gcard"><b style="color:var(--gbrand)">Coming soon</b>
+          <ul class="glist">
+            <li><span class="gsoon">&plus;</span> DataPass corporate feeds</li>
+            <li><span class="gsoon">&plus;</span> LifeLenz (labor / overtime)</li>
+            <li><span class="gsoon">&plus;</span> Jolt (kitchen &amp; oil quality)</li>
+            <li><span class="gsoon">&plus;</span> Hourly store sales feeds</li>
+            <li><span class="gsoon">&plus;</span> Paycor (bonus payout)</li>
+          </ul></div>
+      </div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">What bottom-up ships</div>
+      <h2>Same brain, new surfaces — down to the line and out to the guest.</h2>
+      ${kitchenLink?`<a class="gsurf" href="${esc(kitchenLink)}" target="_blank"><span class="gbadge blive">Live</span> <div class="e">&#127859;</div><b>Kitchen Quality Race screen</b><span>Boulder Hill crew TV — gamified quality, live standings, shout-outs.</span></a>`:`<div class="gsurf"><span class="gbadge blive">Live</span> <div class="e">&#127859;</div><b>Kitchen Quality Race screen</b><span>Boulder Hill crew TV — gamified quality, live standings.</span></div>`}
+      <div class="gsurf"><span class="gbadge bsoon">Preview</span> <div class="e">&#9203;</div><b>Oil Quality monitor</b><span>Live fryer oil scores — sample data, updated ${esc(today)}.</span>
+        <div class="goil">${oil}</div>
+        <div class="gmut" style="margin-top:8px">Four fryers, scored 0&ndash;100. Wires to the Jolt feed once we have access — green = fresh, amber = watch, red = change.</div>
+      </div>
+      <div class="grid2">
+        <div class="gsurf"><span class="gbadge bsoon">Preview</span><div class="e">&#9201;</div><b>Overtime tracker</b><span>Boulder Hill 2.1% &middot; org 3.4% OT &middot; flags before it costs (sample).</span></div>
+        <div class="gsurf"><span class="gbadge bsoon">Preview</span><div class="e">&#11088;</div><b>Shift-leader ratings</b><span>Crew-rated leadership scores per shift leader (sample).</span></div>
+      </div>
+      ${gmLink?`<a class="gsurf" href="${esc(gmLink)}"><span class="gbadge blive">Live</span><div class="e">&#128241;</div><b>Manager Pages</b><span>You're reading one. Every GM gets a private board by text link — no login.</span></a>`:''}
+      <div class="grid2">
+        <div class="gsurf"><span class="gbadge blive">Live</span><div class="e">&#127911;</div><b>Morning AI briefing</b><span>A spoken daily ops podcast, generated every weekday at 5:30am.</span></div>
+        <div class="gsurf"><span class="gbadge bsoon">July 1</span><div class="e">&#128176;</div><b>Bonus engine</b><span>Transparent monthly manager bonuses, paid per paycheck.</span></div>
+      </div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">The one thing that unlocks the rest</div>
+      <h2>Bottom-up innovation runs on data.</h2>
+      <p>Everything here was built on the data we can already reach. A few more access points and the system goes much further — for every operator, not just mine:</p>
+      <div class="gcard"><b>1 &middot; Response-level VOICE data</b><div class="gmut" style="margin-top:3px">Today we get aggregates. Raw responses unlock per-guest, per-shift, per-product insight.</div></div>
+      <div class="gcard"><b>2 &middot; Hourly sales &amp; live store feeds</b><div class="gmut" style="margin-top:3px">Move from daily snapshots to real-time — staffing, speed, and yield as the day happens.</div></div>
+      <div class="gcard"><b>3 &middot; Corporate asset feeds for visualization</b><div class="gmut" style="margin-top:3px">Approved data products we can visualize for operators — with sensible guardrails.</div></div>
+      <div class="gmut">Lock operators out and the constellation never lights up. Open the data and McDonald's gets an asymmetric edge no competitor can buy top-down.</div>
+    </section>
+
+    <section class="gsec gend">
+      <div class="gkick">From here</div>
+      <h2>Now — the GM's daily view.</h2>
+      <p class="gmut">This is what a general manager opens every morning: today's priorities, their scorecard, their store.</p>
+      ${gmLink?`<a class="gbtn" style="background:var(--gbrand);color:#1a1205" href="${esc(gmLink)}">&#9654; Open ${esc(hz.gm_label||"the GM view")}</a>`:`<div class="gmut">GM hand-off link not configured.</div>`}
+      <div style="font-size:17px;font-weight:900;margin-top:20px;color:var(--gbrand)">&hellip;and now, back to PowerPoint! &#127916;</div>
+    </section>
+
+  </div></div>`;
 }
 function openMeetingEdit(){
   const m=STATE.data&&STATE.data.meeting; if(!m) return;
