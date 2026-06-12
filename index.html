@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v52";
+const SHELL_VERSION = "v53";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2088,6 +2088,13 @@ function renderHazelFull(payload){
   const back='?t='+encodeURIComponent(TOKEN);
   // Oil-quality sample (illustrative — the live Jolt feed is the "coming soon" ask).
   const oil=galaGauge("Fryer 1",88)+galaGauge("Fryer 2",73)+galaGauge("Fryer 3",95)+galaGauge("Fryer 4",64);
+  // Trailing-52-week sales by store (real, from data.hazel.sales_52w).
+  const s52=hz.sales_52w||{}, s52st=s52.stores||[];
+  const m1=n=>"$"+(Number(n)/1e6).toFixed(1)+"M";
+  const totalM=s52.total?Math.round(Number(s52.total)/1e6):49;
+  const maxPct=Math.max(1,...s52st.map(r=>Number(r.pct)||0));
+  const s52rows=s52st.map(r=>'<div class="gbar"><span class="gbn">'+esc(r.name)+'</span><span class="gbt"><span class="gbf" style="width:'+Math.round((Number(r.pct)||0)/maxPct*100)+'%"></span></span><span class="gbv">'+m1(r.sales)+' &middot; '+r.pct+'%</span></div>').join("");
+  const s52thru=s52.data_through?String(s52.data_through).slice(0,10):"";
   return `<div class="gala"><style>
   .gala{--gbg:#0a0e13;--gink:#eaf1f8;--gmut:#90a4b8;--gbrand:#ffc72c;--gred:#da291c;--ggood:#27d07a;--gcard:#121b25;--gline:#1f2c39;
     background:var(--gbg);color:var(--gink);min-height:100vh;font-family:"Segoe UI",system-ui,Arial,sans-serif;line-height:1.5;padding-bottom:50px;animation:gfade .5s ease}
@@ -2134,6 +2141,17 @@ function renderHazelFull(payload){
   .gala .gbtn{display:inline-block;text-decoration:none;font-weight:800;border-radius:10px;padding:12px 16px}
   .gala .gend{text-align:center}
   .gala .gmocni{display:inline-block;border:2px solid var(--gbrand);color:var(--gbrand);font-weight:900;letter-spacing:3px;padding:8px 14px;border-radius:8px;font-size:18px}
+  .gala .gbar{display:grid;grid-template-columns:92px 1fr auto;gap:8px;align-items:center;margin:5px 0;font-size:12px}
+  .gala .gbn{color:var(--gink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gala .gbt{height:13px;background:#1f2c39;border-radius:7px;overflow:hidden}
+  .gala .gbf{display:block;height:100%;background:linear-gradient(90deg,#b45309,#ffc72c);border-radius:7px}
+  .gala .gbv{color:var(--gmut);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .gala .gbig{font-size:30px;font-weight:900;color:var(--gbrand);line-height:1}
+  .gala .glever{background:var(--gcard);border:1px solid var(--gline);border-radius:12px;padding:12px;margin-bottom:8px}
+  .gala .glever b{font-size:14px}.gala .glever .gmut{margin-top:3px}
+  .gala .gcasino{background:linear-gradient(135deg,#3b0764,#7c3aed 70%,#b45309);border:none;color:#fff}
+  .gala .gcasino .gmut{color:#e9d5ff}
+  .gala .gphoto{margin-top:8px;border:1px dashed rgba(255,255,255,.4);border-radius:8px;padding:14px;text-align:center;font-size:12px;color:#e9d5ff}
 </style>
   <div class="gtop"><a href="${back}">&#8592; Back to board</a></div>
   <div class="gwrap">
@@ -2159,7 +2177,39 @@ function renderHazelFull(payload){
         </table>
         <div class="gmut" style="margin-top:8px">Org comp vs the Chicago&middot;MOCNI business unit, year-to-date (QSRSoft 1-Year Comp). Guest counts — real people through the door — ahead of the BU three years running.</div>
       </div>
+      <div class="gcard">
+        <div class="gkick">Trailing 52 weeks</div>
+        <div class="gbig">Driving $${totalM} million in sales</div>
+        <div class="gmut" style="margin:2px 0 10px">Product sales by restaurant${s52thru?` &middot; through ${esc(s52thru)}`:""} &middot; share of org, highest to lowest.</div>
+        ${s52rows||'<div class="gmut">Sales data loading…</div>'}
+        <div class="gbar" style="margin-top:8px;border-top:1px solid var(--gline);padding-top:8px"><span class="gbn" style="font-weight:800">All 12</span><span></span><span class="gbv" style="color:var(--gbrand);font-weight:800">${s52.total?m1(s52.total):"$49.1M"} &middot; 100%</span></div>
+      </div>
       <div class="gmut">Support: the system also tracks brand-standards visits, complaint recovery within the 72h SLA, VOICE guest scores, labor and food cost — per restaurant, every day.</div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">Closing the last gap</div>
+      <h2>Average check — catching the business unit.</h2>
+      <div class="gcard">
+        <table class="gtab">
+          <tr><th>Avg check growth, YTD</th><th>2024</th><th>2025</th><th>2026</th></tr>
+          <tr><td>Schmitt org</td><td>+1.58%</td><td>+0.94%</td><td>+3.38%</td></tr>
+          <tr><td>MOCNI BU</td><td>+2.92%</td><td>+1.66%</td><td>+3.61%</td></tr>
+          <tr><td>Gap to BU</td><td>&minus;1.34</td><td>&minus;0.73</td><td class="gpos">&minus;0.23</td></tr>
+        </table>
+        <div class="gmut" style="margin-top:8px">We grow on traffic — guest counts ahead of the BU. Average check lagged, but the gap to the business unit has closed from &minus;1.34 to &minus;0.23. Here's how we pull ahead. &darr;</div>
+      </div>
+    </section>
+
+    <section class="gsec">
+      <div class="gkick">Where the next growth comes from</div>
+      <h2>The levers we're pulling.</h2>
+      <div class="glever"><b>&#128336; Expanding hours</b><div class="gmut">More open hours at <b>Lake Street, Yorkville, and Farnsworth</b> — capturing demand we currently turn away.</div></div>
+      <div class="glever"><b>&#129534; Average check</b><div class="gmut">Incentivizing <b>upselling</b> and <b>$1 pie add-ons</b> at the point of sale — straight at the check gap above.</div></div>
+      <div class="gkick" style="margin:14px 0 8px">Immediate levers</div>
+      <div class="glever gcasino"><b>&#127920; Aurora &mdash; Hollywood Casino opens June 24</b><div class="gmut">A brand-new traffic generator next door, opening this month — new daypart demand we're positioned to capture.</div><div class="gphoto">[ slick Hollywood Casino Aurora photo &mdash; drop one in ]</div></div>
+      <div class="glever"><b>&#127769; Taking Yorkville 24/3</b><div class="gmut">Extending Yorkville's overnight hours to capture late-night demand.</div></div>
+      <div class="glever"><b>&#129380; Beverage execution</b><div class="gmut">Speed and attach on the highest-margin category &mdash; an everyday lever across all 12.</div></div>
     </section>
 
     <section class="gsec">
