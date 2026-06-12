@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v53";
+const SHELL_VERSION = "v54";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2152,6 +2152,8 @@ function renderHazelFull(payload){
   .gala .gcasino{background:linear-gradient(135deg,#3b0764,#7c3aed 70%,#b45309);border:none;color:#fff}
   .gala .gcasino .gmut{color:#e9d5ff}
   .gala .gphoto{margin-top:8px;border:1px dashed rgba(255,255,255,.4);border-radius:8px;padding:14px;text-align:center;font-size:12px;color:#e9d5ff}
+  .gala .gcimg{width:100%;border-radius:10px;margin:8px 0 5px;display:block}
+  .gala .gcred{font-size:9px;color:#cbb6e8;opacity:.75;margin-bottom:4px}
 </style>
   <div class="gtop"><a href="${back}">&#8592; Back to board</a></div>
   <div class="gwrap">
@@ -2207,7 +2209,10 @@ function renderHazelFull(payload){
       <div class="glever"><b>&#128336; Expanding hours</b><div class="gmut">More open hours at <b>Lake Street, Yorkville, and Farnsworth</b> — capturing demand we currently turn away.</div></div>
       <div class="glever"><b>&#129534; Average check</b><div class="gmut">Incentivizing <b>upselling</b> and <b>$1 pie add-ons</b> at the point of sale — straight at the check gap above.</div></div>
       <div class="gkick" style="margin:14px 0 8px">Immediate levers</div>
-      <div class="glever gcasino"><b>&#127920; Aurora &mdash; Hollywood Casino opens June 24</b><div class="gmut">A brand-new traffic generator next door, opening this month — new daypart demand we're positioned to capture.</div><div class="gphoto">[ slick Hollywood Casino Aurora photo &mdash; drop one in ]</div></div>
+      <div class="glever gcasino"><b>&#127920; Hollywood Casino Aurora &mdash; opens June 24</b>
+        <img class="gcimg" src="https://edwardbiz-gif.github.io/manager-page/hollywood-casino-aurora.jpg" alt="New Hollywood Casino Aurora resort rendering"/>
+        <div class="gcred">Rendering: PENN Entertainment / City of Aurora</div>
+        <div class="gmut">A $360M casino + 220-room resort opening this month at <b>2500 N. Farnsworth</b> &mdash; right next to our <b>Farnsworth restaurant</b>. A brand-new traffic generator and late-night daypart we're positioned to capture.</div></div>
       <div class="glever"><b>&#127769; Taking Yorkville 24/3</b><div class="gmut">Extending Yorkville's overnight hours to capture late-night demand.</div></div>
       <div class="glever"><b>&#129380; Beverage execution</b><div class="gmut">Speed and attach on the highest-margin category &mdash; an everyday lever across all 12.</div></div>
     </section>
