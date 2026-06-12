@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- kitchen.html v3 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v4 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
@@ -55,7 +55,7 @@ function buildCards(d){
   // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (last 60 days), ★ = guest complaint
   (d.feedback||[]).forEach(g=>{
     cards.push({a:(g.tone==="good"?"yellow":"red"),h:
-      '<div class="kicker">Guest feedback · food quality · last 60 days</div>'+
+      '<div class="kicker">Guest feedback · food quality · last 90 days</div>'+
       '<div class="title2">'+esc(g.label)+'</div>'+
       '<div class="quotes">'+(g.items||[]).map(it=>
         '<div class="q">'+(it.star?'<span style="color:#FFC72C">★ </span>':'')+'“'+esc(it.text)+'”'+
