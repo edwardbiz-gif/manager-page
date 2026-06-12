@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v55";
+const SHELL_VERSION = "v56";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2154,15 +2154,29 @@ function renderHazelFull(payload){
   .gala .gphoto{margin-top:8px;border:1px dashed rgba(255,255,255,.4);border-radius:8px;padding:14px;text-align:center;font-size:12px;color:#e9d5ff}
   .gala .gcimg{width:100%;border-radius:10px;margin:8px 0 5px;display:block}
   .gala .gfo{max-width:340px;width:100%;background:#fff;border-radius:10px;padding:10px 14px;margin:0 auto 14px;display:block}
+  .gala .gcfo{display:inline-flex;align-items:center;gap:12px;background:#fff;border-radius:10px;padding:12px 20px;margin:0 auto 14px}
+  .gala .gcfo-m{font-family:"Arial Black",Helvetica,Arial,sans-serif;font-weight:900;font-size:60px;line-height:.8;color:#ffc72c;letter-spacing:-5px}
+  .gala .gcfo-txt{text-align:left;color:#111}
+  .gala .gcfo-l1,.gala .gcfo-l2{font-family:"Arial Black",Helvetica,Arial,sans-serif;font-weight:900;font-size:26px;line-height:.9;letter-spacing:-1px;color:#111;display:flex;align-items:center;gap:3px}
+  .gala .gcfo-star{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#111;color:#fff;font-size:15px}
+  .gala .gcfo-tag{font-style:italic;font-weight:800;font-size:14px;margin-top:3px;color:#111;white-space:nowrap}
+  .gala .gcfo-chev{color:#da291c;font-style:normal;letter-spacing:-4px;margin-left:3px}
   .gala .gcred{font-size:9px;color:#cbb6e8;opacity:.75;margin-bottom:4px}
 </style>
   <div class="gtop"><a href="${back}">&#8592; Back to board</a></div>
   <div class="gwrap">
 
     <section class="gsec gend">
-      <img class="gfo" src="https://edwardbiz-gif.github.io/manager-page/assets/chicago-field-office-logo.png" alt="McDonald's Chicago Field Office" onerror="this.style.display='none';var f=document.getElementById('gfoFb');if(f)f.style.display='flex'">
-      <div id="gfoFb" style="display:none;justify-content:center;gap:12px;align-items:center;margin-bottom:14px">
-        <div class="garch">M</div><span class="gmocni">MOCNI</span>
+      <img class="gfo" src="https://edwardbiz-gif.github.io/manager-page/assets/chicago-field-office-logo.png" alt="McDonald's Chicago Field Office" onerror="this.style.display='none';var f=document.getElementById('gfoFb');if(f)f.style.display='block'">
+      <div id="gfoFb" style="display:none">
+        <div class="gcfo">
+          <span class="gcfo-m">M</span>
+          <div class="gcfo-txt">
+            <div class="gcfo-l1">CHICAG<span class="gcfo-star">&#10038;</span></div>
+            <div class="gcfo-l2">FIELD OFFICE</div>
+            <div class="gcfo-tag">Lead Without Limits <span class="gcfo-chev">&#10095;&#10095;&#10095;&#10095;&#10095;</span></div>
+          </div>
+        </div>
       </div>
       <div class="gkick">McDonald's Operations Officer &middot; ${esc(today)}</div>
       <h1>Welcome, Hazel Kraft.</h1>
