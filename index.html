@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v54";
+const SHELL_VERSION = "v55";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2153,13 +2153,15 @@ function renderHazelFull(payload){
   .gala .gcasino .gmut{color:#e9d5ff}
   .gala .gphoto{margin-top:8px;border:1px dashed rgba(255,255,255,.4);border-radius:8px;padding:14px;text-align:center;font-size:12px;color:#e9d5ff}
   .gala .gcimg{width:100%;border-radius:10px;margin:8px 0 5px;display:block}
+  .gala .gfo{max-width:340px;width:100%;background:#fff;border-radius:10px;padding:10px 14px;margin:0 auto 14px;display:block}
   .gala .gcred{font-size:9px;color:#cbb6e8;opacity:.75;margin-bottom:4px}
 </style>
   <div class="gtop"><a href="${back}">&#8592; Back to board</a></div>
   <div class="gwrap">
 
     <section class="gsec gend">
-      <div style="display:flex;justify-content:center;gap:12px;align-items:center;margin-bottom:14px">
+      <img class="gfo" src="https://edwardbiz-gif.github.io/manager-page/assets/chicago-field-office-logo.png" alt="McDonald's Chicago Field Office" onerror="this.style.display='none';var f=document.getElementById('gfoFb');if(f)f.style.display='flex'">
+      <div id="gfoFb" style="display:none;justify-content:center;gap:12px;align-items:center;margin-bottom:14px">
         <div class="garch">M</div><span class="gmocni">MOCNI</span>
       </div>
       <div class="gkick">McDonald's Operations Officer &middot; ${esc(today)}</div>
@@ -2210,7 +2212,7 @@ function renderHazelFull(payload){
       <div class="glever"><b>&#129534; Average check</b><div class="gmut">Incentivizing <b>upselling</b> and <b>$1 pie add-ons</b> at the point of sale — straight at the check gap above.</div></div>
       <div class="gkick" style="margin:14px 0 8px">Immediate levers</div>
       <div class="glever gcasino"><b>&#127920; Hollywood Casino Aurora &mdash; opens June 24</b>
-        <img class="gcimg" src="https://edwardbiz-gif.github.io/manager-page/hollywood-casino-aurora.jpg" alt="New Hollywood Casino Aurora resort rendering"/>
+        <img class="gcimg" src="https://edwardbiz-gif.github.io/manager-page/assets/hollywood-casino-aurora.jpg" alt="New Hollywood Casino Aurora resort rendering"/>
         <div class="gcred">Rendering: PENN Entertainment / City of Aurora</div>
         <div class="gmut">A $360M casino + 220-room resort opening this month at <b>2500 N. Farnsworth</b> &mdash; right next to our <b>Farnsworth restaurant</b>. A brand-new traffic generator and late-night daypart we're positioned to capture.</div></div>
       <div class="glever"><b>&#127769; Taking Yorkville 24/3</b><div class="gmut">Extending Yorkville's overnight hours to capture late-night demand.</div></div>
