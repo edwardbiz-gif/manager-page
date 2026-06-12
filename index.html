@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v50";
+const SHELL_VERSION = "v51";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2074,12 +2074,14 @@ function renderHazelLink(mgr){
 //  Act 3 — "and now, back to PowerPoint!" cue back to the asymmetric-thesis deck.
 function renderHazelHero(hl){
   // Big curated stat tile for Act 1. Each carries its own data-through date.
+  // small_sample tiles get a trailing asterisk (footnote rendered below the grid).
   const good=hl.good!==false;
   const delta=hl.delta?'<span style="font-size:12px;font-weight:800;color:'+(good?'#15803d':'#b91c1c')+';margin-left:5px">'+esc(hl.delta)+'</span>':'';
+  const star=hl.small_sample?'<span style="font-size:15px;color:var(--muted);vertical-align:super">*</span>':'';
   const thru=hl.through?'<div style="font-size:9.5px;color:var(--muted);margin-top:3px">thru '+esc(String(hl.through).slice(0,10))+'</div>':'';
   return '<div style="flex:1 1 46%;min-width:140px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px">'+
     '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(hl.label||"")+'</div>'+
-    '<div style="font-size:24px;font-weight:800;line-height:1.15;margin-top:2px">'+esc(hl.value||"—")+delta+'</div>'+
+    '<div style="font-size:24px;font-weight:800;line-height:1.15;margin-top:2px">'+esc(hl.value||"—")+star+delta+'</div>'+
     (hl.sub?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+esc(hl.sub)+'</div>':'')+thru+
     '</div>';
 }
@@ -2095,7 +2097,9 @@ function renderHazelFull(payload){
      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.8">12 Stores &middot; Western Chicago Suburbs</div>'+
      '<div style="font-size:19px;font-weight:800;margin-top:2px">Organization Results</div></div>';
   if(hls.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 8px">'+hls.map(renderHazelHero).join("")+'</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 4px">'+hls.map(renderHazelHero).join("")+'</div>';
+    if(hls.some(x=>x.small_sample))
+      h+='<div style="font-size:10.5px;color:var(--muted);margin:0 2px 8px">* VOICE month-to-date June &mdash; early small sample, not yet representative.</div>';
   }
   // Supporting depth — the live board cards below the hero tiles.
   h+=sect(()=>renderSalesComps(data.sales_comps));
