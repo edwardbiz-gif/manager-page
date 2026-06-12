@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v56";
+const SHELL_VERSION = "v57";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2053,7 +2053,7 @@ function renderMeetingFull(payload){
 }
 // ---- Hazel showcase ("gala view") — Owner-only launch card, pinned very top ----
 // The entry point Eddie clicks in front of Hazel Kraft. Opens the 3-act showcase
-// (?view=hazel): org business-results highlights -> a live GM view -> back to PowerPoint.
+// (?view=hazel): org business-results highlights -> a live GM view.
 function renderHazelLink(mgr){
   if((mgr.role||"")!=="Owner") return "";
   const link='?t='+encodeURIComponent(TOKEN)+'&view=hazel';
@@ -2071,7 +2071,7 @@ function renderHazelLink(mgr){
 //  Welcome (MOCNI) -> Results vs the Business Unit -> How it's built (infra + data
 //  sources) -> Surfaces (kitchen screen, oil-quality gauge, OT tracker, shift-leader
 //  ratings, gamification, manager pages/podcast/bonus) -> What we need (data-access
-//  asks) -> live GM view (Boulder Hill / Rodrigo) -> back to PowerPoint.
+//  asks) -> live GM view (Boulder Hill / Rodrigo).
 //  gm_link + kitchen_link come server-side (data.hazel) so no GM/kitchen token ships
 //  in this public shell. Static demo/sample data is clearly labelled.
 function galaGauge(label,score){
@@ -2319,7 +2319,6 @@ function renderHazelFull(payload){
       <h2>Now — the GM's daily view.</h2>
       <p class="gmut">This is what a general manager opens every morning: today's priorities, their scorecard, their store.</p>
       ${gmLink?`<a class="gbtn" style="background:var(--gbrand);color:#1a1205" href="${esc(gmLink)}">&#9654; Open ${esc(hz.gm_label||"the GM view")}</a>`:`<div class="gmut">GM hand-off link not configured.</div>`}
-      <div style="font-size:17px;font-weight:900;margin-top:20px;color:var(--gbrand)">&hellip;and now, back to PowerPoint! &#127916;</div>
     </section>
 
   </div></div>`;
