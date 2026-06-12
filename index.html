@@ -388,11 +388,11 @@ body{padding-bottom:74px}
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
-const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda
+const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda; "hazel" = showcase view
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v49";
+const SHELL_VERSION = "v50";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2051,6 +2051,68 @@ function renderMeetingFull(payload){
     '</div>'+flashHtml(payload.result)+'<div id="mtgEdit"></div>'+
     '<div class="card"><div class="mtg-body">'+mdToHtml(m.agenda_md||'')+'</div></div></div>';
 }
+// ---- Hazel showcase ("gala view") — Owner-only launch card, pinned very top ----
+// The entry point Eddie clicks in front of Hazel Kraft. Opens the 3-act showcase
+// (?view=hazel): org business-results highlights -> a live GM view -> back to PowerPoint.
+function renderHazelLink(mgr){
+  if((mgr.role||"")!=="Owner") return "";
+  const link='?t='+encodeURIComponent(TOKEN)+'&view=hazel';
+  return '<div class="card" style="border:none;background:linear-gradient(135deg,#b45309,#f59e0b);color:#1a1205;box-shadow:0 4px 18px rgba(180,83,9,.32)">'+
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:20px">&#127881;</span>'+
+      '<b style="font-size:15px;letter-spacing:.01em">Showcase view</b>'+
+      '<span style="margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;background:rgba(0,0,0,.18);padding:2px 7px;border-radius:999px">Owner only</span>'+
+    '</div>'+
+    '<div style="font-size:12.5px;margin-top:5px;opacity:.92">Curated org highlights across all 12 stores, then a hand-off to a live GM view. Demo-ready for Hazel.</div>'+
+    '<a class="add-btn" style="width:auto;text-decoration:none;background:#1a1205;color:#fbbf24;margin-top:8px" href="'+link+'">&#9654; Open showcase</a>'+
+    '</div>';
+}
+// Full-screen 3-act showcase (?view=hazel), owner-only.
+//  Act 1 — org business-results highlights (reuses the live all-store board data).
+//  Act 2 — hand-off to a live GM view (Alejandra / Lake Street); the link is provided
+//          server-side as data.hazel_gm_link so a GM token never lands in this public shell.
+//  Act 3 — "and now, back to PowerPoint!" cue back to the asymmetric-thesis deck.
+function renderHazelHero(hl){
+  // Big curated stat tile for Act 1. Each carries its own data-through date.
+  const good=hl.good!==false;
+  const delta=hl.delta?'<span style="font-size:12px;font-weight:800;color:'+(good?'#15803d':'#b91c1c')+';margin-left:5px">'+esc(hl.delta)+'</span>':'';
+  const thru=hl.through?'<div style="font-size:9.5px;color:var(--muted);margin-top:3px">thru '+esc(String(hl.through).slice(0,10))+'</div>':'';
+  return '<div style="flex:1 1 46%;min-width:140px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px">'+
+    '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(hl.label||"")+'</div>'+
+    '<div style="font-size:24px;font-weight:800;line-height:1.15;margin-top:2px">'+esc(hl.value||"—")+delta+'</div>'+
+    (hl.sub?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+esc(hl.sub)+'</div>':'')+thru+
+    '</div>';
+}
+function renderHazelFull(payload){
+  const data=payload.data||{}, mgr=data.manager||{};
+  if((mgr.role||"")!=="Owner") return '<div class="phone"><div class="errbox">This view is owner-only.</div></div>';
+  const hz=data.hazel||{}, hls=hz.highlights||[], gmLink=hz.gm_link||"";
+  let h='<div class="phone">';
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+     '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a></div>';
+  // ===== Act 1 — curated org highlights =====
+  h+='<div class="card" style="border:none;background:linear-gradient(135deg,#b45309,#f59e0b);color:#1a1205;text-align:center">'+
+     '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.8">12 Stores &middot; Western Chicago Suburbs</div>'+
+     '<div style="font-size:19px;font-weight:800;margin-top:2px">Organization Results</div></div>';
+  if(hls.length){
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 8px">'+hls.map(renderHazelHero).join("")+'</div>';
+  }
+  // Supporting depth — the live board cards below the hero tiles.
+  h+=sect(()=>renderSalesComps(data.sales_comps));
+  h+=sect(()=>renderCleanlinessRace(data.cleanliness_race));
+  h+=sect(()=>renderVoiceTrend(data.voice_trend));
+  h+=sect(()=>renderCustomerFeedback(data.customer_feedback));
+  // ===== Act 2 + 3 — transition to the GM view, then back to the deck =====
+  h+='<div class="card" style="border-color:#1d4ed8;text-align:center">'+
+     '<div style="font-size:13px;font-weight:700;margin-bottom:6px">Now, the GM experience</div>'+
+     (gmLink
+        ? '<a class="add-btn" style="width:auto;text-decoration:none;background:#1d4ed8" href="'+esc(gmLink)+'">&#9654; Open '+esc(hz.gm_label||"the GM view")+'</a>'
+        : '<div class="summary" style="color:var(--muted)">GM hand-off link not configured.</div>')+
+     '<div style="font-size:15px;font-weight:800;margin-top:14px;color:#7c3aed">&hellip;and now, back to PowerPoint! &#127916;</div>'+
+     '</div>';
+  h+='</div>';
+  return h;
+}
 function openMeetingEdit(){
   const m=STATE.data&&STATE.data.meeting; if(!m) return;
   const mount=document.getElementById('mtgEdit'); if(!mount) return;
@@ -2078,7 +2140,9 @@ async function saveMeeting(ev,btn){
 
 function setBoard(payload){
   let html;
-  try { html = (VIEW==="meeting") ? renderMeetingFull(payload) : renderBoard(payload); }
+  try { html = (VIEW==="hazel") ? renderHazelFull(payload)
+             : (VIEW==="meeting") ? renderMeetingFull(payload)
+             : renderBoard(payload); }
   catch(e){
     console.error("manager-page: render failed —", e);
     html = '<div class="phone"><div class="errbox"><b>Some of your board couldn’t load.</b><br>'+
@@ -2294,6 +2358,9 @@ function renderBoard(payload){
      '<div class="sub">'+esc(mgr.role||"")+(storeLine?' &middot; '+esc(storeLine):'')+
      ' &middot; '+esc(now)+'</div></div></div>';
   h+=flashHtml(result);
+
+  // Hazel showcase launch — Owner-only, pinned to the very top of the Hub.
+  h+=sect(()=>renderHazelLink(mgr));
 
   // Business Advisor briefing — Owner-only, very top (renders "" when empty).
   h+=sect(()=>renderAdvisorBriefing(data.advisor_briefing));
