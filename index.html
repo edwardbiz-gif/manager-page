@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v59";
+const SHELL_VERSION = "v60";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2357,6 +2357,23 @@ function labPct(p){
 }
 function labYoY(v){ return v?labPct(v.yoy):"&mdash;"; }
 function labGc(v){ return v?labPct(v.gc_yoy):"&mdash;"; }
+function labCheckChart(rows){
+  const series=(rows||[]).filter(r=>r.avg_check!=null);
+  if(series.length<2) return '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">Not enough weeks to chart yet.</div>';
+  const W=440,H=120,padX=12,padT=16,padB=20;
+  const vals=series.map(r=>r.avg_check), maxV=Math.max.apply(null,vals), minV=Math.min.apply(null,vals);
+  const sp=(maxV-minV)||1, pad=sp<0.5?0.25:sp*0.18, mn=minV-pad, mx=maxV+pad;
+  const x=i=>padX+i*(W-2*padX)/(series.length-1), y=v=>H-padB-(v-mn)/(mx-mn)*(H-padT-padB);
+  const pts=series.map((r,i)=>x(i).toFixed(1)+","+y(r.avg_check).toFixed(1)).join(" ");
+  const last=series[series.length-1];
+  let lastM=''; const xl=series.map((r,i)=>{const m=new Date(r.week+'T00:00:00').toLocaleDateString('en-US',{month:'short'}); if(m!==lastM){lastM=m; return '<text x="'+x(i).toFixed(1)+'" y="'+(H-5)+'" fill="#94a3b8" font-size="8.5" text-anchor="middle">'+m+'</text>';} return '';}).join('');
+  const iMax=vals.indexOf(maxV), iMin=vals.indexOf(minV), cx=i=>Math.min(Math.max(x(i),20),W-20).toFixed(1);
+  const vl=(i,v,above)=>'<text x="'+cx(i)+'" y="'+(y(v)+(above?-5:12)).toFixed(1)+'" fill="#94a3b8" font-size="8.5" text-anchor="middle">$'+v.toFixed(2)+'</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:116px;display:block;margin-top:6px">'+
+    '<polyline points="'+pts+'" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linejoin="round"/>'+
+    '<circle cx="'+x(series.length-1).toFixed(1)+'" cy="'+y(last.avg_check).toFixed(1)+'" r="3.4" fill="#0ea5e9"/>'+
+    vl(iMax,maxV,true)+vl(iMin,minV,false)+xl+'</svg>';
+}
 function labMoney(n){ return (n==null)?"&mdash;":"$"+Number(n).toLocaleString("en-US"); }
 function labToggleStores(){ var e=document.getElementById('labStores'); if(e) e.style.display=(e.style.display==='none'?'block':'none'); }
 function renderLabLink(mgr){
@@ -2396,6 +2413,9 @@ function renderLabFull(payload){
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+tile("Yesterday",s.yesterday)+tile("MTD",s.mtd)+tile("YTD",s.ytd)+'</div>'+
       '<button class="add-btn" style="width:auto;margin-top:8px;background:rgba(14,165,233,.14);color:#0ea5e9" onclick="labToggleStores()">&#9660; Per store</button>'+
       storeTbl+'</div>'+
+    '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128181; Average Check<span class="ct">weekly &middot; through '+through+'</span></h3>'+
+      labCheckChart(data.lab&&data.lab.avg_check_weekly)+
+      '<div style="font-size:11px;color:#888;margin-top:5px">Product sales &divide; guest counts, per week (org).</div></div>'+
     '<h3 style="margin:14px 4px 6px;font-size:14px;color:var(--accent)">VOICE &middot; OSAT / QSC / B2B</h3>'+
     renderVoiceTrend(data.voice_trend)+
     '</div>';
