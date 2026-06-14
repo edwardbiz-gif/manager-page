@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v63";
+const SHELL_VERSION = "v64";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2466,6 +2466,7 @@ function setBoard(payload){
   try { html = (VIEW==="hazel") ? renderHazelFull(payload)
              : (VIEW==="meeting") ? renderMeetingFull(payload)
              : (VIEW==="lab") ? renderLabFull(payload)
+             : (payload.data && payload.data.dept) ? renderDept(payload)
              : renderBoard(payload); }
   catch(e){
     console.error("manager-page: render failed —", e);
@@ -2643,6 +2644,116 @@ function renderCrewListeningBanner(mgr, scopeAll, readouts){
     '</div>';
 }
 
+// ---- DM boards (v64) — Department-manager lean view -------------------
+// Rendered (instead of renderBoard) whenever data.dept is present, i.e. the
+// token holder is a Department manager. A LEAN, role-typed board: a track
+// header, a top module specific to their DM track (Quality / Guest Services /
+// People), then "your store today" (reusing the existing sales/cleanliness/
+// labor cards), the VOICE card, their tasks, and a Q3-bonus placeholder.
+// Every reused card already carries its own data-through date.
+function deptThrough(s){ return s ? '<span class="ct">through '+esc(s)+'</span>' : ''; }
+function renderDeptModule(dept){
+  const m = dept.module || {};
+  if(dept.type==='guest_services'){
+    const rec = Array.isArray(m.recovery)?m.recovery:[];
+    let h='<div class="card" style="border-color:#a855f7"><h3 style="color:#a855f7">&#128172; Guest Services'+
+          '<span class="ct">complaints &amp; recovery</span></h3>'+
+          '<div style="font-size:28px;font-weight:800;line-height:1">'+(m.complaints_open||0)+
+          '<span style="font-size:13px;font-weight:600;color:var(--muted)"> open complaint'+((m.complaints_open===1)?'':'s')+'</span></div>';
+    if(rec.length){
+      h+='<div style="margin-top:8px;font-size:12px;color:var(--muted)">Needs recovery — work these one at a time:</div>';
+      rec.forEach(r=>{ h+='<div style="margin-top:6px;padding:7px 9px;background:#1c1530;border-radius:8px;font-size:12px">'+
+        '<b>'+esc(r.issue||'Complaint')+'</b> &middot; case '+esc(r.case_number||'?')+
+        (r.closure_url?' &middot; <a href="'+esc(r.closure_url)+'" target="_blank" rel="noopener" style="color:#c084fc">close case &rarr;</a>':'')+
+        '</div>'; });
+    } else { h+='<div style="margin-top:6px;font-size:12px;color:var(--muted)">No complaints needing recovery right now. Nice.</div>'; }
+    h+='<div style="margin-top:8px;font-size:11px;color:#888">Full open-complaint list with reply/resolve actions is below.</div>';
+    return h+'</div>';
+  }
+  if(dept.type==='people'){
+    const sc=m.schedules||{}, hi=m.hiring||{};
+    let h='<div class="card" style="border-color:#22c55e"><h3 style="color:#22c55e">&#128101; People'+
+          '<span class="ct">schedules &middot; hiring &middot; training</span></h3>';
+    h+='<div style="font-size:13px">&#128202; <b>Crew listening readout</b> &middot; '+
+       (m.readout_url?'<a href="'+esc(m.readout_url)+'" target="_blank" rel="noopener" style="color:#4ade80">open store PDF &rarr;</a>':'<span style="color:var(--muted)">none yet</span>')+'</div>';
+    h+='<div style="margin-top:8px;padding:8px 10px;background:#13251a;border-radius:8px;font-size:12px;color:#a7f3c0">'+
+       '&#128338; <b>Schedules &amp; overtime</b> — '+esc(sc.note||'coming soon')+'</div>';
+    h+='<div style="margin-top:6px;padding:8px 10px;background:#13251a;border-radius:8px;font-size:12px;color:#a7f3c0">'+
+       '&#128221; <b>Hiring &amp; onboarding</b> — '+esc(hi.note||'coming soon')+'</div>';
+    return h+'</div>';
+  }
+  // quality (default)
+  const cl=m.cleanliness||null, fc=m.food_cost||{};
+  let h='<div class="card" style="border-color:#f59e0b"><h3 style="color:#f59e0b">&#127859; Kitchen Quality'+
+        '<span class="ct">execution &amp; food cost</span></h3>';
+  if(cl){
+    h+='<div style="display:flex;align-items:baseline;gap:10px">'+
+       '<div style="font-size:28px;font-weight:800;line-height:1">'+esc(cl.score)+'%</div>'+
+       '<div style="font-size:13px;color:var(--muted)">Cleanliness &middot; rank '+esc(cl.rank)+'/12 '+deptThrough(cl.through)+'</div></div>';
+  } else { h+='<div style="font-size:12px;color:var(--muted)">Cleanliness score pending this period.</div>'; }
+  h+='<div style="margin-top:8px;padding:8px 10px;background:#2a2113;border-radius:8px;font-size:12px;color:#fcd9a0">'+
+     '&#128274; <b>Food cost / PAC%</b> — '+esc(fc.note||'pending data access')+'</div>';
+  h+='<div style="margin-top:8px;font-size:11px;color:#888">Kitchen QSC detail (Quality, Accuracy, Fast) is in the VOICE card below.</div>';
+  return h+'</div>';
+}
+function renderDeptBonus(dept){
+  const b=dept.bonus||{};
+  return '<div class="card" style="border-color:#334155;background:#0f1830"><h3 style="color:#94a3b8">&#127942; Your Q3 Bonus'+
+         '<span class="ct">coming soon</span></h3>'+
+         '<div style="font-size:13px;color:#cbd5e1">'+esc(b.note||'Your bonus tracker will appear here.')+'</div></div>';
+}
+function renderDept(payload){
+  STATE = payload;
+  const data = payload.data || {};
+  const result = payload.result;
+  const mgr = data.manager || {};
+  const dept = data.dept || {};
+  const stores = data.stores || [];
+  const tasks = tasksWithStoreName(data.tasks||[], stores);
+  const now=new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  const storeName=(dept.store&&dept.store.name)||stores.map(s=>s.name).join(" · ");
+  let h='<div class="phone">';
+  const fnV=data.fn_version||"?"; const mism=(fnV!=="?"&&fnV!==SHELL_VERSION);
+  h+='<div class="ver">Ed Ops &middot; <b>'+esc(SHELL_VERSION)+'</b> <span'+(mism?' class="mism"':'')+'>api '+esc(fnV)+'</span></div>';
+  // Branded header.
+  h+='<div class="brand"><div class="mark">M</div>'+
+     '<div class="hdr" style="margin:0"><h2>Hi, '+esc(mgr.first_name||"")+'</h2>'+
+     '<div class="sub">'+esc(dept.type_label||"Department")+' Manager'+(storeName?' &middot; '+esc(storeName):'')+
+     ' &middot; '+esc(now)+'</div></div></div>';
+  h+=flashHtml(result);
+  // Track banner — what this DM owns.
+  h+='<div class="card" style="border-color:var(--accent);background:linear-gradient(180deg,#181826,#11111b)">'+
+     '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Your focus</div>'+
+     '<div style="font-size:15px;font-weight:700;margin-top:2px">'+esc(dept.focus||"")+'</div></div>';
+  // 1) Role-specific module — pinned at top.
+  h+='<div id="sec-module" class="sec"></div>';
+  h+=sect(()=>renderDeptModule(dept));
+  // 2) Your store today — reuse the standard sales / cleanliness / labor cards.
+  h+='<div id="sec-store" class="sec"></div>';
+  h+='<h3 style="margin:16px 4px 4px;font-size:14px;color:var(--accent)">Your store today</h3>';
+  h+=sect(()=>renderSalesComps(data.sales_comps));
+  h+=sect(()=>renderCleanlinessRace(data.cleanliness_race));
+  h+=sect(()=>renderLabor(data.labor||[]));
+  // Guest Services DM gets the full actionable complaint list with resolve/draft.
+  if(dept.type==='guest_services'){
+    h+='<div id="sec-feedback" class="sec"></div>';
+    h+=sect(()=>renderComplaints(data.complaints||[]));
+  }
+  // 3) VOICE — full OSAT/QSC/B2B card (all DMs; their track leads with the
+  // relevant cells but the whole picture helps).
+  h+='<div id="sec-voice" class="sec"></div>';
+  h+=sect(()=>renderVoiceTrend(data.voice_trend));
+  // 4) Tasks — DMs have assigned work too.
+  h+='<div id="sec-tasks" class="sec"></div>';
+  h+='<div class="add-bar"><button class="add-btn" onclick="openNewForm()">+ Add task</button></div><div id="newFormMount"></div>';
+  h+=sect(()=>renderTasksBlock(tasks, stores));
+  // 5) Bonus placeholder.
+  h+='<div id="sec-bonus" class="sec"></div>';
+  h+=renderDeptBonus(dept);
+  h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
+  h+='</div>';
+  return h;
+}
 function renderBoard(payload){
   STATE = payload;
   const data = payload.data || {};
