@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v58";
+const SHELL_VERSION = "v59";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2351,11 +2351,12 @@ async function saveMeeting(ev,btn){
 // ---- Lab (v58) — Owner-only experimental view (?view=lab): product-sales YoY
 // (yesterday / MTD / YTD, org + per-store drill) + the VOICE OSAT/QSC/B2B drilldown
 // (reuses renderVoiceTrend). Launched from an Owner Hub card; iterate freely here.
-function labYoY(v){
-  if(!v) return "&mdash;";
-  const y=v.yoy, col=(y==null)?"#888":(y>=0?"#27d07a":"#da291c"), sign=(y==null)?"":(y>=0?"+":"");
-  return '<b style="color:'+col+'">'+(y==null?"n/a":sign+y+"%")+'</b>';
+function labPct(p){
+  const col=(p==null)?"#888":(p>=0?"#27d07a":"#da291c"), sign=(p==null)?"":(p>=0?"+":"");
+  return '<b style="color:'+col+'">'+(p==null?"n/a":sign+p+"%")+'</b>';
 }
+function labYoY(v){ return v?labPct(v.yoy):"&mdash;"; }
+function labGc(v){ return v?labPct(v.gc_yoy):"&mdash;"; }
 function labMoney(n){ return (n==null)?"&mdash;":"$"+Number(n).toLocaleString("en-US"); }
 function labToggleStores(){ var e=document.getElementById('labStores'); if(e) e.style.display=(e.style.display==='none'?'block':'none'); }
 function renderLabLink(mgr){
@@ -2378,12 +2379,12 @@ function renderLabFull(payload){
   const tile=(label,v)=> '<div class="card" style="flex:1;min-width:104px;text-align:center;margin:0">'+
     '<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#888">'+label+'</div>'+
     '<div style="font-size:21px;margin:3px 0">'+labYoY(v)+'</div>'+
-    '<div style="font-size:11px;color:#aaa">'+labMoney(v&&v.sales)+'</div></div>';
+    '<div style="font-size:11px;color:#aaa">'+labMoney(v&&v.sales)+'</div>'+
+    '<div style="font-size:11px;color:#888;margin-top:3px;border-top:1px solid var(--line);padding-top:3px">GC '+labGc(v)+'</div></div>';
+  const cell=v=>'<td style="padding:3px 4px;text-align:center">'+labYoY(v)+'<div style="font-size:9.5px;color:#888">GC '+labGc(v)+'</div></td>';
   const rows=(s.by_store||[]).map(r=>
     '<tr><td style="text-align:left;padding:3px 4px">'+esc(r.store_name)+'</td>'+
-    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.yesterday)+'</td>'+
-    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.mtd)+'</td>'+
-    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.ytd)+'</td></tr>').join("");
+    cell(r.yesterday)+cell(r.mtd)+cell(r.ytd)+'</tr>').join("");
   const storeTbl='<div id="labStores" style="display:none;margin-top:8px"><table style="width:100%;font-size:12px;border-collapse:collapse">'+
     '<thead><tr><th style="text-align:left;padding:3px 4px">Store</th><th style="padding:3px 4px">Yest</th><th style="padding:3px 4px">MTD</th><th style="padding:3px 4px">YTD</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   return '<div class="phone">'+
@@ -2391,7 +2392,7 @@ function renderLabFull(payload){
       '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a>'+
       '<b style="margin-left:auto;font-size:13px;color:#0ea5e9">&#129514; Lab &middot; experimental</b></div>'+
     flashHtml(payload.result)+
-    '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128202; Product Sales YoY<span class="ct">through '+through+'</span></h3>'+
+    '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128202; Sales &amp; Guest Count YoY<span class="ct">through '+through+'</span></h3>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+tile("Yesterday",s.yesterday)+tile("MTD",s.mtd)+tile("YTD",s.ytd)+'</div>'+
       '<button class="add-btn" style="width:auto;margin-top:8px;background:rgba(14,165,233,.14);color:#0ea5e9" onclick="labToggleStores()">&#9660; Per store</button>'+
       storeTbl+'</div>'+
