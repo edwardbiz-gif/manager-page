@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v57";
+const SHELL_VERSION = "v58";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2348,10 +2348,62 @@ async function saveMeeting(ev,btn){
   catch(e){ btn.disabled=false; alert('Save failed: '+(e&&e.message)); }
 }
 
+// ---- Lab (v58) — Owner-only experimental view (?view=lab): product-sales YoY
+// (yesterday / MTD / YTD, org + per-store drill) + the VOICE OSAT/QSC/B2B drilldown
+// (reuses renderVoiceTrend). Launched from an Owner Hub card; iterate freely here.
+function labYoY(v){
+  if(!v) return "&mdash;";
+  const y=v.yoy, col=(y==null)?"#888":(y>=0?"#27d07a":"#da291c"), sign=(y==null)?"":(y>=0?"+":"");
+  return '<b style="color:'+col+'">'+(y==null?"n/a":sign+y+"%")+'</b>';
+}
+function labMoney(n){ return (n==null)?"&mdash;":"$"+Number(n).toLocaleString("en-US"); }
+function labToggleStores(){ var e=document.getElementById('labStores'); if(e) e.style.display=(e.style.display==='none'?'block':'none'); }
+function renderLabLink(mgr){
+  if((mgr.role||"")!=="Owner") return "";
+  const link='?t='+encodeURIComponent(TOKEN)+'&view=lab';
+  return '<div class="card" style="border-color:#0ea5e9">'+
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:18px">&#129514;</span><b style="font-size:14px">Lab</b>'+
+      '<span style="margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;background:rgba(14,165,233,.14);color:#0ea5e9;padding:2px 7px;border-radius:999px">Experimental</span>'+
+    '</div>'+
+    '<div style="font-size:12.5px;margin-top:5px;color:#aaa">Org sales YoY (yesterday, MTD, YTD) + VOICE, drillable to store.</div>'+
+    '<a class="add-btn" style="width:auto;text-decoration:none;background:#0ea5e9;margin-top:8px" href="'+link+'">&#9654; Open lab</a></div>';
+}
+function renderLabFull(payload){
+  const data=payload.data||{}, mgr=data.manager||{};
+  if((mgr.role||"")!=="Owner") return '<div class="phone"><div class="errbox">This view is owner-only.</div></div>';
+  const s=(data.lab&&data.lab.sales)||{};
+  const through=s.data_through?new Date(s.data_through+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}):"&mdash;";
+  const tile=(label,v)=> '<div class="card" style="flex:1;min-width:104px;text-align:center;margin:0">'+
+    '<div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#888">'+label+'</div>'+
+    '<div style="font-size:21px;margin:3px 0">'+labYoY(v)+'</div>'+
+    '<div style="font-size:11px;color:#aaa">'+labMoney(v&&v.sales)+'</div></div>';
+  const rows=(s.by_store||[]).map(r=>
+    '<tr><td style="text-align:left;padding:3px 4px">'+esc(r.store_name)+'</td>'+
+    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.yesterday)+'</td>'+
+    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.mtd)+'</td>'+
+    '<td style="padding:3px 4px;text-align:center">'+labYoY(r.ytd)+'</td></tr>').join("");
+  const storeTbl='<div id="labStores" style="display:none;margin-top:8px"><table style="width:100%;font-size:12px;border-collapse:collapse">'+
+    '<thead><tr><th style="text-align:left;padding:3px 4px">Store</th><th style="padding:3px 4px">Yest</th><th style="padding:3px 4px">MTD</th><th style="padding:3px 4px">YTD</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  return '<div class="phone">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a>'+
+      '<b style="margin-left:auto;font-size:13px;color:#0ea5e9">&#129514; Lab &middot; experimental</b></div>'+
+    flashHtml(payload.result)+
+    '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128202; Product Sales YoY<span class="ct">through '+through+'</span></h3>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+tile("Yesterday",s.yesterday)+tile("MTD",s.mtd)+tile("YTD",s.ytd)+'</div>'+
+      '<button class="add-btn" style="width:auto;margin-top:8px;background:rgba(14,165,233,.14);color:#0ea5e9" onclick="labToggleStores()">&#9660; Per store</button>'+
+      storeTbl+'</div>'+
+    '<h3 style="margin:14px 4px 6px;font-size:14px;color:var(--accent)">VOICE &middot; OSAT / QSC / B2B</h3>'+
+    renderVoiceTrend(data.voice_trend)+
+    '</div>';
+}
+
 function setBoard(payload){
   let html;
   try { html = (VIEW==="hazel") ? renderHazelFull(payload)
              : (VIEW==="meeting") ? renderMeetingFull(payload)
+             : (VIEW==="lab") ? renderLabFull(payload)
              : renderBoard(payload); }
   catch(e){
     console.error("manager-page: render failed —", e);
@@ -2577,6 +2629,9 @@ function renderBoard(payload){
 
   // Supervisor Meeting — Owner-only agenda card (Owner Hub tool #3): link + Update.
   h+=sect(()=>renderMeeting(data.meeting, mgr));
+
+  // Lab — Owner-only experimental view launch (sales YoY + VOICE drilldown).
+  h+=sect(()=>renderLabLink(mgr));
 
   // Store Submissions — campaign CTA (GM upload) / tracker (Owner-Sup), pinned
   // near the top so the ask/visibility is unmissable. Renders "" when there's
