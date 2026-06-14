@@ -392,7 +392,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v62";
+const SHELL_VERSION = "v63";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2395,6 +2395,30 @@ function renderLabLink(mgr){
     '<div style="font-size:12.5px;margin-top:5px;color:#aaa">Org sales YoY (yesterday, MTD, YTD) + VOICE, drillable to store.</div>'+
     '<a class="add-btn" style="width:auto;text-decoration:none;background:#0ea5e9;margin-top:8px" href="'+link+'">&#9654; Open lab</a></div>';
 }
+function labUsageBars(byDay){
+  const s=(byDay||[]); if(!s.length) return '';
+  const W=440,H=66,padX=8,padB=4;
+  const mx=Math.max.apply(null,s.map(d=>d.cost))||1, bw=(W-2*padX)/s.length;
+  const bars=s.map((d,i)=>{const h=(d.cost/mx)*(H-padB-4),x=padX+i*bw,col=d.cost>=10?'#da291c':d.cost>=3?'#d97706':'#0ea5e9';
+    return '<rect x="'+(x+1).toFixed(1)+'" y="'+(H-padB-h).toFixed(1)+'" width="'+Math.max(bw-2,1).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+col+'"><title>'+esc(d.day)+': $'+d.cost.toFixed(2)+'</title></rect>';}).join('');
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:64px;display:block;margin-top:6px">'+bars+'</svg>';
+}
+function renderLabUsage(u){
+  if(!u) return '';
+  const total=Number(u.total)||0, through=u.data_through?new Date(u.data_through+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+  const big=total>=50?'#da291c':total>=15?'#d97706':'#27d07a';
+  const rows=(u.by_script||[]).map(r=>{const share=total>0?Math.round(100*r.cost/total):0,c=share>=50?'#da291c':share>=20?'#d97706':'#cbd5e1';
+    return '<tr><td style="text-align:left;padding:3px 4px">'+esc(r.script)+'</td>'+
+      '<td style="padding:3px 4px;color:#888;font-size:11px">'+esc((r.model||'').replace('claude-','').replace(/-20[0-9]+$/,''))+'</td>'+
+      '<td style="padding:3px 4px;text-align:right;color:#aaa">'+Number(r.calls||0).toLocaleString()+'</td>'+
+      '<td style="padding:3px 4px;text-align:right;color:'+c+';font-weight:700">$'+Number(r.cost||0).toFixed(2)+'</td></tr>';}).join('');
+  return '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128178; API usage<span class="ct">'+esc(u.month||'')+(through?' &middot; through '+through:'')+'</span></h3>'+
+    '<div style="font-size:26px;font-weight:800;color:'+big+';line-height:1.1">$'+total.toFixed(2)+'</div>'+
+    '<div style="font-size:11px;color:#888">Anthropic spend this month, self-tracked. Bars red &gt;$10/day.</div>'+
+    labUsageBars(u.by_day)+
+    (rows?'<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px"><thead><tr><th style="text-align:left;padding:3px 4px">Script</th><th style="text-align:left;padding:3px 4px">Model</th><th style="padding:3px 4px;text-align:right">Calls</th><th style="padding:3px 4px;text-align:right">Cost</th></tr></thead><tbody>'+rows+'</tbody></table>':'')+
+    '</div>';
+}
 function renderLabFull(payload){
   STATE = payload;   // renderVoiceTrend/vtRenderView read STATE.data; set it like renderBoard does
   const data=payload.data||{}, mgr=data.manager||{};
@@ -2421,6 +2445,7 @@ function renderLabFull(payload){
       '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a>'+
       '<b style="margin-left:auto;font-size:13px;color:#0ea5e9">&#129514; Lab &middot; experimental</b></div>'+
     flashHtml(payload.result)+
+    renderLabUsage(data.lab&&data.lab.api_usage)+
     '<div class="card" style="border-color:#0ea5e9"><h3 style="color:#0ea5e9">&#128202; Sales &amp; Guest Count YoY<span class="ct">through '+through+'</span></h3>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+tile("Yesterday",s.yesterday)+tile("MTD",s.mtd)+tile("YTD",s.ytd)+'</div>'+
       '<button class="add-btn" style="width:auto;margin-top:8px;background:rgba(14,165,233,.14);color:#0ea5e9" onclick="labToggleStores()">&#9660; Per store</button>'+
