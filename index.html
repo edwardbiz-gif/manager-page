@@ -2370,6 +2370,7 @@ function renderLabLink(mgr){
     '<a class="add-btn" style="width:auto;text-decoration:none;background:#0ea5e9;margin-top:8px" href="'+link+'">&#9654; Open lab</a></div>';
 }
 function renderLabFull(payload){
+  STATE = payload;   // renderVoiceTrend/vtRenderView read STATE.data; set it like renderBoard does
   const data=payload.data||{}, mgr=data.manager||{};
   if((mgr.role||"")!=="Owner") return '<div class="phone"><div class="errbox">This view is owner-only.</div></div>';
   const s=(data.lab&&data.lab.sales)||{};
