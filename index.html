@@ -408,11 +408,11 @@ body{padding-bottom:74px}
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
-const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda; "hazel" = showcase view
+const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda; "hazel" = showcase view; "lab" = owner lab; "contacts" = Owner/Sup directory
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v65";
+const SHELL_VERSION = "v66";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2134,6 +2134,158 @@ function renderMeetingFull(payload){
     '</div>'+flashHtml(payload.result)+'<div id="mtgEdit"></div>'+
     '<div class="card"><div class="mtg-body">'+mdToHtml(m.agenda_md||'')+'</div></div></div>';
 }
+// ---- Contacts directory (v66) — Owner+Supervisor shared rolodex -------------
+// Launch card in the Hub (Owner OR Supervisor) -> full-screen ?view=contacts:
+// browse/search/filter the `managers` table, tap-to-call/email, add/edit/archive.
+const CONTACT_CATS=["staff","vendor","support","other"];
+const CONTACT_CAT_LABEL={staff:"Staff",vendor:"Vendor",support:"Support",other:"Other"};
+function canSeeContacts(mgr){ const r=mgr&&mgr.role; return r==="Owner"||r==="Supervisor"; }
+function renderContactsLink(mgr){
+  if(!canSeeContacts(mgr)) return "";
+  const link='?t='+encodeURIComponent(TOKEN)+'&view=contacts';
+  return '<div class="card" style="border-color:#0d9488">'+
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:18px">&#128100;</span><b style="font-size:14px">Contacts</b>'+
+      '<span style="margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;background:rgba(13,148,136,.14);color:#0d9488;padding:2px 7px;border-radius:999px">Directory</span>'+
+    '</div>'+
+    '<div style="font-size:12.5px;margin-top:5px;color:#aaa">Staff, vendors &amp; support — search, tap-to-call/email, add &amp; edit.</div>'+
+    '<a class="add-btn" style="width:auto;text-decoration:none;background:#0d9488;margin-top:8px" href="'+link+'">&#9654; Open contacts</a></div>';
+}
+function contactName(c){ return ((c.first_name||"")+" "+(c.last_name||"")).trim()||(c.company||"Contact"); }
+function contactDigits(c){ return String(c.mobile||"").replace(/\D/g,""); }
+// One directory row: name + title/company + role/store, with tap-to-call/email.
+function renderContactRow(c){
+  const nm=esc(contactName(c));
+  const subBits=[]; if(c.title) subBits.push(esc(c.title)); if(c.company) subBits.push(esc(c.company));
+  const tagBits=[]; if(c.role) tagBits.push(esc(c.role));
+  const st=(STATE.data&&STATE.data.stores||[]).find(s=>s.id===c.store_id);
+  if(st) tagBits.push(esc(st.name));
+  const cat=CONTACT_CAT_LABEL[c.contact_category]||"";
+  const tel=c.mobile?'<a class="cbtn ccall" href="tel:'+esc(c.mobile)+'">&#128222; Call</a>':'';
+  const mail=c.email?'<a class="cbtn cmail" href="mailto:'+esc(c.email)+'">&#9993; Email</a>':'';
+  return '<div class="crow" data-id="'+c.id+'">'+
+    '<div class="cmain">'+
+      '<div class="cnm">'+nm+(cat?' <span class="cchip-cat">'+esc(cat)+'</span>':'')+'</div>'+
+      (subBits.length?'<div class="csub">'+subBits.join(' &middot; ')+'</div>':'')+
+      (tagBits.length?'<div class="ctag">'+tagBits.join(' &middot; ')+'</div>':'')+
+    '</div>'+
+    '<div class="cacts">'+tel+mail+
+      '<button class="cbtn cedit" onclick="openContactForm('+c.id+')">&#9998; Edit</button>'+
+    '</div></div>';
+}
+// Full-screen directory (?view=contacts), Owner OR Supervisor.
+function renderContactsFull(payload){
+  STATE = payload;
+  const data=payload.data||{}, mgr=data.manager||{};
+  if(!canSeeContacts(mgr)) return '<div class="phone"><div class="errbox">This directory is for Owner or Supervisor only.</div></div>';
+  const list=data.contacts||[];
+  CONTACT_FILTER={cat:"all",q:""};   // markup below highlights "All"; keep state in sync on (re)render
+  const chips=['all'].concat(CONTACT_CATS).map(k=>{
+    const lbl=k==='all'?'All':(CONTACT_CAT_LABEL[k]||k);
+    return '<button class="cchip'+(k==='all'?' on':'')+'" data-cat="'+k+'" onclick="contactsSetCat(this)">'+esc(lbl)+'</button>';
+  }).join('');
+  return '<div class="phone">'+
+    '<style>'+
+    '.crow{display:flex;gap:8px;align-items:flex-start;padding:10px 4px;border-bottom:1px solid var(--line)}'+
+    '.crow .cmain{flex:1;min-width:0}'+
+    '.crow .cnm{font-weight:700;font-size:14px}'+
+    '.crow .csub{font-size:12px;color:var(--muted);margin-top:1px}'+
+    '.crow .ctag{font-size:11px;color:#0d9488;margin-top:1px}'+
+    '.cchip-cat{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:rgba(13,148,136,.14);color:#0d9488;padding:1px 6px;border-radius:999px;vertical-align:middle}'+
+    '.crow .cacts{display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:stretch}'+
+    '.cbtn{display:inline-block;text-decoration:none;text-align:center;font-size:11px;font-weight:700;border:0;border-radius:7px;padding:5px 9px;cursor:pointer;white-space:nowrap}'+
+    '.ccall{background:rgba(13,148,136,.16);color:#0d9488}.cmail{background:rgba(14,165,233,.14);color:#0ea5e9}'+
+    '.cedit{background:rgba(0,0,0,.07);color:var(--fg)}'+
+    '.cchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}'+
+    '.cchip{font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}'+
+    '.cchip.on{background:#0d9488;color:#fff;border-color:#0d9488}'+
+    '.cform input,.cform select,.cform textarea{width:100%;box-sizing:border-box;margin-bottom:6px}'+
+    '.cmuted{font-size:12px;color:var(--muted);padding:14px 4px;text-align:center}'+
+    '</style>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<a href="?t='+encodeURIComponent(TOKEN)+'" style="text-decoration:none;color:var(--accent);font-weight:700;font-size:13px">&#8592; Board</a>'+
+      '<b style="margin-left:auto;font-size:13px;color:#0d9488">&#128100; Contacts</b></div>'+
+    flashHtml(payload.result)+
+    '<div id="cFormMount"></div>'+
+    '<div style="display:flex;gap:8px;align-items:center">'+
+      '<input id="cSearch" type="search" placeholder="Search name, company, title, phone, email" oninput="contactsApplyFilter()" style="flex:1;box-sizing:border-box">'+
+      '<button class="add-btn" style="width:auto;background:#0d9488" onclick="openContactForm(0)">+ Add</button></div>'+
+    '<div class="cchips">'+chips+'</div>'+
+    '<div id="cList"></div>'+
+    '<div class="foot" id="cCount"></div>'+
+    '</div>';
+}
+// Client-side state for the directory filter (category chip + search text).
+let CONTACT_FILTER={cat:"all",q:""};
+function contactsSetCat(btn){
+  CONTACT_FILTER.cat=btn.getAttribute("data-cat");
+  const bar=btn.parentElement; Array.prototype.slice.call(bar.querySelectorAll(".cchip")).forEach(b=>b.classList.toggle("on",b===btn));
+  contactsApplyFilter();
+}
+function contactsApplyFilter(){
+  const inp=document.getElementById("cSearch"); CONTACT_FILTER.q=inp?inp.value.trim().toLowerCase():"";
+  const list=(STATE.data&&STATE.data.contacts)||[];
+  const q=CONTACT_FILTER.q, cat=CONTACT_FILTER.cat;
+  const shown=list.filter(c=>{
+    if(cat!=="all" && (c.contact_category||"")!==cat) return false;
+    if(!q) return true;
+    const hay=[contactName(c),c.company,c.title,c.email,c.mobile,contactDigits(c)].map(x=>String(x||"").toLowerCase()).join(" ");
+    return hay.indexOf(q)>=0;
+  });
+  const el=document.getElementById("cList");
+  if(el) el.innerHTML = shown.length ? shown.map(renderContactRow).join("") : '<div class="cmuted">No contacts match.</div>';
+  const cnt=document.getElementById("cCount");
+  if(cnt) cnt.innerHTML = shown.length+' of '+list.length+' active contact'+(list.length===1?'':'s')+'.';
+}
+// Add (id=0) or edit (id>0) form, posted to contact_save via callApi.
+function openContactForm(id){
+  const mount=document.getElementById("cFormMount"); if(!mount) return;
+  const list=(STATE.data&&STATE.data.contacts)||[];
+  const c=id?(list.find(x=>x.id===id)||{}):{};
+  const stores=(STATE.data&&STATE.data.stores)||[];
+  const storeOpts='<option value="">— no store —</option>'+stores.map(s=>'<option value="'+s.id+'"'+(s.id===c.store_id?' selected':'')+'>'+esc(s.name)+'</option>').join('');
+  const catOpts=CONTACT_CATS.map(k=>'<option value="'+k+'"'+((c.contact_category||'staff')===k?' selected':'')+'>'+esc(CONTACT_CAT_LABEL[k])+'</option>').join('');
+  mount.innerHTML='<div class="form cform" data-id="'+(id||'')+'" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 10px">'+
+    '<div style="font-weight:700;margin-bottom:6px">'+(id?'Edit contact':'Add contact')+'</div>'+
+    '<div style="display:flex;gap:6px">'+
+      '<input name="first_name" value="'+esc(c.first_name||'')+'" placeholder="First name">'+
+      '<input name="last_name" value="'+esc(c.last_name||'')+'" placeholder="Last name"></div>'+
+    '<input name="company" value="'+esc(c.company||'')+'" placeholder="Company (vendors/support)">'+
+    '<input name="title" value="'+esc(c.title||'')+'" placeholder="Title / role description">'+
+    '<select name="contact_category">'+catOpts+'</select>'+
+    '<input name="mobile" value="'+esc(c.mobile||'')+'" placeholder="Mobile (e.g. 630-555-1234)">'+
+    '<input name="email" value="'+esc(c.email||'')+'" placeholder="Email">'+
+    '<select name="store_id">'+storeOpts+'</select>'+
+    '<textarea name="notes" rows="2" placeholder="Notes">'+esc(c.notes||'')+'</textarea>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="add-btn" style="width:auto;background:#0d9488" onclick="saveContact(event,this)">Save</button>'+
+      '<button class="add-btn" style="width:auto;background:rgba(0,0,0,.08);color:var(--fg)" onclick="document.getElementById(\'cFormMount\').innerHTML=\'\'">Cancel</button>'+
+      (id?'<button class="add-btn" style="width:auto;margin-left:auto;background:rgba(218,41,28,.12);color:#da291c" onclick="archiveContact(event,'+id+')">Archive</button>':'')+
+    '</div></div>';
+  mount.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+async function saveContact(ev,btn){
+  ev.stopPropagation();
+  const form=btn.closest(".cform");
+  const v=n=>{const e=form.querySelector('[name='+n+']'); return e?e.value:'';};
+  const id=Number(form.dataset.id||0);
+  if(!v("first_name").trim() && !v("last_name").trim()){ alert("A first or last name is required."); return; }
+  const payload={action:"contact_save",
+    first_name:v("first_name"), last_name:v("last_name"), company:v("company"),
+    title:v("title"), contact_category:v("contact_category"), mobile:v("mobile"),
+    email:v("email"), store_id:v("store_id"), notes:v("notes")};
+  if(id) payload.id=id;
+  form.classList.add("busy"); btn.disabled=true;
+  try{ setBoard(await callApi(payload)); }
+  catch(e){ form.classList.remove("busy"); btn.disabled=false; alert("Save failed: "+(e&&e.message)); }
+}
+async function archiveContact(ev,id){
+  ev.stopPropagation();
+  if(!confirm("Archive this contact? It will be hidden from the directory (not deleted).")) return;
+  try{ setBoard(await callApi({action:"contact_archive", id:id})); }
+  catch(e){ alert("Archive failed: "+(e&&e.message)); }
+}
+
 // ---- Hazel showcase ("gala view") — Owner-only launch card, pinned very top ----
 // The entry point Eddie clicks in front of Hazel Kraft. Opens the 3-act showcase
 // (?view=hazel): org business-results highlights -> a live GM view.
@@ -2549,6 +2701,7 @@ function setBoard(payload){
   try { html = (VIEW==="hazel") ? renderHazelFull(payload)
              : (VIEW==="meeting") ? renderMeetingFull(payload)
              : (VIEW==="lab") ? renderLabFull(payload)
+             : (VIEW==="contacts") ? renderContactsFull(payload)
              : (payload.data && payload.data.dept) ? renderDept(payload)
              : renderBoard(payload); }
   catch(e){
@@ -2558,6 +2711,8 @@ function setBoard(payload){
   }
   document.getElementById("app").innerHTML = html;
   try { wireChrome(); } catch(e){ console.error("manager-page: wireChrome failed —", e); }
+  // Contacts directory paints its filtered list after the DOM is in place.
+  if(VIEW==="contacts"){ try { contactsApplyFilter(); } catch(e){ console.error("manager-page: contacts filter failed —", e); } }
 }
 function wireChrome(){
   const bar=document.getElementById("tabbar"); if(!bar) return;
@@ -2891,6 +3046,9 @@ function renderBoard(payload){
 
   // Lab — Owner-only experimental view launch (sales YoY + VOICE drilldown).
   h+=sect(()=>renderLabLink(mgr));
+
+  // Contacts — Owner+Supervisor shared rolodex launch (full-screen directory).
+  h+=sect(()=>renderContactsLink(mgr));
 
   // Store Submissions — campaign CTA (GM upload) / tracker (Owner-Sup), pinned
   // near the top so the ask/visibility is unmissable. Renders "" when there's
