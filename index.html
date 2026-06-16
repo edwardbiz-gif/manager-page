@@ -143,6 +143,26 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .t-tag.cat-it{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
 .t-tag.cat-maintenance{background:#fef3c7;border-color:#fde68a;color:#92400e}
 .t-tag.cat-office{background:#f3e8ff;border-color:#e9d5ff;color:#6b21a8}
+/* Supervisor GPS check-in (v65) */
+.ci-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px;margin-top:13px}
+.ci-card.ci-open{border-color:var(--accent)}
+.ci-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.ci-hd b{font-size:14px}
+.ci-sub{font-size:11.5px;color:var(--muted)}
+.ci-stores{display:flex;flex-wrap:wrap;gap:7px}
+.ci-btn{appearance:none;border:1px solid var(--line);background:var(--paper);color:var(--accent);
+ border-radius:9px;padding:9px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.ci-btn:disabled{opacity:.5}
+.ci-btn.ci-out{width:100%;margin-top:10px;background:var(--accent);color:#fff;border-color:var(--accent)}
+.ci-arr{margin-top:4px}
+.ci-grp{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+ color:var(--accent);margin:9px 0 3px}
+.ci-row{font-size:13px;padding:5px 0;border-top:1px solid var(--line);line-height:1.35}
+.ci-row:first-of-type{border-top:0}
+.ci-rtitle{font-weight:600}
+.ci-hi{color:var(--high);text-transform:uppercase;font-size:11px;letter-spacing:.02em}
+.ci-cmp{color:var(--due-overc)}
+.ci-clear{font-size:12.5px;color:var(--muted);margin-top:4px}
 .t-tag.cat-store{background:#eef9ec;border-color:#cce6ce;color:var(--accent)}
 .t-tag.cat-patch{background:#e0f2fe;border-color:#bae6fd;color:#075985}
 .t-desc{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
@@ -392,7 +412,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v64";
+const SHELL_VERSION = "v65";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -625,6 +645,69 @@ async function rgrDelete(entryId){
   if(!confirm("Remove this added item?")) return;
   try{ setBoard(await callApi({action:"rgr_delete_item", entry_id:entryId})); }
   catch(e){ alert("Delete failed: "+(e&&e.message)); }
+}
+
+// ====== Supervisor GPS check-in / check-out (v65) ======
+// Supervisors-only. data.check_in = { open, on_arrival, eligible_stores }.
+// The geofence is ENFORCED server-side; the client only sends coordinates.
+function renderCheckIn(ci, mgr){
+  if(!ci || !mgr || mgr.role!=="Supervisor") return "";
+  if(ci.open){
+    const o=ci.open;
+    let t=""; try{ t=new Date(o.checked_in_at).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }catch(e){}
+    const dist=(o.in_distance_m!=null)?(" &middot; "+Math.round(o.in_distance_m)+"m"):"";
+    let h='<div class="ci-card ci-open"><div class="ci-hd">'+
+      '<b>On site &middot; '+esc(o.store_name||"")+'</b>'+
+      '<span class="ci-sub">Checked in '+esc(t)+dist+'</span></div>';
+    h+=renderOnArrival(ci.on_arrival);
+    h+='<button class="ci-btn ci-out" onclick="doCheckOut(this)">Check out</button>';
+    return h+'</div>';
+  }
+  const stores=Array.isArray(ci.eligible_stores)?ci.eligible_stores:[];
+  if(!stores.length) return "";
+  let h='<div class="ci-card"><div class="ci-hd"><b>Store check-in</b>'+
+    '<span class="ci-sub">Tap when you arrive &mdash; you must be at the store.</span></div>'+
+    '<div class="ci-stores">';
+  stores.forEach(s=>{ h+='<button class="ci-btn" onclick="doCheckIn('+s.id+',this)">'+esc(s.name)+'</button>'; });
+  return h+'</div></div>';
+}
+function renderOnArrival(oa){
+  if(!oa) return "";
+  const tasks=oa.tasks||[], overdue=oa.overdue||[], complaints=oa.complaints||[];
+  if(!tasks.length && !overdue.length && !complaints.length)
+    return '<div class="ci-clear">Nothing flagged for this store right now.</div>';
+  let h='<div class="ci-arr">';
+  if(tasks.length){ h+='<div class="ci-grp">Priority tasks</div>'+tasks.map(ciTask).join(""); }
+  if(overdue.length){ h+='<div class="ci-grp">Overdue</div>'+overdue.map(ciTask).join(""); }
+  if(complaints.length){ h+='<div class="ci-grp">Open complaints</div>'+complaints.map(ciComplaint).join(""); }
+  return h+'</div>';
+}
+function ciTask(t){
+  return '<div class="ci-row"><span class="ci-rtitle">'+esc(t.title||"(untitled)")+'</span> '
+    +ciPri(t.priority)+' '+dueTag(t.due_at)+'</div>';
+}
+function ciPri(p){ p=String(p||"").toLowerCase();
+  return (p==="urgent"||p==="high")?'<span class="ci-hi">'+esc(p)+'</span>':''; }
+function ciComplaint(c){
+  const what=esc(c.issue_category||c.issue_reason||c.comment||('Case '+(c.case_number||c.id||"")));
+  const who=c.customer_name?(' &mdash; '+esc(c.customer_name)):'';
+  return '<div class="ci-row ci-cmp">'+what+who+'</div>';
+}
+async function doCheckIn(storeId, btn){
+  if(!navigator.geolocation){ alert("This phone can't share location, so check-in isn't available."); return; }
+  if(btn) btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(async (pos)=>{
+    try{ const c=pos.coords;
+      setBoard(await callApi({action:"check_in", store_id:storeId, lat:c.latitude, lng:c.longitude, accuracy:c.accuracy}));
+    }catch(e){ if(btn) btn.disabled=false; alert("Check-in failed: "+(e&&e.message)); }
+  }, ()=>{ if(btn) btn.disabled=false;
+    alert("Location is required to check in. Please allow location access and try again.");
+  }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+}
+async function doCheckOut(btn){
+  if(btn) btn.disabled=true;
+  try{ setBoard(await callApi({action:"check_out"})); }
+  catch(e){ if(btn) btn.disabled=false; alert("Check-out failed: "+(e&&e.message)); }
 }
 
 function dueTag(due_at){
@@ -2782,6 +2865,9 @@ function renderBoard(payload){
   const mism = (fnV !== "?" && fnV !== SHELL_VERSION);
   h+='<div class="ver">Ed Ops &middot; <b>'+esc(SHELL_VERSION)+'</b>'+
      ' <span'+(mism?' class="mism"':'')+'>api '+esc(fnV)+'</span></div>';
+  // Supervisor GPS check-in/out (v65) — Supervisors-only; on-site visit + that
+  // store's actionable list. Pinned high so it's the first thing on arrival.
+  h+=sect(()=>renderCheckIn(data.check_in, mgr));
   // RGR countdown banner — soonest upcoming RGR within 45 days in this patch,
   // followed by the live prep checklist for any in-window store (Owner Hub tool #2).
   h+=sect(()=>renderCountdown(data.visits||[], stores, data.rgr));
