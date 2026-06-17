@@ -55,6 +55,52 @@
   .occ-foot{max-width:1320px; margin:34px auto 0; padding:18px; color:var(--muted); font-size:12px;
     border-top:1px solid var(--line); line-height:1.6}
   .occ-foot b{color:var(--ink2)}
+  /* ---- review toolbar (sticky, top) ---- */
+  .occ-bar{position:sticky; top:0; z-index:60; backdrop-filter:blur(12px);
+    background:linear-gradient(180deg, rgba(10,14,19,.96), rgba(10,14,19,.82));
+    border-bottom:1px solid var(--line); padding:9px 16px;}
+  .occ-bar-in{max-width:1320px; margin:0 auto; display:flex; align-items:center; gap:12px}
+  .occ-bar-stat{font-size:12.5px; color:var(--ink2)}
+  .occ-bar-stat b{color:var(--gold); font-weight:800}
+  .occ-bar-btns{margin-left:auto; display:flex; gap:8px}
+  .occ-btn{font-size:13px; font-weight:700; color:var(--ink2); cursor:pointer;
+    border:1px solid var(--line); background:rgba(255,255,255,.04); padding:8px 16px; border-radius:10px}
+  .occ-btn:hover{color:var(--fg); border-color:rgba(255,255,255,.18)}
+  .occ-btn.primary{color:#1b1304; background:linear-gradient(150deg,#ffe39a,var(--gold)); border-color:transparent;
+    box-shadow:0 4px 14px rgba(255,199,44,.28)}
+  .occ-btn.primary:hover{filter:brightness(1.05)}
+  .occ-saved{font-size:11px; color:var(--ok); opacity:0; transition:opacity .25s}
+  .occ-saved.show{opacity:1}
+  /* nav sits below the bar */
+  .occ-nav{top:46px}
+  /* ---- per-module feedback ---- */
+  .occ-fb{margin-top:10px; background:rgba(255,255,255,.025); border:1px solid var(--line);
+    border-radius:14px; padding:11px 12px; display:flex; flex-direction:column; gap:9px}
+  .cell.kept .occ-fb{border-color:rgba(255,199,44,.45); background:rgba(255,199,44,.06)}
+  .cell.kept{outline:2px solid rgba(255,199,44,.22); outline-offset:3px; border-radius:20px}
+  .occ-fb-chk{display:flex; align-items:center; gap:9px; font-size:13px; color:var(--ink2); cursor:pointer; user-select:none}
+  .occ-fb-chk b{color:var(--gold)}
+  .occ-fb-chk input{appearance:none; -webkit-appearance:none; width:20px; height:20px; flex:none; cursor:pointer;
+    border:2px solid var(--muted); border-radius:6px; background:transparent; position:relative; transition:.15s}
+  .occ-fb-chk input:checked{background:var(--gold); border-color:var(--gold)}
+  .occ-fb-chk input:checked::after{content:""; position:absolute; left:6px; top:2px; width:5px; height:10px;
+    border:solid #1b1304; border-width:0 2.5px 2.5px 0; transform:rotate(45deg)}
+  .occ-fb-ta{width:100%; resize:vertical; min-height:42px; font:inherit; font-size:13px; color:var(--fg);
+    background:rgba(10,14,19,.5); border:1px solid var(--line); border-radius:10px; padding:8px 10px; line-height:1.4}
+  .occ-fb-ta:focus{outline:none; border-color:rgba(255,199,44,.5)}
+  .occ-fb-ta::placeholder{color:var(--muted)}
+  /* ---- submit modal ---- */
+  .occ-modal{position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
+    background:rgba(4,7,11,.74); padding:18px}
+  .occ-modal.show{display:flex}
+  .occ-modal-box{width:100%; max-width:680px; background:#141d28; border:1px solid var(--line);
+    border-radius:18px; padding:18px; box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .occ-modal-box h2{margin:0 0 4px; font-size:17px}
+  .occ-modal-box p{margin:0 0 12px; font-size:12.5px; color:var(--muted)}
+  .occ-modal-ta{width:100%; height:300px; resize:vertical; font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:var(--fg); background:rgba(10,14,19,.7); border:1px solid var(--line); border-radius:12px; padding:12px}
+  .occ-modal-btns{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important; animation:none!important}}
 </style>
 </head><body>
 
@@ -74,6 +120,15 @@
     <span class="occ-chip">Built <b>Jun 17, 2026</b></span>
   </div>
 </header>
+
+<div class="occ-bar"><div class="occ-bar-in">
+  <div class="occ-bar-stat"><b id="occ-count">0</b> kept · <b id="occ-fbcount">0</b> with notes
+    <span class="occ-saved" id="occ-saved">saved ✓</span></div>
+  <div class="occ-bar-btns">
+    <button class="occ-btn primary" id="occ-submit">Submit feedback</button>
+    <button class="occ-btn" id="occ-reset">Reset</button>
+  </div>
+</div></div>
 
 <nav class="occ-nav"><div class="occ-nav-in"><a href="#m-cmd-hero">Command Hero</a><a href="#m-sales-pulse">Sales Pulse</a><a href="#m-sales-trend">Weekly Sales Trend</a><a href="#m-avg-check">Average Check</a><a href="#m-sales-board">Store Sales Leaderboard</a><a href="#m-voice-cockpit">VOICE Cockpit</a><a href="#m-osat-board">OSAT Leaderboard</a><a href="#m-clean-race">Cleanliness Race</a><a href="#m-kitchen-race">Kitchen Quality Race</a><a href="#m-labor-scorecard">Labor Scorecard</a><a href="#m-pace-dtir">Drive-Thru vs In-Restaurant</a><a href="#m-complaint-sla">Complaint SLA</a><a href="#m-bonus-engine">Bonus Engine</a><a href="#m-turnover">Crew Turnover</a><a href="#m-food-cost">Food Cost (FOB)</a><a href="#m-visits">Visit & Audit Tracker</a><a href="#m-task-command">Task Command</a><a href="#m-promos">Promos & Key Dates</a><a href="#m-vitals">System Vitals</a><a href="#m-store-matrix">Store Ranking Matrix</a></div></nav>
 
@@ -369,6 +424,7 @@
   </div>
 </div>
 </section>
+<div class="occ-fb" data-fb="cmd-hero"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="cmd-hero"><span>Keep module <b>01</b></span></label><textarea class="occ-fb-ta" data-mod="cmd-hero" rows="2" placeholder="Feedback on Command Hero — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-sales-pulse">
 <section class="occ-card" data-mod="sales-pulse">
@@ -559,6 +615,7 @@
     <span class="sales-pulse-org">Org · all stores</span>
   </div>
 </section>
+<div class="occ-fb" data-fb="sales-pulse"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="sales-pulse"><span>Keep module <b>02</b></span></label><textarea class="occ-fb-ta" data-mod="sales-pulse" rows="2" placeholder="Feedback on Sales Pulse — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-sales-trend">
 <section class="occ-card" data-mod="sales-trend">
@@ -768,6 +825,7 @@
     Live source <code>sales_ledger_daily</code> · org roll-up · data through Jun 15, 2026
   </div>
 </section>
+<div class="occ-fb" data-fb="sales-trend"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="sales-trend"><span>Keep module <b>03</b></span></label><textarea class="occ-fb-ta" data-mod="sales-trend" rows="2" placeholder="Feedback on Weekly Sales Trend — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-avg-check">
 <section class="occ-card" data-mod="avg-check">
@@ -993,6 +1051,7 @@
     <span>14 wk · data through Jun 15, 2026</span>
   </div>
 </section>
+<div class="occ-fb" data-fb="avg-check"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="avg-check"><span>Keep module <b>04</b></span></label><textarea class="occ-fb-ta" data-mod="avg-check" rows="2" placeholder="Feedback on Average Check — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-sales-board">
 <section class="occ-card" data-mod="sales-board">
@@ -1281,6 +1340,7 @@
     <span class="sales-board-src">source <code>sales_ledger_daily</code></span>
   </div>
 </section>
+<div class="occ-fb" data-fb="sales-board"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="sales-board"><span>Keep module <b>05</b></span></label><textarea class="occ-fb-ta" data-mod="sales-board" rows="2" placeholder="Feedback on Store Sales Leaderboard — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-voice-cockpit">
 <section class="occ-card" data-mod="voice-cockpit">
@@ -1563,6 +1623,7 @@
     <span>◷ Data through Jun 2026 (MTD) · source</span> <code>voice_scores / v_voice_org</code>
   </div>
 </section>
+<div class="occ-fb" data-fb="voice-cockpit"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="voice-cockpit"><span>Keep module <b>06</b></span></label><textarea class="occ-fb-ta" data-mod="voice-cockpit" rows="2" placeholder="Feedback on VOICE Cockpit — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-osat-board">
 <section class="occ-card" data-mod="osat-board">
@@ -1803,6 +1864,7 @@
   <div>scale 50–85</div>
 </div>
 </section>
+<div class="occ-fb" data-fb="osat-board"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="osat-board"><span>Keep module <b>07</b></span></label><textarea class="occ-fb-ta" data-mod="osat-board" rows="2" placeholder="Feedback on OSAT Leaderboard — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-clean-race">
 <section class="occ-card" data-mod="clean-race">
@@ -2038,6 +2100,7 @@
     <span>src <code>voice_scores</code></span>
   </div>
 </section>
+<div class="occ-fb" data-fb="clean-race"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="clean-race"><span>Keep module <b>08</b></span></label><textarea class="occ-fb-ta" data-mod="clean-race" rows="2" placeholder="Feedback on Cleanliness Race — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-kitchen-race">
 <section class="occ-card" data-mod="kitchen-race">
@@ -2276,6 +2339,7 @@
   <div class="kr-tv"><span class="dot"></span> CREW TV RACE</div>
 </div>
 </section>
+<div class="occ-fb" data-fb="kitchen-race"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="kitchen-race"><span>Keep module <b>09</b></span></label><textarea class="occ-fb-ta" data-mod="kitchen-race" rows="2" placeholder="Feedback on Kitchen Quality Race — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-labor-scorecard">
 <section class="occ-card" data-mod="labor-scorecard">
@@ -2553,6 +2617,7 @@
     <div class="ls-src">Source <b>labor_stats / v_advisor_kpis</b></div>
   </div>
 </section>
+<div class="occ-fb" data-fb="labor-scorecard"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="labor-scorecard"><span>Keep module <b>10</b></span></label><textarea class="occ-fb-ta" data-mod="labor-scorecard" rows="2" placeholder="Feedback on Labor Scorecard — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-pace-dtir">
 <section class="occ-card" data-mod="pace-dtir">
@@ -2811,6 +2876,7 @@
     <span>Source <code>pace_kpi</code> / <code>v_advisor_kpis</code> · data through Jun 8, 2026</span>
   </div>
 </section>
+<div class="occ-fb" data-fb="pace-dtir"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="pace-dtir"><span>Keep module <b>11</b></span></label><textarea class="occ-fb-ta" data-mod="pace-dtir" rows="2" placeholder="Feedback on Drive-Thru vs In-Restaurant — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-complaint-sla">
 <section class="occ-card" data-mod="complaint-sla">
@@ -3072,6 +3138,7 @@
 })();
 </script>
 </section>
+<div class="occ-fb" data-fb="complaint-sla"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="complaint-sla"><span>Keep module <b>12</b></span></label><textarea class="occ-fb-ta" data-mod="complaint-sla" rows="2" placeholder="Feedback on Complaint SLA — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-bonus-engine">
 <section class="occ-card" data-mod="bonus-engine">
@@ -3432,6 +3499,7 @@
   <span class="lv"></span> Live source: <code>bonus_q1_2026_pinned</code> · data through Q1 2026
 </div>
 </section>
+<div class="occ-fb" data-fb="bonus-engine"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="bonus-engine"><span>Keep module <b>13</b></span></label><textarea class="occ-fb-ta" data-mod="bonus-engine" rows="2" placeholder="Feedback on Bonus Engine — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-turnover">
 <section class="occ-card" data-mod="turnover">
@@ -3665,6 +3733,7 @@
     </span>
   </div>
 </section>
+<div class="occ-fb" data-fb="turnover"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="turnover"><span>Keep module <b>14</b></span></label><textarea class="occ-fb-ta" data-mod="turnover" rows="2" placeholder="Feedback on Crew Turnover — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-food-cost">
 <section class="occ-card" data-mod="food-cost">
@@ -3933,6 +4002,7 @@
     <span>Live source: <code>food_cost_monthly</code> · 12 stores · data through May 2026</span>
   </div>
 </section>
+<div class="occ-fb" data-fb="food-cost"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="food-cost"><span>Keep module <b>15</b></span></label><textarea class="occ-fb-ta" data-mod="food-cost" rows="2" placeholder="Feedback on Food Cost (FOB) — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-visits">
 <section class="occ-card" data-mod="visits">
@@ -4256,6 +4326,7 @@
 </div>
 
 </section>
+<div class="occ-fb" data-fb="visits"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="visits"><span>Keep module <b>16</b></span></label><textarea class="occ-fb-ta" data-mod="visits" rows="2" placeholder="Feedback on Visit & Audit Tracker — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-task-command">
 <section class="occ-card" data-mod="task-command">
@@ -4562,6 +4633,7 @@
     <span class="tc-src">tasks</span>
   </div>
 </section>
+<div class="occ-fb" data-fb="task-command"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="task-command"><span>Keep module <b>17</b></span></label><textarea class="occ-fb-ta" data-mod="task-command" rows="2" placeholder="Feedback on Task Command — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-promos">
 <section class="occ-card" data-mod="promos">
@@ -4791,6 +4863,7 @@
     <span class="promos-live"><i></i>live · <code>calendar_events_display</code></span>
   </div>
 </section>
+<div class="occ-fb" data-fb="promos"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="promos"><span>Keep module <b>18</b></span></label><textarea class="occ-fb-ta" data-mod="promos" rows="2" placeholder="Feedback on Promos & Key Dates — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-vitals">
 <section class="occ-card" data-mod="vitals">
@@ -5024,6 +5097,7 @@
     <span>source: <code>pipeline_health</code> / <code>manual_reports_status</code></span>
   </div>
 </section>
+<div class="occ-fb" data-fb="vitals"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="vitals"><span>Keep module <b>19</b></span></label><textarea class="occ-fb-ta" data-mod="vitals" rows="2" placeholder="Feedback on System Vitals — changes, data, design…"></textarea></div>
 </div>
 <div class="cell" id="m-store-matrix">
 <section class="occ-card" data-mod="store-matrix">
@@ -5314,6 +5388,7 @@
     <span>Heat normalized per KPI; labor &amp; complaints inverted (lower = better). Voice/clean Jun 2026 MTD · kitchen Jun MTD · complaints live. Source: <code>v_advisor_kpis · voice_scores · sales_ledger_daily · kitchen_quality_scores</code></span>
   </div>
 </section>
+<div class="occ-fb" data-fb="store-matrix"><label class="occ-fb-chk"><input type="checkbox" class="occ-chk" data-mod="store-matrix"><span>Keep module <b>20</b></span></label><textarea class="occ-fb-ta" data-mod="store-matrix" rows="2" placeholder="Feedback on Store Ranking Matrix — changes, data, design…"></textarea></div>
 </div>
 </main>
 
@@ -5323,4 +5398,56 @@
   Built as a menu for the owner lab view. Richard Schmitt's stores excluded throughout.
 </footer>
 
+<div class="occ-modal" id="occ-modal"><div class="occ-modal-box">
+  <h2>Module feedback</h2>
+  <p>Auto-saved on this device. Copy this and paste it back to Claude, or email / download it.</p>
+  <textarea class="occ-modal-ta" id="occ-modal-ta" readonly></textarea>
+  <div class="occ-modal-btns">
+    <button class="occ-btn primary" id="occ-copy">Copy</button>
+    <button class="occ-btn" id="occ-email">Email to me</button>
+    <button class="occ-btn" id="occ-download">Download .txt</button>
+    <button class="occ-btn" id="occ-close">Close</button>
+  </div>
+</div></div>
+
+<script>
+var OCC_TITLES={"cmd-hero": "Command Hero", "sales-pulse": "Sales Pulse", "sales-trend": "Weekly Sales Trend", "avg-check": "Average Check", "sales-board": "Store Sales Leaderboard", "voice-cockpit": "VOICE Cockpit", "osat-board": "OSAT Leaderboard", "clean-race": "Cleanliness Race", "kitchen-race": "Kitchen Quality Race", "labor-scorecard": "Labor Scorecard", "pace-dtir": "Drive-Thru vs In-Restaurant", "complaint-sla": "Complaint SLA", "bonus-engine": "Bonus Engine", "turnover": "Crew Turnover", "food-cost": "Food Cost (FOB)", "visits": "Visit & Audit Tracker", "task-command": "Task Command", "promos": "Promos & Key Dates", "vitals": "System Vitals", "store-matrix": "Store Ranking Matrix"};
+var OCC_ORDER=["cmd-hero", "sales-pulse", "sales-trend", "avg-check", "sales-board", "voice-cockpit", "osat-board", "clean-race", "kitchen-race", "labor-scorecard", "pace-dtir", "complaint-sla", "bonus-engine", "turnover", "food-cost", "visits", "task-command", "promos", "vitals", "store-matrix"];
+
+(function(){
+  var KEY='occ-feedback-v1';
+  function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(DATA))}catch(e){}}
+  var DATA=load();
+  var chks=[].slice.call(document.querySelectorAll('.occ-chk'));
+  var tas=[].slice.call(document.querySelectorAll('.occ-fb-ta'));
+  var savedEl=document.getElementById('occ-saved'), savedT;
+  function flashSaved(){if(!savedEl)return;savedEl.classList.add('show');clearTimeout(savedT);savedT=setTimeout(function(){savedEl.classList.remove('show')},900);}
+  function counts(){var k=0,n=0;for(var m in DATA){if(DATA[m]&&DATA[m].keep)k++;if(DATA[m]&&DATA[m].note)n++;}var c=document.getElementById('occ-count'),f=document.getElementById('occ-fbcount');if(c)c.textContent=k;if(f)f.textContent=n;}
+  function markCells(){chks.forEach(function(c){var cell=c.closest('.cell');if(cell)cell.classList.toggle('kept',c.checked);});}
+  function collect(){DATA={};chks.forEach(function(c){var m=c.dataset.mod;DATA[m]=DATA[m]||{};DATA[m].keep=c.checked;});tas.forEach(function(t){var m=t.dataset.mod;DATA[m]=DATA[m]||{};DATA[m].note=t.value.trim();});persist();counts();markCells();flashSaved();}
+  chks.forEach(function(c){c.addEventListener('change',collect);});
+  tas.forEach(function(t){t.addEventListener('input',collect);});
+  function restore(){chks.forEach(function(c){var d=DATA[c.dataset.mod];if(d&&d.keep)c.checked=true;});tas.forEach(function(t){var d=DATA[t.dataset.mod];if(d&&d.note)t.value=d.note;});counts();markCells();}
+  function report(){
+    var L=['Operations Control Center — module feedback','Generated '+new Date().toLocaleString(),''];
+    var any=false;
+    OCC_ORDER.forEach(function(m,i){var d=DATA[m]||{};if(!d.keep&&!(d.note&&d.note.length))return;any=true;
+      L.push('['+(d.keep?'x':' ')+'] '+('0'+(i+1)).slice(-2)+'  '+(OCC_TITLES[m]||m));
+      if(d.note)L.push('      '+d.note.replace(/\n/g,'\n      '));});
+    if(!any)L.push('(nothing kept or noted yet)');
+    return L.join('\n');
+  }
+  var modal=document.getElementById('occ-modal'),mta=document.getElementById('occ-modal-ta');
+  document.getElementById('occ-submit').addEventListener('click',function(){collect();var t=report();mta.value=t;modal.classList.add('show');if(navigator.clipboard)navigator.clipboard.writeText(t).catch(function(){});});
+  document.getElementById('occ-close').addEventListener('click',function(){modal.classList.remove('show');});
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.classList.remove('show');});
+  document.getElementById('occ-copy').addEventListener('click',function(){mta.select();if(navigator.clipboard)navigator.clipboard.writeText(mta.value);else document.execCommand('copy');var b=this;b.textContent='Copied ✓';setTimeout(function(){b.textContent='Copy'},1200);});
+  document.getElementById('occ-email').addEventListener('click',function(){location.href='mailto:ed@schmittmcd.com?subject='+encodeURIComponent('OCC module feedback')+'&body='+encodeURIComponent(mta.value);});
+  document.getElementById('occ-download').addEventListener('click',function(){var b=new Blob([mta.value],{type:'text/plain'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='occ-feedback.txt';a.click();});
+  document.getElementById('occ-reset').addEventListener('click',function(){if(!confirm('Clear all checkboxes and feedback?'))return;chks.forEach(function(c){c.checked=false;});tas.forEach(function(t){t.value='';});DATA={};persist();counts();markCells();});
+  restore();
+})();
+
+</script>
 </body></html>
