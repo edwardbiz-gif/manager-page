@@ -393,6 +393,39 @@ body{padding-bottom:74px}
 .fb-store{font-weight:700;font-size:13.5px}
 .fb-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
 .fb-body{font-size:12px;color:var(--ink2);margin-top:4px}
+/* DataPass Deployment vs Demand board (v68) */
+.dp-card{padding:14px}
+.dp-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.dp-k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.dp-store-name{font-size:18px;font-weight:800;color:var(--fg)}
+.dp-through{font-size:11px;color:var(--muted);text-align:right;line-height:1.35}
+.dp-through span{font-weight:700}
+.dp-note{font-size:11.5px;color:var(--muted);margin:8px 0 10px;line-height:1.4}
+.dp-stores{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.dp-store{font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink2)}
+.dp-store.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.dp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.dp-chip{font-size:12px;font-weight:700;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink2)}
+.dp-chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.dp-alert{font-size:12.5px;color:var(--fg);margin-bottom:8px;line-height:1.4}
+.dp-tag{background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;text-transform:uppercase}
+.dp-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dp-tbl{border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:100%}
+.dp-tbl th,.dp-tbl td{padding:5px 6px;text-align:center;font-size:11px;border-bottom:1px solid var(--line);white-space:nowrap}
+.dp-tbl th{color:var(--muted);font-weight:700;font-size:10px}
+.dp-rl{position:sticky;left:0;background:var(--card);text-align:left!important;font-weight:700;color:var(--fg);font-size:11px}
+.dp-c b{font-weight:800}
+.dp-c span{color:var(--muted)}
+.dp-c.ok{background:rgba(26,143,76,.10)}
+.dp-c.over{background:rgba(224,161,6,.16)}
+.dp-c.under{background:rgba(200,50,31,.12)}
+.dp-tot{font-weight:800;border-left:2px solid var(--line)}
+.dp-tot.ok{color:#1a8f4c}.dp-tot.over{color:#9a6b00}.dp-tot.under{color:#c8321f}
+.dp-salesrow td{color:var(--accent);font-weight:700;font-size:10.5px}
+.dp-empty{font-size:12px;color:var(--muted);padding:10px 4px}
+.dp-legend{font-size:11px;color:var(--muted);margin-top:8px}
+.dp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 2px 0 8px}
+.dp-sw.ok{background:#1a8f4c}.dp-sw.over{background:#e0a106}.dp-sw.under{background:#c8321f}
 </style>
 </head>
 <body>
@@ -412,7 +445,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v66";
+const SHELL_VERSION = "v68";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2992,6 +3025,80 @@ function renderDept(payload){
   h+='</div>';
   return h;
 }
+// ---- DataPass Deployment vs Demand board (v68) ----------------------
+// data.datapass_labor = { data_through, tiles[], selected_nsn, board:{nsn,name,labor_date,
+// is_partial,as_of, grid:[{bucket,station,actual,forecast,gap}], sales:[{bucket,forecast_sales}]} }.
+// Look-back review (closed-shift feed); station is schedule-inferred; aggregate heads only.
+// Daypart chips filter the 15-min grid client-side; the store switcher re-fetches (?dp_store=).
+const DP_DAYPARTS=[["Breakfast",4,11],["Lunch",11,14],["Snack",14,16],["Dinner",16,21],["Evening",21,24],["Late",0,4]];
+const DP_STATIONS=["Grill","DriveThru","FrontCounter","Fries","Floor","McCafe"];
+const DP_STATION_LABEL={Grill:"Grill",DriveThru:"Drive-Thru",FrontCounter:"Front Cntr",Fries:"Fries",Floor:"Floor",McCafe:"McCafe"};
+function dpHour(b){return parseInt(String(b).slice(11,13),10);}
+function dpHM(b){return String(b).slice(11,16);}
+function dpDaypartOf(b){const h=dpHour(b);for(const a of DP_DAYPARTS){const s=a[1],e=a[2];if(s<e?(h>=s&&h<e):(h>=s||h<e))return a[0];}return "Late";}
+function dpGapClass(g){return g===0?"ok":(g>0?"over":"under");}
+function dpGapTxt(g){return g===0?"0":(g>0?"+"+g:"−"+Math.abs(g));}
+function dpData(){return (STATE&&STATE.data&&STATE.data.datapass_labor)||null;}
+
+function renderDatapassLabor(dl, mgr){
+  if(!dl || !dl.board || !Array.isArray(dl.board.grid) || !dl.board.grid.length) return "";
+  const b=dl.board;
+  let defDp="Lunch", best=-1; (b.sales||[]).forEach(s=>{ const v=+s.forecast_sales||0; if(v>best){best=v; defDp=dpDaypartOf(s.bucket);} });
+  let switcher="";
+  if(Array.isArray(dl.tiles) && dl.tiles.length>1){
+    switcher='<div class="dp-stores">'+dl.tiles.map(t=>'<button class="dp-store'+(t.nsn===dl.selected_nsn?' on':'')+'" onclick="dpPickStore('+t.nsn+')">'+esc(t.name)+'</button>').join('')+'</div>';
+  }
+  const chips='<div class="dp-chips">'+DP_DAYPARTS.map(a=>'<button class="dp-chip" data-dp="'+a[0]+'" onclick="dpPickDaypart(\''+a[0]+'\')">'+a[0]+'</button>').join('')+'</div>';
+  const through=b.is_partial?('through '+esc(dpHM(b.as_of))+' today &middot; partial'):'complete day';
+  let h='<div id="sec-deploy" class="sec"></div>';
+  h+='<div class="card dp-card">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Deployment vs Demand</div><div class="dp-store-name">'+esc(b.name||"")+'</div></div>'+
+     '<div class="dp-through">'+esc(b.labor_date||"")+'<br><span>'+through+'</span></div></div>';
+  h+='<div class="dp-note">Look-back review &mdash; crew appear after clock-out; station is from the schedule; aggregate head counts only (no names).</div>';
+  h+=switcher+chips;
+  h+='<div id="dpAlert" class="dp-alert"></div>';
+  h+='<div class="dp-scroll"><div id="dpMatrix"></div></div>';
+  h+='<div class="dp-legend"><span class="dp-sw ok"></span>on target<span class="dp-sw over"></span>over<span class="dp-sw under"></span>under &middot; cell = actual / forecast</div>';
+  h+='</div>';
+  setTimeout(function(){ dpPickDaypart(defDp); }, 0);
+  return h;
+}
+
+function dpPickDaypart(dp){
+  document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
+  const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
+  if(!b||!m) return;
+  const slots=[...new Set((b.grid||[]).filter(g=>dpDaypartOf(g.bucket)===dp).map(g=>g.bucket))].sort();
+  if(!slots.length){ m.innerHTML='<div class="dp-empty">No deployment data for '+esc(dp)+' on this day.</div>'; if(al) al.innerHTML=''; return; }
+  const cell={}; (b.grid||[]).forEach(g=>{ cell[g.station+'|'+g.bucket]=g; });
+  const salesAt={}; (b.sales||[]).forEach(s=>{ salesAt[s.bucket]=+s.forecast_sales||0; });
+  const present=DP_STATIONS.filter(st=>slots.some(t=>{const g=cell[st+'|'+t]; return g&&(g.actual||g.forecast);}));
+  let html='<table class="dp-tbl"><tr><th class="dp-rl">Station</th>'+slots.map(t=>'<th>'+esc(dpHM(t))+'</th>').join('')+'<th class="dp-tot">avg</th></tr>';
+  html+='<tr class="dp-salesrow"><td class="dp-rl">Fcst $</td>'+slots.map(t=>'<td>'+(salesAt[t]?('$'+Math.round(salesAt[t])):'&middot;')+'</td>').join('')+'<td class="dp-tot">$'+Math.round(slots.reduce((a,t)=>a+(salesAt[t]||0),0))+'</td></tr>';
+  present.forEach(st=>{
+    let sa=0,sf=0;
+    const cells=slots.map(t=>{const g=cell[st+'|'+t]||{actual:0,forecast:0,gap:0}; sa+=g.actual; sf+=g.forecast; return '<td class="dp-c '+dpGapClass(g.gap)+'"><b>'+g.actual+'</b><span>/'+g.forecast+'</span></td>';}).join('');
+    const aa=Math.round(sa/slots.length), af=Math.round(sf/slots.length), tg=aa-af;
+    html+='<tr><td class="dp-rl">'+esc(DP_STATION_LABEL[st]||st)+'</td>'+cells+'<td class="dp-tot '+dpGapClass(tg)+'">'+aa+'/'+af+'</td></tr>';
+  });
+  html+='</table>'; m.innerHTML=html;
+  const avgGap={}; present.forEach(st=>{ avgGap[st]=Math.round(slots.reduce((a,t)=>a+((cell[st+'|'+t]||{gap:0}).gap),0)/slots.length); });
+  const over=present.filter(st=>avgGap[st]>0).sort((a,b)=>avgGap[b]-avgGap[a])[0];
+  const under=present.filter(st=>avgGap[st]<0).sort((a,b)=>avgGap[a]-avgGap[b])[0];
+  const parts=[];
+  if(over) parts.push('<b>'+esc(DP_STATION_LABEL[over])+'</b> over (+'+avgGap[over]+' avg)');
+  if(under) parts.push('<b>'+esc(DP_STATION_LABEL[under])+'</b> short ('+avgGap[under]+' avg)');
+  if(al) al.innerHTML = parts.length?('<span class="dp-tag">'+esc(dp)+'</span> '+parts.join(' &middot; ')+' &mdash; check the mix.'):'';
+}
+
+async function dpPickStore(nsn){
+  try{
+    const r=await fetch(ENDPOINT+"?t="+encodeURIComponent(TOKEN)+"&dp_store="+encodeURIComponent(nsn));
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    setBoard(await r.json());
+  }catch(e){ alert("Could not load that store: "+(e&&e.message)); }
+}
+
 function renderBoard(payload){
   STATE = payload;
   const data = payload.data || {};
@@ -3086,6 +3193,8 @@ function renderBoard(payload){
   // ===== 2) SALES & GUESTS — daily YoY pulse + MTD chart =====
   h+='<div id="sec-sales" class="sec"></div>';
   h+=sect(()=>renderSalesComps(data.sales_comps));
+  // Deployment vs Demand — actual heads by station vs forecast, per 15-min (look-back review).
+  h+=sect(()=>renderDatapassLabor(data.datapass_labor, mgr));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
