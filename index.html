@@ -3257,7 +3257,7 @@ function renderServiceTimes(st, mgr){
   let h='<div class="card dp-card">';
   h+='<div class="dp-hd"><div><div class="dp-k">Service Times</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.dt_cars||0)+' cars</span></div></div>';
   h+='<div class="st-tiles">';
-  h+=tile(hl.oepe_s,'OEPE (order&rarr;exit)',st.org_goal_oepe,'computed');
+  h+=tile(hl.oepe_s,'OEPE (order to exit)',st.org_goal_oepe,'computed');
   h+=tile(hl.kvs_per_item,'KVS / item',st.org_goal_kvs,'kitchen');
   h+=tile(hl.fc_r2p_s,'FC R2P / txn',null,(hl.fc_cars||0)+' fc txns');
   h+=tile(null,'Avoidable Dasher wait',null,'not in DataPass',true);
