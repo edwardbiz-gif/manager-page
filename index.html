@@ -410,7 +410,7 @@ body{padding-bottom:74px}
 .dp-alert{font-size:12.5px;color:var(--fg);margin-bottom:8px;line-height:1.4}
 .dp-tag{background:var(--accent);color:var(--on-accent);font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;text-transform:uppercase}
 .dp-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.dp-tbl{border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:100%}
+.dp-tbl{border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:max-content}
 .dp-tbl th,.dp-tbl td{padding:5px 6px;text-align:center;font-size:11px;border-bottom:1px solid var(--line);white-space:nowrap}
 .dp-tbl th{color:var(--muted);font-weight:700;font-size:10px}
 .dp-rl{position:sticky;left:0;background:var(--card);text-align:left!important;font-weight:700;color:var(--fg);font-size:11px}
@@ -470,6 +470,12 @@ body{padding-bottom:74px}
 .ci-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .ci-row:last-child{border-bottom:0}.ci-l{flex:1;color:var(--ink2)}.ci-v{font-weight:700;text-align:right;min-width:96px}.ci-b{font-size:10px;color:var(--muted);min-width:78px;text-align:right}.ci-q{color:var(--muted);font-size:11px;font-weight:400}
 .ci-drill{margin-top:8px}.ci-drill summary{cursor:pointer;font-size:12px;color:var(--accent);font-weight:700}
+.st-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+@media(min-width:560px){.st-tiles{grid-template-columns:repeat(4,1fr)}}
+.st-tile{border-radius:12px;padding:10px;background:rgba(127,127,127,.06)}
+.st-tile.over{background:rgba(200,50,31,.12)}.st-tile.ok{background:rgba(26,143,76,.12)}.st-tile.na{opacity:.5}
+.st-tile-v{font-size:23px;font-weight:800;line-height:1}.st-tile-l{font-size:11px;color:var(--ink2);margin-top:3px}
+.st-tile-g{font-size:10px;color:var(--muted);margin-top:2px}.st-tile-na{font-size:10px;color:var(--muted);font-style:italic;margin-top:2px}
 </style>
 </head>
 <body>
@@ -489,7 +495,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v72";
+const SHELL_VERSION = "v73";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3236,23 +3242,46 @@ function stGoalClass(v,g){ if(g==null||v==null) return ''; return Number(v)<=Num
 function renderServiceTimes(st, mgr){
   if(!st || !(st.dayparts||[]).length) return "";
   const sel=(st.tiles||[]).find(t=>t.nsn===st.selected_nsn) || (st.tiles||[])[0] || {};
+  const hl=st.headline||{};
+  const tile=function(v,label,goal,sub,na){
+    const cls = na?'na':((goal!=null&&v!=null)?(Number(v)<=Number(goal)?'ok':'over'):'');
+    const foot = na ? ('<div class="st-tile-na">'+esc(sub||'')+'</div>')
+                    : (goal!=null ? ('<div class="st-tile-g">goal '+Math.round(goal)+'s</div>')
+                                  : (sub?('<div class="st-tile-g">'+esc(sub)+'</div>'):''));
+    return '<div class="st-tile '+cls+'"><div class="st-tile-v">'+(na?'&mdash;':stSec(v))+'</div><div class="st-tile-l">'+esc(label)+'</div>'+foot+'</div>';
+  };
   let switcher='';
   if((st.tiles||[]).length>1){
-    switcher='<div class="dp-stores">'+st.tiles.map(t=>'<button class="dp-store'+(t.nsn===st.selected_nsn?' on':'')+'" onclick="stPickStore('+t.nsn+')">'+esc(t.name)+' '+stSec(t.avg_window2_s)+'</button>').join('')+'</div>';
+    switcher='<div class="dp-stores">'+st.tiles.map(t=>'<button class="dp-store'+(t.nsn===st.selected_nsn?' on':'')+'" onclick="stPickStore('+t.nsn+')">'+esc(t.name)+' '+stSec(t.avg_oepe_s)+'</button>').join('')+'</div>';
   }
-  const gc=stGoalClass(sel.avg_window2_s, sel.target_seconds);
   let h='<div class="card dp-card">';
-  h+='<div class="dp-hd"><div><div class="dp-k">Drive-Thru Service</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.target_seconds!=null?('goal '+Math.round(sel.target_seconds)+'s'):'no goal set')+'</span></div></div>';
-  h+='<div class="gm-hero '+(gc==='over'?'gm-over':gc==='ok'?'gm-ok':'')+'"><div class="gm-hero-v">'+stSec(sel.avg_window2_s)+'</div><div class="gm-hero-l">avg serve (window&nbsp;2), car-weighted &middot; '+(sel.dt_cars||0)+' cars'+(sel.target_seconds!=null?(' &middot; goal '+Math.round(sel.target_seconds)+'s'):'')+'</div></div>';
-  h+='<div class="dp-note">Window-2 serve seconds, latest complete day. Segment timers are independent averages, not a running clock (they don&rsquo;t sum). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+', which lags this feed'):'')+'.</div>';
+  h+='<div class="dp-hd"><div><div class="dp-k">Service Times</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.dt_cars||0)+' cars</span></div></div>';
+  h+='<div class="st-tiles">';
+  h+=tile(hl.oepe_s,'OEPE (order&rarr;exit)',st.org_goal_oepe,'computed');
+  h+=tile(hl.kvs_per_item,'KVS / item',st.org_goal_kvs,'kitchen');
+  h+=tile(hl.fc_r2p_s,'FC R2P / txn',null,(hl.fc_cars||0)+' fc txns');
+  h+=tile(null,'Avoidable Dasher wait',null,'not in DataPass',true);
+  h+='</div>';
+  h+='<div class="dp-note">OEPE is <b>computed</b> (line+order+win1+win2, car-weighted &mdash; no total-store field in the feed). KVS/item = kitchen production sec per sandwich (all screens). Window-2 serve = '+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). Dasher wait isn&rsquo;t in any DataPass feed. Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
   h+=switcher;
-  h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+stGoalClass(d.avg_window2_s,d.target_seconds)+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_window2_s)+'</button>').join('')+'</div>';
-  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>Serve</th><th>Win1</th><th>Order</th><th>Line</th><th>Park%</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
-  st.dayparts.forEach(d=>{ h+='<tr><td class="dp-rl">'+esc(String(d.daypart).split('(')[0])+'</td><td class="dp-c '+stGoalClass(d.avg_window2_s,d.target_seconds)+'"><b>'+stSec(d.avg_window2_s)+'</b>'+(d.target_seconds!=null?('<span>/'+Math.round(d.target_seconds)+'</span>'):'')+'</td><td>'+stSec(d.avg_window1_s)+'</td><td>'+stSec(d.avg_order_s)+'</td><td>'+stSec(d.avg_line_s)+'</td><td>'+(d.park_pct==null?'&middot;':(d.park_pct+'%'))+'</td><td>'+(d.dt_cars||0)+'</td><td class="dp-rl">'+esc(d.leader_name||'&mdash;')+'</td></tr>'; });
+  h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+((d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'')+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_oepe_s)+'</button>').join('')+'</div>';
+  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>OEPE</th><th>Win2</th><th>KVS/item</th><th>FC R2P</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
+  st.dayparts.forEach(d=>{
+    const oc=(d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'';
+    const wc=stGoalClass(d.avg_window2_s,d.target_seconds);
+    const kc=(d.kvs_per_item!=null&&st.org_goal_kvs!=null)?(d.kvs_per_item<=st.org_goal_kvs?'ok':'over'):'';
+    h+='<tr><td class="dp-rl">'+esc(String(d.daypart).split('(')[0])+'</td>'+
+       '<td class="dp-c '+oc+'"><b>'+stSec(d.avg_oepe_s)+'</b></td>'+
+       '<td class="dp-c '+wc+'">'+stSec(d.avg_window2_s)+'</td>'+
+       '<td class="dp-c '+kc+'">'+stSec(d.kvs_per_item)+'</td>'+
+       '<td class="dp-c">'+stSec(d.avg_fc_r2p_s)+'</td>'+
+       '<td>'+(d.dt_cars||0)+'</td>'+
+       '<td class="dp-rl">'+esc(d.leader_name||'&mdash;')+'</td></tr>';
+  });
   h+='</tbody></table></div>';
   h+='<div id="stSeg"></div>';
   h+='<div class="dp-legend"><span class="dp-sw ok"></span>at/under goal<span class="dp-sw over"></span>over goal &middot; tap a daypart for the 15-min detail</div>';
-  if(mgr && (mgr.role==='Owner'||mgr.role==='Supervisor')) h+='<div style="margin-top:8px"><button class="lb-btn" onclick="stSetGoal('+(sel.store_id||0)+')">Set goal</button> <span id="stGoalForm"></span></div>';
+  if(mgr && (mgr.role==='Owner'||mgr.role==='Supervisor')) h+='<div style="margin-top:8px"><button class="lb-btn" onclick="stSetGoal('+(sel.store_id||0)+')">Set win-2 goal</button> <span id="stGoalForm"></span></div>';
   h+='</div>';
   setTimeout(function(){ let best=null,bc=-1; (st.dayparts||[]).forEach(d=>{ if((d.dt_cars||0)>bc){bc=d.dt_cars||0; best=d.daypart;} }); const chips=[].slice.call(document.querySelectorAll('.dp-chip[data-stdp]')); const btn=chips.filter(c=>c.dataset.stdp===best)[0]; if(btn) stPickDaypart(btn); },0);
   return h;
