@@ -489,7 +489,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v71";
+const SHELL_VERSION = "v72";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3120,6 +3120,7 @@ function renderLaborBar(dl){
   const c=lb.counts||{};
   const sl=function(s){ return (DP_STATION_LABEL[s]||s||"—"); };
   const idS=function(g){ return '#'+String(g).slice(-4); };
+  const who=function(p){ return (p&&p.name)?esc(p.name):idS(p&&p.geid); };
   const offBtn=function(p){ return sid?('<button class="lb-btn warn" onclick="lbMarkOff('+sid+',\''+esc(p.geid)+'\')">call off</button>'):''; };
   const hrs=function(p){ return (p.week_hours==null)?'':('<span class="lb-hrs'+(p.week_hours>=40?' ot':'')+'">'+p.week_hours+'h</span>'); };
   let h='<div class="card lb-card" id="sec-laborbar">';
@@ -3130,19 +3131,19 @@ function renderLaborBar(dl){
   if((lb.call_offs||[]).length){
     h+='<div class="lb-sub">Called off today</div>';
     lb.call_offs.forEach(function(co){
-      h+='<div class="lb-co"><span class="lb-st">'+esc(sl(co.station))+'</span><span class="lb-who">'+idS(co.geid)+' &middot; '+esc(co.role||"")+(co.replacement_geid?(' &rarr; cover '+idS(co.replacement_geid)):' &middot; <i>needs cover</i>')+'</span>'+(sid?('<button class="lb-btn" onclick="lbCancelOff('+co.id+')">undo</button>'):'')+'</div>';
+      h+='<div class="lb-co"><span class="lb-st">'+esc(sl(co.station))+'</span><span class="lb-who">'+who(co)+' &middot; '+esc(co.role||"")+(co.replacement_geid?(' &rarr; cover '+(co.replacement_name?esc(co.replacement_name):idS(co.replacement_geid))):' &middot; <i>needs cover</i>')+'</span>'+(sid?('<button class="lb-btn" onclick="lbCancelOff('+co.id+')">undo</button>'):'')+'</div>';
     });
   }
   h+='<div class="lb-sub">On floor now ('+(c.on_now||0)+')</div>';
   if((lb.on_now||[]).length){
     lb.on_now.forEach(function(p){
-      h+='<div class="lb-row"><span class="lb-st">'+esc(sl(p.station))+'</span><span class="lb-who">'+idS(p.geid)+' <span class="lb-id">'+esc(p.role||"")+' &middot; til '+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
+      h+='<div class="lb-row"><span class="lb-st">'+esc(sl(p.station))+'</span><span class="lb-who">'+who(p)+' <span class="lb-id">'+esc(p.role||"")+' &middot; til '+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
     });
   } else { h+='<div class="lb-empty">No one scheduled on the floor right now.</div>'; }
   if((lb.up_next||[]).length){
     h+='<div class="lb-sub">Up next today ('+lb.up_next.length+')</div>';
     lb.up_next.forEach(function(p){
-      h+='<div class="lb-row"><span class="lb-st">'+esc(sl(p.station))+'</span><span class="lb-who">'+idS(p.geid)+' <span class="lb-id">'+esc(p.role||"")+' &middot; '+esc(dpHM(p.shift_start))+'&ndash;'+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
+      h+='<div class="lb-row"><span class="lb-st">'+esc(sl(p.station))+'</span><span class="lb-who">'+who(p)+' <span class="lb-id">'+esc(p.role||"")+' &middot; '+esc(dpHM(p.shift_start))+'&ndash;'+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
     });
   }
   h+='<div id="lbForm"></div>';
@@ -3157,9 +3158,9 @@ function lbMarkOff(sid, geid){
   const seen={}; seen[String(geid)]=1;
   const cands=[].concat(lb.bench||[], (lb.up_next||[]).map(function(x){return {geid:x.geid,week_hours:x.week_hours,station:x.station};}))
     .filter(function(x){ if(seen[String(x.geid)])return false; seen[String(x.geid)]=1; return true; });
-  const opts='<option value="">(no replacement yet)</option>'+cands.map(function(x){return '<option value="'+esc(x.geid)+'">#'+String(x.geid).slice(-4)+(x.week_hours!=null?(' &middot; '+x.week_hours+'h wk'):'')+(x.station?(' &middot; '+esc(x.station)):'')+'</option>';}).join('');
+  const opts='<option value="">(no replacement yet)</option>'+cands.map(function(x){return '<option value="'+esc(x.geid)+'">'+(x.name?esc(x.name):'#'+String(x.geid).slice(-4))+(x.week_hours!=null?(' &middot; '+x.week_hours+'h wk'):'')+(x.station?(' &middot; '+esc(x.station)):'')+'</option>';}).join('');
   const f=document.getElementById('lbForm'); if(!f) return;
-  f.innerHTML='<div class="lb-form" data-store="'+sid+'" data-geid="'+esc(geid)+'" data-role="'+esc(p.role||"")+'" data-station="'+esc(p.station||"")+'" data-shift="'+esc(p.shift_start||"")+'"><b>Call off #'+String(geid).slice(-4)+'</b> <span class="lb-id">'+esc(p.role||"")+' &middot; '+esc(sl_safe(p.station))+'</span><label>replacement (by ID)</label><select id="lbRepl">'+opts+'</select><input id="lbReason" placeholder="reason (optional)"><div class="lb-actions"><button class="lb-btn warn" onclick="lbConfirmOff()">Log call-off</button><button class="lb-btn" onclick="document.getElementById(\'lbForm\').innerHTML=\'\'">cancel</button></div><div class="dp-note" style="margin-top:4px">Pick a replacement by ID; get their number from LifeLenz / your contact sheet &mdash; crew phones aren&rsquo;t stored here.</div></div>';
+  f.innerHTML='<div class="lb-form" data-store="'+sid+'" data-geid="'+esc(geid)+'" data-role="'+esc(p.role||"")+'" data-station="'+esc(p.station||"")+'" data-shift="'+esc(p.shift_start||"")+'"><b>Call off '+(p&&p.name?esc(p.name):'#'+String(geid).slice(-4))+'</b> <span class="lb-id">'+esc(p.role||"")+' &middot; '+esc(sl_safe(p.station))+'</span><label>replacement (by ID)</label><select id="lbRepl">'+opts+'</select><input id="lbReason" placeholder="reason (optional)"><div class="lb-actions"><button class="lb-btn warn" onclick="lbConfirmOff()">Log call-off</button><button class="lb-btn" onclick="document.getElementById(\'lbForm\').innerHTML=\'\'">cancel</button></div><div class="dp-note" style="margin-top:4px">Pick a replacement by ID; get their number from LifeLenz / your contact sheet &mdash; crew phones aren&rsquo;t stored here.</div></div>';
   f.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function sl_safe(s){ return (typeof DP_STATION_LABEL!=='undefined' && DP_STATION_LABEL[s])?DP_STATION_LABEL[s]:(s||"—"); }
