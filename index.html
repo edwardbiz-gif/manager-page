@@ -495,7 +495,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v73";
+const SHELL_VERSION = "v74";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3260,9 +3260,9 @@ function renderServiceTimes(st, mgr){
   h+=tile(hl.oepe_s,'OEPE (order to exit)',st.org_goal_oepe,'computed');
   h+=tile(hl.kvs_per_item,'KVS / item',st.org_goal_kvs,'kitchen');
   h+=tile(hl.fc_r2p_s,'FC R2P / txn',null,(hl.fc_cars||0)+' fc txns');
-  h+=tile(null,'Avoidable Dasher wait',null,'not in DataPass',true);
+  h+='<div class="st-tile"><div class="st-tile-v">'+(hl.park_pct==null?'&mdash;':(Math.round(hl.park_pct)+'%'))+'</div><div class="st-tile-l">Parked-car % (proxy)</div><div class="st-tile-na">avoidable-wait proxy</div></div>';
   h+='</div>';
-  h+='<div class="dp-note">OEPE is <b>computed</b> (line+order+win1+win2, car-weighted &mdash; no total-store field in the feed). KVS/item = kitchen production sec per sandwich (all screens). Window-2 serve = '+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). Dasher wait isn&rsquo;t in any DataPass feed. Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
+  h+='<div class="dp-note">OEPE = <b>order-end to present-end</b> (win1+win2, car-weighted; excludes line + order). KVS/item = kitchen production sec per sandwich (all screens). Window-2 serve = '+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). 4th tile = drive-thru parked-car % (closest avoidable-wait proxy; true Dasher wait isn&rsquo;t in DataPass). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
   h+=switcher;
   h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+((d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'')+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_oepe_s)+'</button>').join('')+'</div>';
   h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>OEPE</th><th>Win2</th><th>KVS/item</th><th>FC R2P</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
