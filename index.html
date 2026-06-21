@@ -448,6 +448,28 @@ body{padding-bottom:74px}
 .lb-form label{display:block;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:4px}
 .lb-actions{display:flex;gap:6px;margin-top:6px}
 .lb-empty{font-size:12px;color:var(--muted);padding:6px 0}
+/* GM cards (v71) */
+.gm-hero{border-radius:12px;padding:12px 14px;margin:8px 0;background:rgba(127,127,127,.06)}
+.gm-hero.gm-over{background:rgba(200,50,31,.12)}.gm-hero.gm-warn{background:rgba(224,161,6,.14)}.gm-hero.gm-ok{background:rgba(26,143,76,.12)}
+.gm-hero-v{font-size:30px;font-weight:800;color:var(--fg);line-height:1}.gm-hero-v span{font-size:16px;font-weight:700;color:var(--muted)}
+.gm-hero-l{font-size:12px;color:var(--ink2);margin-top:3px}.gm-hero-x{font-size:10px;color:var(--muted);margin-top:4px}
+.gm-detail{max-height:0;overflow:hidden;transition:max-height .2s}.gm-detail.open{max-height:380px;margin-top:6px}
+.gm-red{color:#c8321f}.gm-green{color:#1a8f4c}
+.lb-pill.gm-bad{background:rgba(200,50,31,.15);color:#c8321f;border-color:#c8321f}
+.lb-pill.gm-warnp{background:rgba(224,161,6,.15);color:#9a6b00;border-color:#e0a106}
+.sx-summary{margin:6px 0 10px}.sx-big{font-size:26px;font-weight:800;color:var(--fg)}.sx-vs{font-size:12px;color:var(--muted)}
+.sx-var{font-size:13px;font-weight:800;margin-top:2px}.sx-var.gm-ok{color:#1a8f4c}.sx-var.gm-over{color:#c8321f}.sx-tr{font-size:11px;color:var(--muted)}
+.sx-chart{display:flex;gap:2px;align-items:flex-end;height:90px;overflow-x:auto;padding-top:6px}
+.sx-col{display:flex;flex-direction:column;align-items:center;min-width:14px}
+.sx-bars{position:relative;width:12px;height:74px;display:flex;align-items:flex-end}
+.sx-fc{position:absolute;left:0;width:12px;border:1px solid var(--line);border-bottom:0;background:transparent}
+.sx-ac{width:8px;margin:0 auto;background:var(--accent);border-radius:2px 2px 0 0}.sx-ac.lo{background:#c8321f}
+.sx-xl{font-size:8px;color:var(--muted);margin-top:2px}
+.sx-drill{display:none;margin-top:8px}.dp-card.exp .sx-drill{display:block}
+.ci-grid{margin:6px 0}
+.ci-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.ci-row:last-child{border-bottom:0}.ci-l{flex:1;color:var(--ink2)}.ci-v{font-weight:700;text-align:right;min-width:96px}.ci-b{font-size:10px;color:var(--muted);min-width:78px;text-align:right}.ci-q{color:var(--muted);font-size:11px;font-weight:400}
+.ci-drill{margin-top:8px}.ci-drill summary{cursor:pointer;font-size:12px;color:var(--accent);font-weight:700}
 </style>
 </head>
 <body>
@@ -467,7 +489,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v70";
+const SHELL_VERSION = "v71";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3156,6 +3178,130 @@ async function lbCancelOff(id){
   catch(e){ alert('Failed: '+(e&&e.message)); }
 }
 
+// ── GM cards (v71): Food Cost, Sales vs Projection, Service Times, Cash & Loss Integrity ──
+function gmMoney(n){ return (n==null)?'&mdash;':((Number(n)<0?'-$':'$')+Math.abs(Math.round(Number(n))).toLocaleString()); }
+
+function renderDatapassFood(f){
+  if(!f || !f.fob) return "";
+  const fob=f.fob, sh=f.shrink;
+  const pct=Number(fob.food_over_base_pct);
+  const cls = pct>=4?'gm-over':pct>=3?'gm-warn':'gm-ok';
+  let h='<div class="card dp-card">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Food cost</div><div class="dp-store-name">'+esc(fob.name||"")+'</div></div>'+
+     '<div class="dp-through">'+esc(fob.month_label||"")+'<br><span>MTD '+esc(String(fob.day_count||""))+'d &middot; thru '+esc(f.data_through||"")+'</span></div></div>';
+  h+='<div class="gm-hero '+cls+'" onclick="this.nextElementSibling.classList.toggle(\'open\')"><div class="gm-hero-v">'+pct.toFixed(2)+'<span>%</span></div>'+
+     '<div class="gm-hero-l">food over base &middot; ~'+gmMoney(fob.food_over_base_dollars)+' &middot; actual '+Number(fob.actual_food_cost_pct).toFixed(2)+'% vs base '+Number(fob.base_food_pct).toFixed(2)+'%</div><div class="gm-hero-x">tap for breakdown</div></div>';
+  h+='<div class="gm-detail"><table class="dp-tbl" style="width:100%"><tbody>';
+  (fob.breakdown||[]).forEach(b=>{ h+='<tr><td class="dp-rl">'+esc(b.k)+'</td><td class="dp-c"><b>'+Number(b.v).toFixed(2)+'%</b></td></tr>'; });
+  h+='</tbody></table></div>';
+  if(sh && (sh.items||[]).length){
+    h+='<div class="dp-note"><b>Top missing items</b> &middot; '+sh.neg_items+' short &middot; ~'+gmMoney(sh.total_shrink_dollars)+' MTD thru '+esc(sh.mtd_through||"")+'</div>';
+    h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Item</th><th>$ impact</th><th>units</th></tr></thead><tbody id="fcItems">';
+    sh.items.slice(0,8).forEach(it=>{ h+='<tr><td class="dp-rl">'+esc(it.item_desc||it.wrin)+'</td><td class="dp-c under"><b>'+gmMoney(it.dollar_diff)+'</b></td><td class="dp-c"><span>'+Number(it.usage_variance).toFixed(1)+'</span></td></tr>'; });
+    h+='</tbody></table></div>';
+    if(sh.items.length>8){ window.__fcAll=sh.items; h+='<button class="lb-btn" style="margin-top:8px" onclick="fcShowAll(this)">See all '+sh.items.length+' items</button>'; }
+    h+='<div class="dp-legend"><span class="dp-sw under"></span> negative = used beyond theoretical (shrink/missing)</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function fcShowAll(btn){
+  const tb=document.getElementById('fcItems'); const all=window.__fcAll||[]; if(!tb) return;
+  tb.innerHTML=all.map(it=>'<tr><td class="dp-rl">'+esc(it.item_desc||it.wrin)+'</td><td class="dp-c under"><b>'+gmMoney(it.dollar_diff)+'</b></td><td class="dp-c"><span>'+Number(it.usage_variance).toFixed(1)+'</span></td></tr>').join('');
+  if(btn) btn.remove();
+}
+
+function renderDatapassSales(d){
+  if(!d || !d.summary || !(d.hours||[]).length) return "";
+  const s=d.summary, sign=(s.var_dollars>=0?'+':'');
+  const cls=s.var_dollars>=0?'gm-ok':'gm-over';
+  const maxBar=Math.max(1,...d.hours.map(h=>Math.max(h.actual,h.forecast)));
+  const bars=d.hours.map(h=>{ const ah=Math.round(100*h.actual/maxBar), fh=Math.round(100*h.forecast/maxBar); const ahead=h.actual>=h.forecast;
+    return '<div class="sx-col" title="'+esc(h.label)+' actual $'+Math.round(h.actual).toLocaleString()+' vs fcst $'+Math.round(h.forecast).toLocaleString()+'"><div class="sx-bars"><div class="sx-fc" style="height:'+fh+'%"></div><div class="sx-ac '+(ahead?'':'lo')+'" style="height:'+ah+'%"></div></div><div class="sx-xl">'+esc(h.label.slice(0,2))+'</div></div>'; }).join('');
+  const drill=d.detail.map(r=>'<tr><td class="dp-rl">'+esc(r.bucket)+'</td><td>$'+Math.round(r.actual).toLocaleString()+'</td><td><span>$'+Math.round(r.forecast).toLocaleString()+'</span></td><td>'+r.trans+'</td><td class="dp-tot">$'+Math.round(r.cum_actual).toLocaleString()+'</td><td><span>$'+Math.round(r.cum_forecast).toLocaleString()+'</span></td></tr>').join('');
+  let h='<div class="card dp-card" onclick="this.classList.toggle(\'exp\')">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Sales vs Projection</div><div class="dp-store-name">'+esc(d.store||"")+'</div></div><div class="dp-through">latest closed day<br><span>'+esc(d.data_through||"")+'</span></div></div>';
+  h+='<div class="dp-note">Actuals vs forecast for the completed day (end-of-day, not live intraday).</div>';
+  h+='<div class="sx-summary"><div class="sx-big">$'+Math.round(s.actual).toLocaleString()+'</div><div class="sx-vs">vs $'+Math.round(s.forecast).toLocaleString()+' forecast</div><div class="sx-var '+cls+'">'+sign+'$'+Math.abs(Math.round(s.var_dollars)).toLocaleString()+' ('+sign+(s.var_pct==null?'?':s.var_pct)+'%)</div><div class="sx-tr">'+s.trans.toLocaleString()+' transactions</div></div>';
+  h+='<div class="sx-chart">'+bars+'</div>';
+  h+='<div class="dp-legend"><span class="dp-sw ok"></span>actual <span class="dp-sw" style="background:transparent;border:1px solid var(--line)"></span>forecast &middot; tap card for 15-min pace</div>';
+  h+='<div class="sx-drill"><div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">15-min</th><th>act</th><th>fcst</th><th>tr</th><th>cum</th><th>cum f</th></tr></thead><tbody>'+drill+'</tbody></table></div></div>';
+  h+='</div>';
+  return h;
+}
+
+function stSec(v){ return v==null?'&middot;':(Math.round(Number(v))+'s'); }
+function stGoalClass(v,g){ if(g==null||v==null) return ''; return Number(v)<=Number(g)?'ok':'over'; }
+function renderServiceTimes(st, mgr){
+  if(!st || !(st.dayparts||[]).length) return "";
+  const sel=(st.tiles||[]).find(t=>t.nsn===st.selected_nsn) || (st.tiles||[])[0] || {};
+  let switcher='';
+  if((st.tiles||[]).length>1){
+    switcher='<div class="dp-stores">'+st.tiles.map(t=>'<button class="dp-store'+(t.nsn===st.selected_nsn?' on':'')+'" onclick="stPickStore('+t.nsn+')">'+esc(t.name)+' '+stSec(t.avg_window2_s)+'</button>').join('')+'</div>';
+  }
+  const gc=stGoalClass(sel.avg_window2_s, sel.target_seconds);
+  let h='<div class="card dp-card">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Drive-Thru Service</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.target_seconds!=null?('goal '+Math.round(sel.target_seconds)+'s'):'no goal set')+'</span></div></div>';
+  h+='<div class="gm-hero '+(gc==='over'?'gm-over':gc==='ok'?'gm-ok':'')+'"><div class="gm-hero-v">'+stSec(sel.avg_window2_s)+'</div><div class="gm-hero-l">avg serve (window&nbsp;2), car-weighted &middot; '+(sel.dt_cars||0)+' cars'+(sel.target_seconds!=null?(' &middot; goal '+Math.round(sel.target_seconds)+'s'):'')+'</div></div>';
+  h+='<div class="dp-note">Window-2 serve seconds, latest complete day. Segment timers are independent averages, not a running clock (they don&rsquo;t sum). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+', which lags this feed'):'')+'.</div>';
+  h+=switcher;
+  h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+stGoalClass(d.avg_window2_s,d.target_seconds)+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_window2_s)+'</button>').join('')+'</div>';
+  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>Serve</th><th>Win1</th><th>Order</th><th>Line</th><th>Park%</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
+  st.dayparts.forEach(d=>{ h+='<tr><td class="dp-rl">'+esc(String(d.daypart).split('(')[0])+'</td><td class="dp-c '+stGoalClass(d.avg_window2_s,d.target_seconds)+'"><b>'+stSec(d.avg_window2_s)+'</b>'+(d.target_seconds!=null?('<span>/'+Math.round(d.target_seconds)+'</span>'):'')+'</td><td>'+stSec(d.avg_window1_s)+'</td><td>'+stSec(d.avg_order_s)+'</td><td>'+stSec(d.avg_line_s)+'</td><td>'+(d.park_pct==null?'&middot;':(d.park_pct+'%'))+'</td><td>'+(d.dt_cars||0)+'</td><td class="dp-rl">'+esc(d.leader_name||'&mdash;')+'</td></tr>'; });
+  h+='</tbody></table></div>';
+  h+='<div id="stSeg"></div>';
+  h+='<div class="dp-legend"><span class="dp-sw ok"></span>at/under goal<span class="dp-sw over"></span>over goal &middot; tap a daypart for the 15-min detail</div>';
+  if(mgr && (mgr.role==='Owner'||mgr.role==='Supervisor')) h+='<div style="margin-top:8px"><button class="lb-btn" onclick="stSetGoal('+(sel.store_id||0)+')">Set goal</button> <span id="stGoalForm"></span></div>';
+  h+='</div>';
+  setTimeout(function(){ let best=null,bc=-1; (st.dayparts||[]).forEach(d=>{ if((d.dt_cars||0)>bc){bc=d.dt_cars||0; best=d.daypart;} }); const chips=[].slice.call(document.querySelectorAll('.dp-chip[data-stdp]')); const btn=chips.filter(c=>c.dataset.stdp===best)[0]; if(btn) stPickDaypart(btn); },0);
+  return h;
+}
+const ST_BANDS={'Breakfast':[4,11],'Lunch':[11,14],'Snack':[14,16],'Dinner':[16,21],'Evening':[21,24],'Late Night':[24,28]};
+function stPickDaypart(btn){
+  const dp=btn.dataset.stdp;
+  document.querySelectorAll('.dp-chip[data-stdp]').forEach(c=>c.classList.toggle('on', c===btn));
+  const st=(STATE&&STATE.data&&STATE.data.service_times)||null; const m=document.getElementById('stSeg'); if(!st||!m) return;
+  const key=String(dp).split('(')[0]; const band=ST_BANDS[key]||[0,28];
+  const segs=(st.segments||[]).filter(s=>{ const hh=parseInt(String(s.seg_end).slice(0,2),10); return hh>=band[0]&&hh<band[1]; });
+  if(!segs.length){ m.innerHTML='<div class="dp-empty">No drive-thru detail for '+esc(key)+' on this day.</div>'; return; }
+  let html='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">15-min</th><th>W2</th><th>W1</th><th>Order</th><th>Line</th><th>Cars</th><th>Park</th></tr></thead><tbody>';
+  segs.forEach(s=>{ html+='<tr><td class="dp-rl">'+esc(dpHM(s.seg_end))+'</td><td class="dp-c"><b>'+stSec(s.window2_s)+'</b></td><td>'+stSec(s.window1_s)+'</td><td>'+stSec(s.order_s)+'</td><td>'+stSec(s.line_s)+'</td><td>'+(s.dt_cars||0)+'</td><td>'+(s.park_cars||0)+'</td></tr>'; });
+  html+='</tbody></table></div>'; m.innerHTML=html;
+}
+async function stPickStore(nsn){ try{ const r=await fetch(ENDPOINT+'?t='+encodeURIComponent(TOKEN)+'&dp_store='+encodeURIComponent(nsn)); setBoard(await r.json()); }catch(e){ alert('Could not load that store'); } }
+function stSetGoal(storeId){ const f=document.getElementById('stGoalForm'); if(!f) return; f.innerHTML='<input id="stGoalV" type="number" placeholder="sec" style="width:64px"> <button class="lb-btn" onclick="stSaveGoal('+storeId+')">save</button>'; }
+async function stSaveGoal(storeId){ const v=(document.getElementById('stGoalV')||{}).value; if(!v) return; try{ const res=await callApi({action:'servicetime_target_save', store_id:storeId, scope:'window2', daypart:'all', target_seconds:Number(v)}); setBoard(res); }catch(e){ alert('Save failed: '+(e&&e.message)); } }
+
+function renderCashIntegrity(ci){
+  if(!ci || !ci.today) return "";
+  const t=ci.today, b=ci.baseline||{};
+  const money=v=>(v==null?'&mdash;':((Number(v)<0?'-$':'$')+Math.abs(Number(v)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})));
+  const num=v=>(v==null?'&mdash;':Number(v).toLocaleString());
+  const enoughBase=(b.days_in_window||0)>=5;
+  const z=(val,avg,sd)=>(val==null||avg==null||!sd||Number(sd)===0)?null:(Number(val)-Number(avg))/Number(sd);
+  const flag=zz=>(!enoughBase||zz==null)?'':(Math.abs(zz)>=2?'<span class="lb-pill gm-bad">abnormal</span>':(Math.abs(zz)>=1?'<span class="lb-pill gm-warnp">watch</span>':''));
+  const rowf=(label,val,base,fl)=>'<div class="ci-row"><div class="ci-l">'+esc(label)+'</div><div class="ci-v">'+val+' '+(fl||'')+'</div><div class="ci-b">us avg '+base+'</div></div>';
+  const osDisp=(t.cash_over_short==null)?'&mdash;':((Number(t.cash_over_short)<0?'<b class="gm-red">':'<b class="gm-green">')+money(t.cash_over_short)+'</b>');
+  let h='<div class="card dp-card">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Cash &amp; Loss Integrity</div><div class="dp-store-name">'+esc((ci.store||{}).location_name||"")+'</div></div><div class="dp-through">store-day<br><span>thru '+esc(t.business_date||"")+'</span></div></div>';
+  h+='<div class="ci-grid">';
+  h+=rowf('Cash over / short', osDisp, money(b.avg_abs_over_short!=null?-b.avg_abs_over_short:null), flag(z(t.abs_over_short,b.avg_abs_over_short,b.sd_abs_over_short)));
+  h+=rowf('Refunds', money(t.refund_amt)+' <span class="ci-q">('+num(t.refund_qty)+')</span>', money(b.avg_refund_amt), flag(z(t.refund_amt,b.avg_refund_amt,b.sd_refund_amt)));
+  h+=rowf('Mgr overrings', money(t.overring_amt)+' <span class="ci-q">('+num(t.overring_qty)+')</span>', money(b.avg_overring_amt), flag(z(t.overring_amt,b.avg_overring_amt,b.sd_overring_amt)));
+  h+=rowf('Voids / cancels', money(t.void_amt)+' <span class="ci-q">('+num(t.void_qty)+')</span>', money(b.avg_void_amt), flag(z(t.void_amt,b.avg_void_amt,b.sd_void_amt)));
+  h+=rowf('Skims', num(t.skim_count)+' / '+money(t.skim_amt), num(b.avg_skim_count)+' / '+money(b.avg_skim_amt), '');
+  h+=rowf('Cash deposit', money(t.cash_deposit_amt), '&mdash;', '');
+  h+='</div>';
+  h+='<details class="ci-drill"><summary>14-day history &amp; baseline</summary>';
+  h+='<div class="dp-note">Baseline '+esc(b.window_start||'?')+' &rarr; '+esc(b.window_end||'?')+' ('+num(b.days_in_window)+' days'+(enoughBase?'':', building &mdash; abnormal flags suppressed')+'). Refund rate '+(b.avg_refund_pct_sales!=null?(Number(b.avg_refund_pct_sales).toFixed(2)+'% of sales'):'?')+'.</div>';
+  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Date</th><th>O/S</th><th>Refund</th><th>Overring</th><th>Voids</th><th>Skim$</th></tr></thead><tbody>';
+  (ci.history||[]).forEach(hh=>{ h+='<tr><td class="dp-rl">'+esc(hh.business_date)+'</td><td>'+money(hh.cash_over_short)+'</td><td>'+money(hh.refund_amt)+'</td><td>'+money(hh.overring_amt)+'</td><td>'+money(hh.void_amt)+'</td><td>'+money(hh.skim_amt)+'</td></tr>'; });
+  h+='</tbody></table></div>';
+  h+='<div class="dp-note">No CCTV/video feed exists in DataPass &mdash; these are POS/cash internal-loss signals. Per-cashier detail intentionally not shown.</div>';
+  h+='</details></div>';
+  return h;
+}
+
 function dpPickDaypart(dp){
   document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
   const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
@@ -3287,6 +3433,10 @@ function renderBoard(payload){
   h+=sect(()=>renderSalesComps(data.sales_comps));
   // Deployment vs Demand — actual heads by station vs forecast, per 15-min (look-back review).
   h+=sect(()=>renderDatapassLabor(data.datapass_labor, mgr));
+  h+=sect(()=>renderDatapassSales(data.datapass_sales));
+  h+=sect(()=>renderServiceTimes(data.service_times, mgr));
+  h+=sect(()=>renderDatapassFood(data.datapass_food));
+  h+=sect(()=>renderCashIntegrity(data.cash_integrity));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
