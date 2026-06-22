@@ -526,7 +526,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v83";
+const SHELL_VERSION = "v84";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1061,10 +1061,11 @@ function renderManagerRank(rows){
   return h+'</div>';
 }
 
-// renderShiftLeaderMetrics (v81) - the legacy GM-view shift-leader scorecard,
-// DataPass-powered. data.shiftLeaderMetrics = {data_through, window, multi_store,
-// rows:[{nsn,store,geid,leader,daypart,daypart_ord,shifts,oepe_s,kvs_per_gc,
-// r2p_s,labor_pct,park_pct}]}. Grouped by daypart, ranked by OEPE (lower=better).
+// renderShiftLeaderMetrics (v84) - DataPass-only shift-leader scorecard, CALIBRATED
+// to the QSRSoft legacy definitions (OEPE ~8% / KVS ~8% MAPE). data.shiftLeaderMetrics
+// = {data_through, window, multi_store, rows:[{nsn,store,geid,leader,daypart,
+// daypart_ord,shifts,oepe_s,kvs_per_gc,labor_pct,park_pct}]}. Ranked by OEPE. R2P
+// dropped (not reconstructable from DataPass).
 function renderShiftLeaderMetrics(s){
   if(!s || !(s.rows||[]).length) return "";
   const ms=!!s.multi_store;
@@ -1072,28 +1073,27 @@ function renderShiftLeaderMetrics(s){
   s.rows.forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
   const dayparts=Object.keys(by).sort((a,b)=>(ord[a]||9)-(ord[b]||9));
   let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">Shift-Leader Scorecard</div>'+
-        '<div class="dp-store-name">DataPass &middot; ranked by OEPE</div></div>'+
+        '<div class="dp-store-name">DataPass (calibrated to QSRSoft) &middot; ranked by OEPE</div></div>'+
         '<div class="dp-through">'+esc(s.data_through||"")+'<br><span>'+esc(s.window||"")+'</span></div></div>';
   dayparts.forEach(dp=>{
     const list=by[dp].slice().sort((a,b)=>(a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s)));
     h+='<div class="sub2">'+esc(dp)+'</div>'+
        '<table class="mr-tbl"><thead><tr><th class="l">Leader</th>'+(ms?'<th class="l">Store</th>':'')+
-       '<th>Sh</th><th>OEPE</th><th>KVS/GC</th><th>R2P</th><th>Lab%</th><th>Park%</th></tr></thead><tbody>';
+       '<th>Sh</th><th>OEPE</th><th>KVS/GC</th><th>Lab%</th><th>Park%</th></tr></thead><tbody>';
     list.forEach((r,i)=>{
       h+='<tr'+(i===0?' class="top"':'')+'><td class="l" title="'+esc(r.leader)+'">'+esc(r.leader)+'</td>'+
          (ms?'<td class="l">'+esc(r.store)+'</td>':'')+
          '<td>'+fmtNum(r.shifts)+'</td>'+
          '<td>'+stSec(r.oepe_s)+'</td>'+
          '<td>'+stSec(r.kvs_per_gc)+'</td>'+
-         '<td>'+stSec(r.r2p_s)+'</td>'+
          '<td>'+fmtPct(r.labor_pct)+'</td>'+
          '<td>'+fmtPct(r.park_pct)+'</td></tr>';
     });
     h+='</tbody></table>';
   });
-  h+='<div class="dp-note">Each shift leader&rsquo;s dominant-daypart shifts over the last 30 days, DataPass-only. '+
-     'OEPE = order-end to present-end (win1+win2, all cars; parked shown as Park%). KVS/GC = kitchen sec per guest count. '+
-     'R2P = front-counter ready-to-present. Lab% = labor$ &divide; sales for the daypart. Names hidden on guest links.</div>';
+  h+='<div class="dp-note">Each shift leader&rsquo;s dominant-daypart shifts over the last 30 days, DataPass-only, '+
+     '<b>calibrated to the QSRSoft report</b> (OEPE &amp; KVS within ~8%). OEPE = order-to-present w/o parked. '+
+     'KVS/GC = kitchen sec per guest (make-line screens). Lab% = labor$ &divide; sales. Window grows as DataPass history accrues. Names hidden on guest links.</div>';
   return h+'</div>';
 }
 
@@ -3651,11 +3651,10 @@ function renderBoard(payload){
   h+=sect(()=>renderSpeedVsLabor(data.speed_vs_labor));
   h+=sect(()=>renderWasteCompliance(data.waste_compliance));
   h+=sect(()=>renderShiftLeaders(data.shiftLeaders));
-  // Shift-Leader Scorecard = the LEGACY QSRSoft shift-manager-summary card (exact
-  // legacy OEPE-w/o-parked / KVS-time-per-GC / R2P definitions), per Eddie 2026-06-22.
-  // The DataPass version (renderShiftLeaderMetrics) is kept but unmounted for
-  // reversibility: h+=sect(()=>renderShiftLeaderMetrics(data.shiftLeaderMetrics));
-  h+=sect(()=>renderManagerRank(data.manager_rank||[]));
+  // Shift-Leader Scorecard = DataPass-only, CALIBRATED to QSRSoft (OEPE/KVS ~8%),
+  // per Eddie 2026-06-22. The legacy QSRSoft card (renderManagerRank) is kept but
+  // unmounted for reversibility: h+=sect(()=>renderManagerRank(data.manager_rank||[]));
+  h+=sect(()=>renderShiftLeaderMetrics(data.shiftLeaderMetrics));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
