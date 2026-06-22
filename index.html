@@ -463,6 +463,13 @@ body{padding-bottom:74px}
 .pm-track{flex:1;height:8px;background:rgba(127,127,127,.15);border-radius:5px;overflow:hidden}
 .pm-fill{display:block;height:100%;background:var(--accent)}
 .lto-you{background:rgba(26,143,76,.12);font-weight:700}
+.svl-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line)}
+.svl-row:last-child{border-bottom:0}
+.svl-t{font-weight:800;min-width:42px}
+.svl-s{font-weight:800;color:#9a6b00;min-width:42px}
+.svl-s.gm-red{color:#c8321f}
+.svl-h{flex:1;color:var(--ink2)}
+.svl-c{color:var(--muted)}
 .lb-floor .lb-who{font-weight:800;color:var(--accent)}
 .lb-mgr .lb-who{font-weight:800;color:#6c4cd6}
 .lb-st.lb-r1,.lb-st.lb-r2{background:var(--accent);color:var(--on-accent)}
@@ -515,7 +522,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v76";
+const SHELL_VERSION = "v77";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3418,6 +3425,18 @@ function renderLtoCards(L){
   });
   return h;
 }
+function renderSpeedVsLabor(d){
+  if(!d || !(d.buckets||[]).length) return "";
+  const flagged=d.buckets.filter(function(b){return b.slow_and_short;});
+  let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">Fix it this shift &middot; DT speed</div><div class="dp-store-name">'+esc(d.store||"")+'</div></div><div class="dp-through">'+esc(d.data_through||"")+'<br><span>closed day</span></div></div>';
+  if(!flagged.length){ return h+'<div class="dp-empty">No quarter-hour was both slow and below staffing plan &mdash; slow windows were adequately staffed (volume/process, not labor).</div></div>'; }
+  const start15=function(se){ var hh=parseInt(String(se).slice(0,2),10), mm=parseInt(String(se).slice(3,5),10); var t=hh*60+mm-15; if(t<0)t+=1440; return ('0'+Math.floor(t/60)).slice(-2)+':'+('0'+(t%60)).slice(-2); };
+  h+='<div class="dp-note">'+flagged.length+' quarter-hour(s) slow because DT was short-staffed (actual heads below plan). Median serve '+(flagged[0].median_win2_s||'?')+'s.</div>';
+  flagged.forEach(function(b){
+    h+='<div class="svl-row"><span class="svl-t">'+esc(start15(b.seg_end))+'</span><span class="svl-s'+(b.window2_s>=120?' gm-red':'')+'">'+Math.round(b.window2_s)+'s</span><span class="svl-h">'+b.actual_heads+' on DT vs '+b.forecast_heads+' planned ('+(b.forecast_gap>0?'+':'')+b.forecast_gap+')</span><span class="svl-c">'+b.dt_cars+' cars</span></div>';
+  });
+  return h+'</div>';
+}
 function dpPickDaypart(dp){
   document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
   const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
@@ -3555,6 +3574,7 @@ function renderBoard(payload){
   h+=sect(()=>renderCashIntegrity(data.cash_integrity));
   h+=sect(()=>renderPmix(data.pmix));
   h+=sect(()=>renderLtoCards(data.lto));
+  h+=sect(()=>renderSpeedVsLabor(data.speed_vs_labor));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
