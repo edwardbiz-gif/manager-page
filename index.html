@@ -457,6 +457,7 @@ body{padding-bottom:74px}
 .ls-l span{font-weight:600;text-transform:none;letter-spacing:0}
 .lb-fl{font-weight:800;color:var(--fg)}
 .ls-detail[hidden]{display:none}
+.ls-soon{font-size:12px;font-weight:700;color:var(--muted)}
 .lb-floor .lb-who{font-weight:800;color:var(--accent)}
 .lb-mgr .lb-who{font-weight:800;color:#6c4cd6}
 .lb-st.lb-r1,.lb-st.lb-r2{background:var(--accent);color:var(--on-accent)}
@@ -3153,12 +3154,12 @@ function renderLaborSummary(dl){
   let h='<div class="card lb-card ls-card" id="sec-laborsum" onclick="lsToggle()">';
   h+='<div class="dp-hd"><div><div class="dp-k">Shift leader &middot; now</div><div class="dp-store-name">'+head+'</div></div><div class="dp-through"><span class="dp-tag">live</span><br>tap for detail</div></div>';
   h+='<div class="ls-bar">'
-    + n('Today', pct(ls.today&&ls.today.labor_pct), 'in progress')
+    + n('Today', '<span class="ls-soon">coming soon</span>', 'live feed')
     + n('Yesterday', pct(ls.yesterday&&ls.yesterday.labor_pct), esc(String((ls.yesterday&&ls.yesterday.date)||'')))
     + n('MTD', pct(ls.mtd&&ls.mtd.labor_pct), (ls.mtd?(ls.mtd.days+'d'):''))
     + n('Overtime', (ot.people||0)+(ot.hours?(' &middot; '+ot.hours+'h'):''), 'wk-to-date')
     + '</div>';
-  h+='<div class="dp-note" style="margin-top:6px">Today is in-progress (punches lag). MTD = available feed days ('+esc(String((ls.mtd&&ls.mtd.from)||''))+'&ndash;'+esc(String((ls.mtd&&ls.mtd.through)||''))+'). OT = staff 40h+ this week (look-back). Leader is from the schedule.</div>';
+  h+='<div class="dp-note" style="margin-top:6px">Today's live labor is coming soon (needs an intraday feed — likely the LifeLenz API; the in-progress punch number was unreliable). MTD = available feed days ('+esc(String((ls.mtd&&ls.mtd.from)||''))+'&ndash;'+esc(String((ls.mtd&&ls.mtd.through)||''))+'). OT = staff 40h+ this week (look-back). Leader is from the schedule.</div>';
   h+='</div>';
   return h;
 }
