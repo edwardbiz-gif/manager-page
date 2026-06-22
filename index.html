@@ -458,6 +458,11 @@ body{padding-bottom:74px}
 .lb-fl{font-weight:800;color:var(--fg)}
 .ls-detail[hidden]{display:none}
 .ls-soon{font-size:12px;font-weight:700;color:var(--muted)}
+.pm-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0}
+.pm-cat{flex:0 0 38%;color:var(--ink2)}
+.pm-track{flex:1;height:8px;background:rgba(127,127,127,.15);border-radius:5px;overflow:hidden}
+.pm-fill{display:block;height:100%;background:var(--accent)}
+.lto-you{background:rgba(26,143,76,.12);font-weight:700}
 .lb-floor .lb-who{font-weight:800;color:var(--accent)}
 .lb-mgr .lb-who{font-weight:800;color:#6c4cd6}
 .lb-st.lb-r1,.lb-st.lb-r2{background:var(--accent);color:var(--on-accent)}
@@ -510,7 +515,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v75";
+const SHELL_VERSION = "v76";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3384,6 +3389,35 @@ function renderCashIntegrity(ci){
   return h;
 }
 
+function renderPmix(p){
+  if(!p || !(p.top_items||[]).length) return "";
+  const up=p.upsize||{};
+  let h='<div class="card dp-card">';
+  h+='<div class="dp-hd"><div><div class="dp-k">Product Mix</div><div class="dp-store-name">'+esc(p.store||"")+'</div></div><div class="dp-through">'+esc(p.data_through||"")+'<br><span>'+(p.day_total_units||0).toLocaleString()+' units</span></div></div>';
+  h+='<div class="st-tiles">';
+  h+='<div class="st-tile"><div class="st-tile-v">'+((up.fry&&up.fry.large_pct!=null)?up.fry.large_pct+'%':'&mdash;')+'</div><div class="st-tile-l">Large fry mix</div></div>';
+  h+='<div class="st-tile"><div class="st-tile-v">'+((up.drink&&up.drink.large_pct!=null)?up.drink.large_pct+'%':'&mdash;')+'</div><div class="st-tile-l">Large drink mix</div></div>';
+  h+='</div>';
+  h+='<div class="lb-sub">Category mix</div>';
+  (p.category_mix||[]).forEach(function(c){ h+='<div class="pm-row"><span class="pm-cat">'+esc(c.category)+'</span><span class="pm-track"><span class="pm-fill" style="width:'+c.pct_units+'%"></span></span><b>'+c.pct_units+'%</b></div>'; });
+  h+='<details class="ci-drill"><summary>Top 20 items</summary><div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Item</th><th>Units</th><th>$</th></tr></thead><tbody>';
+  (p.top_items||[]).forEach(function(i){ h+='<tr><td class="dp-rl">'+esc(i.name)+'</td><td>'+i.units+'</td><td>$'+(i.gross||0).toLocaleString()+'</td></tr>'; });
+  h+='</tbody></table></div></details>';
+  h+='<div class="dp-note">Upsize % = large share of fries/drinks (bonus-engine signal). Latest complete day.</div>';
+  return h+'</div>';
+}
+function renderLtoCards(L){
+  if(!L || !(L.items||[]).length) return "";
+  let h='';
+  (L.items||[]).forEach(function(it){
+    const yours={}; (it.your_store_ids||[]).forEach(function(x){yours[x]=1;});
+    h+='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">LTO rank &middot; units/1k guests</div><div class="dp-store-name">'+esc(it.label||"")+'</div></div><div class="dp-through">'+esc(it.data_through||"")+'</div></div>';
+    h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th>#</th><th class="dp-rl">Store</th><th>Units/1k</th><th>Units</th></tr></thead><tbody>';
+    (it.standings||[]).forEach(function(r){ const mine=!!yours[r.store_id]; h+='<tr'+(mine?' class="lto-you"':'')+'><td>'+r.rank+'</td><td class="dp-rl">'+esc(r.store_name||"")+(mine?' &larr; you':'')+'</td><td class="dp-c"><b>'+(r.score==null?'&mdash;':r.score)+'</b></td><td>'+r.units+'</td></tr>'; });
+    h+='</tbody></table></div><div class="dp-note">'+esc(L.note||"")+'</div></div>';
+  });
+  return h;
+}
 function dpPickDaypart(dp){
   document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
   const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
@@ -3519,6 +3553,8 @@ function renderBoard(payload){
   h+=sect(()=>renderServiceTimes(data.service_times, mgr));
   h+=sect(()=>renderDatapassFood(data.datapass_food));
   h+=sect(()=>renderCashIntegrity(data.cash_integrity));
+  h+=sect(()=>renderPmix(data.pmix));
+  h+=sect(()=>renderLtoCards(data.lto));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
