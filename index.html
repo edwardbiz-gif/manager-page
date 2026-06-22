@@ -522,7 +522,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v78";
+const SHELL_VERSION = "v79";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3447,6 +3447,23 @@ function renderWasteCompliance(w){
   if(!w.thin_enabled){ h+='<div class="dp-note" style="margin-top:6px">Thin-count detection unlocks after '+Math.max(0,14-(w.baseline_settled_days||0))+' more days of data.</div>'; }
   return h+'</div>';
 }
+function renderShiftLeaders(s){
+  if(!s || !(s.leaderboard||[]).length) return "";
+  let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">Shift-leader record</div><div class="dp-store-name">ranked by SPLH</div></div><div class="dp-through">'+esc(s.data_through||"")+'<br><span>'+esc(s.window||"")+'</span></div></div>';
+  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th>#</th><th class="dp-rl">Leader</th><th>Shifts</th><th>Sales</th><th>SPLH</th><th>DT w2</th><th>Avg GC</th></tr></thead><tbody>';
+  (s.leaderboard||[]).forEach(function(r){
+    const dtCls=(r.dt_window2_wavg>90)?'over':(r.dt_window2_wavg<60?'ok':'');
+    h+='<tr><td>'+r.rank_splh+'</td><td class="dp-rl">'+esc(r.leader)+'</td><td>'+r.shifts_owned+'</td><td>$'+Math.round(r.total_sales||0).toLocaleString()+'</td><td><b>$'+(r.splh==null?'&mdash;':r.splh)+'</b></td><td class="dp-c '+dtCls+'">'+(r.dt_window2_wavg==null?'&mdash;':r.dt_window2_wavg+'s')+'</td><td>'+(r.avg_gc==null?'&mdash;':r.avg_gc)+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  if((s.recent||[]).length){
+    h+='<details class="ci-drill"><summary>Recent owned shifts</summary><div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Date</th><th>Store</th><th>Leader</th><th>Daypart</th><th>Sales</th><th>DT w2</th></tr></thead><tbody>';
+    (s.recent||[]).forEach(function(r){ h+='<tr><td class="dp-rl">'+esc(r.business_date)+'</td><td>'+esc(r.location_name)+'</td><td>'+esc(r.leader)+'</td><td>'+esc(String(r.daypart).split("(")[0])+(r.is_closing_leader?' &middot; close':'')+'</td><td>$'+Math.round(r.sales||0).toLocaleString()+'</td><td>'+(r.dt_window2_s==null?'&mdash;':r.dt_window2_s+'s')+'</td></tr>'; });
+    h+='</tbody></table></div></details>';
+  }
+  h+='<div class="dp-note">SPLH = sales per labor hour (true labor% needs labor$, not in DataPass). Leader owns their dominant daypart; cash to the closing leader. Schedule-derived. Names hidden on guest links.</div>';
+  return h+'</div>';
+}
 function dpPickDaypart(dp){
   document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
   const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
@@ -3586,6 +3603,7 @@ function renderBoard(payload){
   h+=sect(()=>renderLtoCards(data.lto));
   h+=sect(()=>renderSpeedVsLabor(data.speed_vs_labor));
   h+=sect(()=>renderWasteCompliance(data.waste_compliance));
+  h+=sect(()=>renderShiftLeaders(data.shiftLeaders));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
