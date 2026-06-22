@@ -522,7 +522,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v77";
+const SHELL_VERSION = "v78";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3437,6 +3437,16 @@ function renderSpeedVsLabor(d){
   });
   return h+'</div>';
 }
+function renderWasteCompliance(w){
+  if(!w) return "";
+  const ok=w.missed_stores===0;
+  let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">Raw waste count compliance</div><div class="dp-store-name">'+w.counted_stores+'/'+w.expected_stores+' counted</div></div><div class="dp-through">'+esc(w.data_through||"")+'<br><span>settled day</span></div></div>';
+  if(ok){ h+='<div class="dp-note">All stores logged raw waste for '+esc(w.data_through||"")+'.</div>'; }
+  else { h+='<div class="lb-sub">Missed waste count ('+w.missed_stores+')</div>';
+    (w.missed||[]).forEach(function(m){ h+='<div class="lb-co"><span class="lb-st" style="background:#c8321f;color:#fff">NO COUNT</span><span class="lb-who">'+esc(m.store)+' &middot; leader '+esc(m.leader)+(m.leader_shift_end?(' (out '+esc(dpHM(m.leader_shift_end))+')'):'')+'</span></div>'; }); }
+  if(!w.thin_enabled){ h+='<div class="dp-note" style="margin-top:6px">Thin-count detection unlocks after '+Math.max(0,14-(w.baseline_settled_days||0))+' more days of data.</div>'; }
+  return h+'</div>';
+}
 function dpPickDaypart(dp){
   document.querySelectorAll('.dp-chip').forEach(c=>c.classList.toggle('on', c.dataset.dp===dp));
   const d=dpData(); const b=d&&d.board; const m=document.getElementById('dpMatrix'); const al=document.getElementById('dpAlert');
@@ -3575,6 +3585,7 @@ function renderBoard(payload){
   h+=sect(()=>renderPmix(data.pmix));
   h+=sect(()=>renderLtoCards(data.lto));
   h+=sect(()=>renderSpeedVsLabor(data.speed_vs_labor));
+  h+=sect(()=>renderWasteCompliance(data.waste_compliance));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
