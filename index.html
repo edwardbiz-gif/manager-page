@@ -543,7 +543,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v86";
+const SHELL_VERSION = "v87";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1111,6 +1111,74 @@ function renderShiftLeaderMetrics(s){
   h+='<div class="dp-note">Each shift leader&rsquo;s dominant-daypart shifts over the last 30 days, DataPass-only, '+
      '<b>calibrated to the QSRSoft report</b> (OEPE &amp; KVS within ~8%). OEPE = order-to-present w/o parked. '+
      'KVS/GC = kitchen sec per guest (make-line screens). Lab% = labor$ &divide; sales. Window grows as DataPass history accrues. Names hidden on guest links.</div>';
+  return h+'</div>';
+}
+
+// renderNewHireTraining (v87) - new-hire mandatory training completion from DataPass
+// TrainingTrackingFull. data.newHireTraining = {data_through, refreshed_at, total_tracked,
+// tracked_note, hire_dates_loaded, multi_store, summary, rows:[{nsn,store,geid,name,job_title,
+// completed,total,missing_course_ids,hire_date,deadline,days_remaining,is_new_hire,status,
+// all_complete}]}. 14 of Petra's 20 codes tracked; deadline = hire + 14 days (US PBS). The
+// per-employee new-hire detail + deadlines activate once hire dates load (crew_names.hire_date).
+function nhtBar(done,total){
+  const pct=total?Math.round(100*done/total):0;
+  const col=done>=total?'var(--ok)':(pct>=50?'var(--warn)':'var(--urgent)');
+  return '<div style="flex:1;height:7px;border-radius:4px;background:var(--line);overflow:hidden">'+
+         '<div style="height:100%;width:'+pct+'%;background:'+col+'"></div></div>';
+}
+function nhtBadge(st){
+  const m={complete:['Complete','var(--ok)'],on_track:['On track','var(--ok)'],
+    due_soon:['Due soon','var(--warn)'],overdue:['Overdue','var(--urgent)'],
+    no_hire_date:['No hire date','var(--muted)']};
+  const x=m[st]||[st,'var(--muted)'];
+  return '<span style="font-size:10px;font-weight:700;border:1px solid '+x[1]+';color:'+x[1]+
+         ';border-radius:10px;padding:1px 7px;white-space:nowrap">'+esc(x[0])+'</span>';
+}
+function renderNewHireTraining(s){
+  if(!s || !(s.rows||[]).length) return "";
+  const rows=s.rows, total=s.total_tracked||0, ms=!!s.multi_store, sm=s.summary||{};
+  const by={};
+  rows.forEach(r=>{ const k=r.nsn; (by[k]=by[k]||{store:r.store,n:0,done:0,sum:0}); by[k].n++; if(r.all_complete)by[k].done++; by[k].sum+=Number(r.completed||0); });
+  const storeRows=Object.values(by).sort((a,b)=>a.store<b.store?-1:1);
+  let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">New-Hire Training</div>'+
+        '<div class="dp-store-name">Mandatory courses &middot; '+esc(s.tracked_note||(total+' tracked'))+'</div></div>'+
+        '<div class="dp-through">'+esc(s.data_through||"")+'<br><span>completions thru</span></div></div>';
+  h+='<div class="chips" style="margin:6px 0 10px">'+
+     '<div class="chip"><div class="n">'+fmtNum(sm.employees||0)+'</div><div class="l">Crew</div></div>'+
+     '<div class="chip"><div class="n">'+(s.hire_dates_loaded?fmtNum(sm.new_hires||0):'&middot;')+'</div><div class="l">New hires</div></div>'+
+     '<div class="chip over"><div class="n">'+(s.hire_dates_loaded?fmtNum(sm.overdue||0):'&middot;')+'</div><div class="l">Overdue</div></div>'+
+     '<div class="chip"><div class="n">'+fmtNum(sm.complete||0)+'</div><div class="l">All '+total+'</div></div>'+
+     '</div>';
+  if(!s.hire_dates_loaded){
+    h+='<div class="dp-note" style="margin-bottom:8px">Hire dates load on the next HR sync &mdash; the <b>new-hire filter and 14-day deadlines</b> (PBS) activate then. Until then this shows completion across all crew.</div>';
+  }
+  if(ms){
+    h+='<div class="sub2">By store</div><table class="mr-tbl"><thead><tr><th class="l">Store</th><th>Crew</th><th>Avg</th><th>All '+total+'</th></tr></thead><tbody>';
+    storeRows.forEach(st2=>{ h+='<tr><td class="l">'+esc(st2.store)+'</td><td>'+fmtNum(st2.n)+'</td><td>'+(st2.n?(st2.sum/st2.n).toFixed(1):'0')+'/'+total+'</td><td>'+fmtNum(st2.done)+'</td></tr>'; });
+    h+='</tbody></table>';
+  }
+  if(s.hire_dates_loaded){
+    const nh=rows.filter(r=>r.is_new_hire).sort((a,b)=>(a.days_remaining==null?1e9:a.days_remaining)-(b.days_remaining==null?1e9:b.days_remaining));
+    if(nh.length){
+      h+='<div class="sub2">New hires (hired &le; 30 days)</div>';
+      nh.forEach(r=>{
+        const dr=r.days_remaining;
+        const drTxt=dr==null?'':(dr<0?(Math.abs(dr)+'d overdue'):(dr+'d left'));
+        h+='<div style="padding:7px 0;border-top:1px solid var(--line)">'+
+           '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:4px">'+
+           '<span style="font-weight:600;font-size:13px">'+esc(r.name)+'</span>'+
+           '<span style="font-size:11px;color:var(--muted)">'+(ms?esc(r.store)+' &middot; ':'')+esc(r.job_title||'')+'</span></div>'+
+           '<div style="display:flex;align-items:center;gap:8px">'+nhtBar(r.completed,r.total)+
+           '<span style="font-size:11px;color:var(--ink2);min-width:34px;text-align:right">'+r.completed+'/'+r.total+'</span>'+
+           nhtBadge(r.status)+
+           (drTxt?'<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+esc(drTxt)+'</span>':'')+
+           '</div></div>';
+      });
+    } else {
+      h+='<div class="dp-note">No crew hired in the last 30 days.</div>';
+    }
+  }
+  h+='<div class="dp-note">Completion of <b>'+total+' of 20</b> mandatory new-hire courses (Petra&rsquo;s list); 6 are pending course-ID confirmation. Deadline = hire + <b>14 days</b> (US PBS RL-2b/RL-5b). Source: DataPass TrainingTrackingFull (GEID-level, no PII). &ldquo;Completed&rdquo; = recorded in the feed. Names hidden on guest links.</div>';
   return h+'</div>';
 }
 
@@ -3675,6 +3743,7 @@ function renderBoard(payload){
   h+='<div id="sec-more" class="sec"></div>';
   h+=sect(()=>renderVoiceTrend(data.voice_trend));
   h+=sect(()=>renderTurnover(data.turnover||[]));
+  h+=sect(()=>renderNewHireTraining(data.newHireTraining));
   h+=sect(()=>renderProductSales(data.sales_summary||[]));
   h+=sect(()=>renderVisits(data.visits||[], stores));
   h+=sect(()=>renderLabor(data.labor||[]));
