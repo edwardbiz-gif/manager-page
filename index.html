@@ -543,7 +543,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v85";
+const SHELL_VERSION = "v86";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1057,7 +1057,7 @@ function renderManagerRank(rows){
   rows.forEach(r=>{(by[r.time_slice]=by[r.time_slice]||[]).push(r);});
   const asOf=rows[0]&&rows[0].as_of?fmtDate(vdate(rows[0].as_of)):"";
   let h='<div class="card"><h3>Shift-Leader Scorecard</h3>'+
-    '<div class="summary">QSRSoft shift-leader summary &middot; ranked by OEPE w/o Parked &middot; trailing 30 days'+(asOf?' through '+esc(asOf):'')+' &middot; min 3 shifts</div>';
+    '<div class="summary">QSRSoft shift-leader summary &middot; ranked by OEPE w/o Parked &middot; trailing 30 days'+(asOf?' through '+esc(asOf):'')+' &middot; all leaders</div>';
   let any=false;
   DAYPART_ORDER.forEach(slice=>{
     const list=by[slice]; if(!list||!list.length) return; any=true;
