@@ -526,7 +526,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v80";
+const SHELL_VERSION = "v81";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1058,6 +1058,42 @@ function renderManagerRank(rows){
     h+='</tbody></table>';
   });
   if(!any) return "";
+  return h+'</div>';
+}
+
+// renderShiftLeaderMetrics (v81) - the legacy GM-view shift-leader scorecard,
+// DataPass-powered. data.shiftLeaderMetrics = {data_through, window, multi_store,
+// rows:[{nsn,store,geid,leader,daypart,daypart_ord,shifts,oepe_s,kvs_per_gc,
+// r2p_s,labor_pct,park_pct}]}. Grouped by daypart, ranked by OEPE (lower=better).
+function renderShiftLeaderMetrics(s){
+  if(!s || !(s.rows||[]).length) return "";
+  const ms=!!s.multi_store;
+  const by={}, ord={};
+  s.rows.forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
+  const dayparts=Object.keys(by).sort((a,b)=>(ord[a]||9)-(ord[b]||9));
+  let h='<div class="card dp-card"><div class="dp-hd"><div><div class="dp-k">Shift-Leader Scorecard</div>'+
+        '<div class="dp-store-name">DataPass &middot; ranked by OEPE</div></div>'+
+        '<div class="dp-through">'+esc(s.data_through||"")+'<br><span>'+esc(s.window||"")+'</span></div></div>';
+  dayparts.forEach(dp=>{
+    const list=by[dp].slice().sort((a,b)=>(a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s)));
+    h+='<div class="sub2">'+esc(dp)+'</div>'+
+       '<table class="mr-tbl"><thead><tr><th class="l">Leader</th>'+(ms?'<th class="l">Store</th>':'')+
+       '<th>Sh</th><th>OEPE</th><th>KVS/GC</th><th>R2P</th><th>Lab%</th><th>Park%</th></tr></thead><tbody>';
+    list.forEach((r,i)=>{
+      h+='<tr'+(i===0?' class="top"':'')+'><td class="l" title="'+esc(r.leader)+'">'+esc(r.leader)+'</td>'+
+         (ms?'<td class="l">'+esc(r.store)+'</td>':'')+
+         '<td>'+fmtNum(r.shifts)+'</td>'+
+         '<td>'+stSec(r.oepe_s)+'</td>'+
+         '<td>'+stSec(r.kvs_per_gc)+'</td>'+
+         '<td>'+stSec(r.r2p_s)+'</td>'+
+         '<td>'+fmtPct(r.labor_pct)+'</td>'+
+         '<td>'+fmtPct(r.park_pct)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  });
+  h+='<div class="dp-note">Each shift leader&rsquo;s dominant-daypart shifts over the last 30 days, DataPass-only. '+
+     'OEPE = order-end to present-end (win1+win2, all cars; parked shown as Park%). KVS/GC = kitchen sec per guest count. '+
+     'R2P = front-counter ready-to-present. Lab% = labor$ &divide; sales for the daypart. Names hidden on guest links.</div>';
   return h+'</div>';
 }
 
@@ -3327,22 +3363,22 @@ function renderServiceTimes(st, mgr){
   h+='<div class="dp-hd"><div><div class="dp-k">Service Times</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.dt_cars||0)+' cars</span></div></div>';
   h+='<div class="st-tiles">';
   h+=tile(hl.oepe_s,'OEPE (order to exit)',st.org_goal_oepe,'computed');
-  h+=tile(hl.kvs_per_item,'KVS / item',st.org_goal_kvs,'kitchen');
+  h+=tile(hl.kvs_per_gc,'KVS / GC',st.org_goal_kvs,'kitchen');
   h+=tile(hl.fc_r2p_s,'FC R2P / txn',null,(hl.fc_cars||0)+' fc txns');
   h+='<div class="st-tile"><div class="st-tile-v">'+(hl.park_pct==null?'&mdash;':(Math.round(hl.park_pct)+'%'))+'</div><div class="st-tile-l">Parked-car % (proxy)</div><div class="st-tile-na">avoidable-wait proxy</div></div>';
   h+='</div>';
-  h+='<div class="dp-note">OEPE = <b>order-end to present-end</b> (win1+win2, car-weighted; excludes line + order). KVS/item = kitchen production sec per sandwich (all screens). Window-2 serve = '+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). 4th tile = drive-thru parked-car % (closest avoidable-wait proxy; true Dasher wait isn&rsquo;t in DataPass). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
+  h+='<div class="dp-note">OEPE = <b>order-end to present-end</b> (win1+win2, car-weighted; excludes line + order). KVS/GC = kitchen production sec per guest count (all screens). Window-2 serve ='+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). 4th tile = drive-thru parked-car % (closest avoidable-wait proxy; true Dasher wait isn&rsquo;t in DataPass). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
   h+=switcher;
   h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+((d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'')+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_oepe_s)+'</button>').join('')+'</div>';
-  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>OEPE</th><th>Win2</th><th>KVS/item</th><th>FC R2P</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
+  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>OEPE</th><th>Win2</th><th>KVS/GC</th><th>FC R2P</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
   st.dayparts.forEach(d=>{
     const oc=(d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'';
     const wc=stGoalClass(d.avg_window2_s,d.target_seconds);
-    const kc=(d.kvs_per_item!=null&&st.org_goal_kvs!=null)?(d.kvs_per_item<=st.org_goal_kvs?'ok':'over'):'';
+    const kc=(d.kvs_per_gc!=null&&st.org_goal_kvs!=null)?(d.kvs_per_gc<=st.org_goal_kvs?'ok':'over'):'';
     h+='<tr><td class="dp-rl">'+esc(String(d.daypart).split('(')[0])+'</td>'+
        '<td class="dp-c '+oc+'"><b>'+stSec(d.avg_oepe_s)+'</b></td>'+
        '<td class="dp-c '+wc+'">'+stSec(d.avg_window2_s)+'</td>'+
-       '<td class="dp-c '+kc+'">'+stSec(d.kvs_per_item)+'</td>'+
+       '<td class="dp-c '+kc+'">'+stSec(d.kvs_per_gc)+'</td>'+
        '<td class="dp-c">'+stSec(d.avg_fc_r2p_s)+'</td>'+
        '<td>'+(d.dt_cars||0)+'</td>'+
        '<td class="dp-rl">'+esc(d.leader_name||'&mdash;')+'</td></tr>';
@@ -3609,6 +3645,7 @@ function renderBoard(payload){
   h+=sect(()=>renderSpeedVsLabor(data.speed_vs_labor));
   h+=sect(()=>renderWasteCompliance(data.waste_compliance));
   h+=sect(()=>renderShiftLeaders(data.shiftLeaders));
+  h+=sect(()=>renderShiftLeaderMetrics(data.shiftLeaderMetrics));
 
   // ===== 3) CLEANLINESS RACE — gamified leaderboard, all roles =====
   h+='<div id="sec-race" class="sec"></div>';
@@ -3632,7 +3669,9 @@ function renderBoard(payload){
   h+=sect(()=>renderLabor(data.labor||[]));
   h+=sect(()=>renderBonus(data.bonus_results||[]));
   h+=sect(()=>renderBonusAdjustments(data.bonus_adjustments||[], mgr));
-  h+=sect(()=>renderManagerRank(data.manager_rank||[]));
+  // renderManagerRank (QSRSoft shift_manager_summary) superseded by the DataPass
+  // Shift-Leader Scorecard (renderShiftLeaderMetrics) per Eddie 2026-06-21 — kept
+  // for reversibility: h+=sect(()=>renderManagerRank(data.manager_rank||[]));
   // Owner-only manual-reports health + promos/key-dates (moved below the fold).
   h+=sect(()=>renderManualReports(data.manual_reports));
   h+=sect(()=>renderKeyDates(data.key_dates||[]));
