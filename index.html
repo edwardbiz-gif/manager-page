@@ -361,7 +361,11 @@ body{padding-bottom:74px}
 /* Business Advisor briefing */
 .advisor{background:linear-gradient(180deg,var(--card),var(--paper));border:1px solid var(--line);
  border-left:3px solid var(--accent);border-radius:13px;padding:13px 14px;margin-top:13px}
-.advisor-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+.advisor-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.advisor-refresh{font:inherit;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);
+ background:transparent;border:1px solid var(--accent);border-radius:999px;padding:3px 9px;cursor:pointer;line-height:1;white-space:nowrap}
+.advisor-refresh:active{transform:translateY(1px)}
+.advisor-refresh:disabled,.advisor-refresh.busy{opacity:.6;cursor:default}
 .advisor-head{font-size:15.5px;font-weight:800;line-height:1.3;margin:5px 0 2px}
 .advisor-ints{margin:8px 0 2px}
 .aint{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:3px 0}
@@ -522,7 +526,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v79";
+const SHELL_VERSION = "v80";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -2871,7 +2875,8 @@ function renderAdvisorBriefing(ab){
   if(!ab || (!ab.headline && !ab.body_md)) return "";
   const sevColor={high:'var(--urgent)',medium:'var(--high)',low:'var(--muted)'};
   const ints=Array.isArray(ab.interrupts)?ab.interrupts:[];
-  let h='<div class="advisor" id="advisor"><div class="advisor-tag">&#9889; Business Advisor</div>';
+  let h='<div class="advisor" id="advisor"><div class="advisor-tag"><span>&#9889; Business Advisor</span>'+
+        '<button class="advisor-refresh" onclick="refreshAdvisor(this)" title="Regenerate the briefing with the latest data">&#8635; Update</button></div>';
   if(ab.headline) h+='<div class="advisor-head">'+esc(ab.headline)+'</div>';
   if(ints.length){
     h+='<div class="advisor-ints">';
@@ -3729,6 +3734,28 @@ async function callApi(body){
   });
   if(!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
+}
+
+// Owner: regenerate the Business Advisor briefing on demand. The Edge Fn pulls
+// the latest v_advisor_* numbers + a fresh Claude narrative, writes a new
+// advisor_briefings row, and returns the re-gathered board — so setBoard()
+// repaints the panel with the new brief. Takes several seconds (a model call).
+async function refreshAdvisor(btn){
+  if(!btn || btn.dataset.busy) return;
+  btn.dataset.busy="1"; btn.classList.add("busy"); btn.disabled=true;
+  const prev=btn.innerHTML; btn.innerHTML="&#8635; Updating…";
+  try{
+    const res=await callApi({action:"advisor_refresh"});
+    if(res && res.result && res.result.ok===false){
+      alert(res.result.msg||"Update failed.");
+      btn.innerHTML=prev; btn.classList.remove("busy"); btn.disabled=false; delete btn.dataset.busy;
+      return;
+    }
+    setBoard(res); // full repaint with the fresh briefing; button is recreated
+  }catch(e){
+    alert("Update failed: "+(e&&e.message));
+    btn.innerHTML=prev; btn.classList.remove("busy"); btn.disabled=false; delete btn.dataset.busy;
+  }
 }
 
 async function saveEdit(ev, btn){
