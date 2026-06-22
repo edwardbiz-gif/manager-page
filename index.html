@@ -504,6 +504,23 @@ body{padding-bottom:74px}
 .st-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
 @media(min-width:560px){.st-tiles{grid-template-columns:repeat(4,1fr)}}
 .st-tile{border-radius:12px;padding:10px;background:rgba(127,127,127,.06)}
+.st-heat{width:100%;border-collapse:separate;border-spacing:3px;font-size:11.5px;table-layout:fixed}
+.st-heat th{font-weight:700;color:var(--ink2)}
+.sth-dp{cursor:pointer;padding:4px 0;border-radius:6px;font-size:11px}
+.sth-l{text-align:left;color:var(--ink2);font-size:11px;width:46px}
+.sth-l.hero{font-weight:800;color:var(--fg)}
+.sth{text-align:center;border-radius:6px;padding:5px 2px;cursor:pointer}
+.sth.hero{padding:7px 2px}
+.sth-v{font-weight:700}
+.sth.hero .sth-v{font-size:14px}
+.sth-d{font-size:9px;opacity:.7}
+.sth.h-g{background:rgba(26,143,76,.18);color:var(--ok)}
+.sth.h-n{background:rgba(127,127,127,.07);color:var(--ink2)}
+.sth.h-w{background:rgba(224,161,6,.20);color:var(--high)}
+.sth.h-d{background:rgba(200,50,31,.20);color:var(--urgent)}
+.sth-sel,.sth-dp.sth-sel{outline:2px solid var(--accent);outline-offset:-1px}
+.dp-sw.h-g{background:#1a8f4c}.dp-sw.h-w{background:#e0a106}.dp-sw.h-d{background:#c8321f}
+.sth-drillhd{font-size:11px;font-weight:700;color:var(--ink2);margin:10px 0 4px}
 .st-tile.over{background:rgba(200,50,31,.12)}.st-tile.ok{background:rgba(26,143,76,.12)}.st-tile.na{opacity:.5}
 .st-tile-v{font-size:23px;font-weight:800;line-height:1}.st-tile-l{font-size:11px;color:var(--ink2);margin-top:3px}
 .st-tile-g{font-size:10px;color:var(--muted);margin-top:2px}.st-tile-na{font-size:10px;color:var(--muted);font-style:italic;margin-top:2px}
@@ -526,7 +543,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v84";
+const SHELL_VERSION = "v85";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3350,63 +3367,48 @@ function renderDatapassSales(d){
 
 function stSec(v){ return v==null?'&middot;':(Math.round(Number(v))+'s'); }
 function stGoalClass(v,g){ if(g==null||v==null) return ''; return Number(v)<=Number(g)?'ok':'over'; }
+function stHeat(s,o){ if(s==null||o==null||Number(o)===0) return 'h-n'; var d=(Number(s)-Number(o))/Number(o); if(d<=-0.08) return 'h-g'; if(d<=0.08) return 'h-n'; if(d<=0.25) return 'h-w'; return 'h-d'; }
 function renderServiceTimes(st, mgr){
   if(!st || !(st.dayparts||[]).length) return "";
   const sel=(st.tiles||[]).find(t=>t.nsn===st.selected_nsn) || (st.tiles||[])[0] || {};
-  const hl=st.headline||{};
-  const tile=function(v,label,goal,sub,na){
-    const cls = na?'na':((goal!=null&&v!=null)?(Number(v)<=Number(goal)?'ok':'over'):'');
-    const foot = na ? ('<div class="st-tile-na">'+esc(sub||'')+'</div>')
-                    : (goal!=null ? ('<div class="st-tile-g">goal '+Math.round(goal)+'s</div>')
-                                  : (sub?('<div class="st-tile-g">'+esc(sub)+'</div>'):''));
-    return '<div class="st-tile '+cls+'"><div class="st-tile-v">'+(na?'&mdash;':stSec(v))+'</div><div class="st-tile-l">'+esc(label)+'</div>'+foot+'</div>';
-  };
+  const dps=st.dayparts;
   let switcher='';
   if((st.tiles||[]).length>1){
-    switcher='<div class="dp-stores">'+st.tiles.map(t=>'<button class="dp-store'+(t.nsn===st.selected_nsn?' on':'')+'" onclick="stPickStore('+t.nsn+')">'+esc(t.name)+' '+stSec(t.avg_oepe_s)+'</button>').join('')+'</div>';
+    switcher='<div class="dp-stores">'+st.tiles.map(t=>'<button class="dp-store'+(t.nsn===st.selected_nsn?' on':'')+'" onclick="stPickStore('+t.nsn+')">'+esc(t.name)+'</button>').join('')+'</div>';
   }
+  const rows=[{k:'oepe_s',o:'org_oepe_s',l:'OEPE',hero:true},{k:'line_s',o:'org_line_s',l:'Line'},{k:'order_s',o:'org_order_s',l:'Order'},{k:'win1_s',o:'org_win1_s',l:'Win 1'},{k:'win2_s',o:'org_win2_s',l:'Win 2'},{k:'park_pct',o:'org_park_pct',l:'Park %',pct:true}];
   let h='<div class="card dp-card">';
-  h+='<div class="dp-hd"><div><div class="dp-k">Service Times</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">'+esc(sel.business_date||"")+'<br><span>'+(sel.dt_cars||0)+' cars</span></div></div>';
-  h+='<div class="st-tiles">';
-  h+=tile(hl.oepe_s,'OEPE (order to exit)',st.org_goal_oepe,'computed');
-  h+=tile(hl.kvs_per_gc,'KVS / GC',st.org_goal_kvs,'kitchen');
-  h+=tile(hl.fc_r2p_s,'FC R2P / txn',null,(hl.fc_cars||0)+' fc txns');
-  h+='<div class="st-tile"><div class="st-tile-v">'+(hl.park_pct==null?'&mdash;':(Math.round(hl.park_pct)+'%'))+'</div><div class="st-tile-l">Parked-car % (proxy)</div><div class="st-tile-na">avoidable-wait proxy</div></div>';
-  h+='</div>';
-  h+='<div class="dp-note">OEPE = <b>order-end to present-end</b> (win1+win2, car-weighted; excludes line + order). KVS/GC = kitchen production sec per guest count (all screens). Window-2 serve ='+stSec(hl.window2_s)+'. Goals = org avg minus a few sec (temporary, until Q3 bonus). 4th tile = drive-thru parked-car % (closest avoidable-wait proxy; true Dasher wait isn&rsquo;t in DataPass). Leader names from the OEPE report'+(st.leaders_as_of?(' as of '+esc(st.leaders_as_of)+' (lags this feed)'):'')+'.</div>';
+  h+='<div class="dp-hd"><div><div class="dp-k">Drive-Thru Service</div><div class="dp-store-name">'+esc(sel.name||"")+'</div></div><div class="dp-through">vs org &middot; by daypart<br><span>thru '+esc(st.data_through||"")+'</span></div></div>';
   h+=switcher;
-  h+='<div class="dp-chips">'+st.dayparts.map(d=>'<button class="dp-chip '+((d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'')+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0])+' '+stSec(d.avg_oepe_s)+'</button>').join('')+'</div>';
-  h+='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">Daypart</th><th>OEPE</th><th>Win2</th><th>KVS/GC</th><th>FC R2P</th><th>Cars</th><th class="dp-rl">Leader</th></tr></thead><tbody>';
-  st.dayparts.forEach(d=>{
-    const oc=(d.avg_oepe_s!=null&&st.org_goal_oepe!=null)?(d.avg_oepe_s<=st.org_goal_oepe?'ok':'over'):'';
-    const wc=stGoalClass(d.avg_window2_s,d.target_seconds);
-    const kc=(d.kvs_per_gc!=null&&st.org_goal_kvs!=null)?(d.kvs_per_gc<=st.org_goal_kvs?'ok':'over'):'';
-    h+='<tr><td class="dp-rl">'+esc(String(d.daypart).split('(')[0])+'</td>'+
-       '<td class="dp-c '+oc+'"><b>'+stSec(d.avg_oepe_s)+'</b></td>'+
-       '<td class="dp-c '+wc+'">'+stSec(d.avg_window2_s)+'</td>'+
-       '<td class="dp-c '+kc+'">'+stSec(d.kvs_per_gc)+'</td>'+
-       '<td class="dp-c">'+stSec(d.avg_fc_r2p_s)+'</td>'+
-       '<td>'+(d.dt_cars||0)+'</td>'+
-       '<td class="dp-rl">'+esc(d.leader_name||'&mdash;')+'</td></tr>';
+  h+='<div class="dp-note">OEPE = order-end to present (line+win1+win2). Each cell vs the 12-store org avg for that daypart. Tap a daypart for its 15-min breakdown.</div>';
+  h+='<div class="dp-scroll"><table class="st-heat"><thead><tr><th></th>';
+  dps.forEach(d=>{ h+='<th class="sth-dp" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)">'+esc(String(d.daypart).split('(')[0].slice(0,5))+'</th>'; });
+  h+='</tr></thead><tbody>';
+  rows.forEach(r=>{
+    h+='<tr><td class="sth-l'+(r.hero?' hero':'')+'">'+r.l+'</td>';
+    dps.forEach(d=>{ const s=d[r.k], o=d[r.o]; const cls=stHeat(s,o);
+      const val=(s==null?'&middot;':(r.pct?(Math.round(s)+'%'):(Math.round(s)+'s')));
+      const delta=(s!=null&&o!=null)?((Number(s)>=Number(o)?'+':'−')+Math.abs(Math.round(Number(s)-Number(o)))):'';
+      h+='<td class="sth '+cls+(r.hero?' hero':'')+'" data-stdp="'+esc(d.daypart)+'" onclick="stPickDaypart(this)"><div class="sth-v">'+val+'</div><div class="sth-d">'+delta+'</div></td>'; });
+    h+='</tr>';
   });
   h+='</tbody></table></div>';
+  h+='<div class="dp-legend"><span class="dp-sw h-g"></span>faster<span class="dp-sw h-w"></span>slower<span class="dp-sw h-d"></span>much slower &middot; vs org</div>';
   h+='<div id="stSeg"></div>';
-  h+='<div class="dp-legend"><span class="dp-sw ok"></span>at/under goal<span class="dp-sw over"></span>over goal &middot; tap a daypart for the 15-min detail</div>';
-  if(mgr && (mgr.role==='Owner'||mgr.role==='Supervisor')) h+='<div style="margin-top:8px"><button class="lb-btn" onclick="stSetGoal('+(sel.store_id||0)+')">Set win-2 goal</button> <span id="stGoalForm"></span></div>';
   h+='</div>';
-  setTimeout(function(){ let best=null,bc=-1; (st.dayparts||[]).forEach(d=>{ if((d.dt_cars||0)>bc){bc=d.dt_cars||0; best=d.daypart;} }); const chips=[].slice.call(document.querySelectorAll('.dp-chip[data-stdp]')); const btn=chips.filter(c=>c.dataset.stdp===best)[0]; if(btn) stPickDaypart(btn); },0);
+  setTimeout(function(){ let best=null,bc=-1; dps.forEach(d=>{ if((d.dt_cars||0)>bc){bc=d.dt_cars||0; best=d.daypart;} }); const els=[].slice.call(document.querySelectorAll('.sth-dp[data-stdp]')); const el=els.filter(c=>c.dataset.stdp===best)[0]; if(el) stPickDaypart(el); },0);
   return h;
 }
 const ST_BANDS={'Breakfast':[4,11],'Lunch':[11,14],'Snack':[14,16],'Dinner':[16,21],'Evening':[21,24],'Late Night':[24,28]};
-function stPickDaypart(btn){
-  const dp=btn.dataset.stdp;
-  document.querySelectorAll('.dp-chip[data-stdp]').forEach(c=>c.classList.toggle('on', c===btn));
+function stPickDaypart(el){
+  const dp=el.dataset.stdp;
+  document.querySelectorAll('[data-stdp]').forEach(c=>c.classList.toggle('sth-sel', c.dataset.stdp===dp));
   const st=(STATE&&STATE.data&&STATE.data.service_times)||null; const m=document.getElementById('stSeg'); if(!st||!m) return;
   const key=String(dp).split('(')[0]; const band=ST_BANDS[key]||[0,28];
   const segs=(st.segments||[]).filter(s=>{ const hh=parseInt(String(s.seg_end).slice(0,2),10); return hh>=band[0]&&hh<band[1]; });
   if(!segs.length){ m.innerHTML='<div class="dp-empty">No drive-thru detail for '+esc(key)+' on this day.</div>'; return; }
-  let html='<div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">15-min</th><th>W2</th><th>W1</th><th>Order</th><th>Line</th><th>Cars</th><th>Park</th></tr></thead><tbody>';
-  segs.forEach(s=>{ html+='<tr><td class="dp-rl">'+esc(dpHM(s.seg_end))+'</td><td class="dp-c"><b>'+stSec(s.window2_s)+'</b></td><td>'+stSec(s.window1_s)+'</td><td>'+stSec(s.order_s)+'</td><td>'+stSec(s.line_s)+'</td><td>'+(s.dt_cars||0)+'</td><td>'+(s.park_cars||0)+'</td></tr>'; });
+  let html='<div class="sth-drillhd">'+esc(key)+' &middot; 15-min components</div><div class="dp-scroll"><table class="dp-tbl"><thead><tr><th class="dp-rl">15-min</th><th>Line</th><th>Order</th><th>Win1</th><th>Win2</th><th>Cars</th><th>Park</th></tr></thead><tbody>';
+  segs.forEach(s=>{ html+='<tr><td class="dp-rl">'+esc(dpHM(s.seg_end))+'</td><td class="dp-c"><b>'+stSec(s.line_s)+'</b></td><td>'+stSec(s.order_s)+'</td><td>'+stSec(s.window1_s)+'</td><td>'+stSec(s.window2_s)+'</td><td>'+(s.dt_cars||0)+'</td><td>'+(s.park_cars||0)+'</td></tr>'; });
   html+='</tbody></table></div>'; m.innerHTML=html;
 }
 async function stPickStore(nsn){ try{ const r=await fetch(ENDPOINT+'?t='+encodeURIComponent(TOKEN)+'&dp_store='+encodeURIComponent(nsn)); setBoard(await r.json()); }catch(e){ alert('Could not load that store'); } }
