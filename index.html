@@ -526,7 +526,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v81";
+const SHELL_VERSION = "v82";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3152,7 +3152,13 @@ const DP_DAYPARTS=[["Breakfast",4,11],["Lunch",11,14],["Snack",14,16],["Dinner",
 const DP_STATIONS=["Grill","DriveThru","FrontCounter","Fries","Floor","McCafe"];
 const DP_STATION_LABEL={Grill:"Grill",DriveThru:"Drive-Thru",FrontCounter:"Front Cntr",Fries:"Fries",Floor:"Floor",McCafe:"McCafe"};
 function dpHour(b){return parseInt(String(b).slice(11,13),10);}
-function dpHM(b){return String(b).slice(11,16);}
+function dpHM(b){ // HH:MM from a full timestamp ("...T04:30:00") OR a time-only string ("04:30:00")
+  if(b==null) return '';
+  var s=String(b);
+  if(s.length>=16 && (s.charAt(10)==='T'||s.charAt(10)===' ')) return s.slice(11,16);
+  var m=s.match(/(\d{1,2}):(\d{2})/);
+  return m ? (('0'+m[1]).slice(-2)+':'+m[2]) : s.slice(11,16);
+}
 function dpDaypartOf(b){const h=dpHour(b);for(const a of DP_DAYPARTS){const s=a[1],e=a[2];if(s<e?(h>=s&&h<e):(h>=s||h<e))return a[0];}return "Late";}
 function dpGapClass(g){return g===0?"ok":(g>0?"over":"under");}
 function dpGapTxt(g){return g===0?"0":(g>0?"+"+g:"−"+Math.abs(g));}
