@@ -1,8 +1,10 @@
 <!doctype html>
-<!-- kitchen.html v4 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v5 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v5 (2026-06-24): race already runs on the current month; trend card now shows the data-through month
+     + a 2026 YTD average. Page reloads every 10 min + re-queries each load (daily-fresh).
      Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -48,7 +50,7 @@ function buildCards(d){
   const big = d.rank===1
     ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' leads '+esc(d.monthName)+' on food quality. Hold the lead!</div>'
     : '<div class="huge">'+(d.rank?ord(d.rank):"—")+'<span class="of"> of '+d.total+'</span></div><div class="sub">'+(d.gap!=null?d.gap+' points from #1 — let\'s climb.':"Let's climb the board.")+'</div>';
-  cards.push({a:"red",h:'<div class="kicker">'+esc(d.monthName)+' Kitchen Quality Race</div><div class="title">'+esc(d.loc)+'</div>'+big+(d.score!=null?'<div class="score">Quality score: <b>'+esc(d.score)+'</b></div>':"")});
+  cards.push({a:"red",h:'<div class="kicker">'+esc(d.monthName)+' Kitchen Quality Race · month-to-date</div><div class="title">'+esc(d.loc)+'</div>'+big+(d.score!=null?'<div class="score">Quality score: <b>'+esc(d.score)+'</b>'+(d.qualityYtd!=null?' &nbsp;·&nbsp; 2026 YTD <b>'+esc(d.qualityYtd)+'</b>':"")+'</div>':"")});
   // 2) BOARD
   cards.push({a:"yellow",h:'<div class="kicker">The Board · '+esc(d.monthName)+'</div><div class="title2">Food quality — all '+d.total+'</div><div class="board">'+
     d.standings.map((r,i)=>'<div class="row '+(r.store_number===d.store?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.score)+'</span></div>').join("")+'</div>'});
@@ -64,7 +66,7 @@ function buildCards(d){
   });
   // 4) TREND
   if(d.trend&&d.trend.length>=2){ const mx=Math.max.apply(null,d.trend.map(t=>t.v).concat([1]));
-    cards.push({a:"yellow",h:'<div class="kicker">Our quality trend</div><div class="title2">Overall quality</div><div class="bars">'+
+    cards.push({a:"yellow",h:'<div class="kicker">Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · 2026 YTD '+esc(d.qualityYtd):"")+'</div><div class="title2">Overall quality</div><div class="bars">'+
       d.trend.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+t.v+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'}); }
   // 5..N) EDITABLE CARDS
   (d.cards||[]).forEach(c=>cards.push({a:(c.section==="contest"?"yellow":"red"),h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
@@ -73,7 +75,7 @@ function buildCards(d){
 function render(d){
   const cards=buildCards(d), stage=document.getElementById("stage");
   stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
-  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+(d.seeded?" (standings seeded from May VOICE — update with June MTD)":"");
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+" month-to-date"+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · 2026 YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from May VOICE — update with June MTD)":"");
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
   setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
 }
