@@ -1,13 +1,16 @@
 <!doctype html>
-<!-- service.html v2 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v3 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store; default below is also 3444)
      Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
      full-screen cards. Crew-facing: store-level only, no names/pay. Every number states its data-through date.
-     v2 (2026-06-24): drive-thru speed now leads with a JUNE MTD live card + a 2026 YTD card; the monthly
-     cross-store race / by-peak / R2P-KVS-parked cards are labelled with their last-complete month; delivery
-     + voice labelled with their month + YTD. Page reloads every 10 min and reloads data each load (daily-fresh).
-     Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
+     v3 (2026-06-24): (1) the lead drive-thru card is framed as JUNE — MONTH TO DATE (the MTD number leads,
+     coverage in fine print). (2) the cross-store race is reframed from DT-speed into a GUEST-EXPERIENCE
+     race: stores ranked on an equal-weight blend of VOICE OSAT + Accuracy + Friendliness (higher = better),
+     latest month with all three (Friendliness lags ~a month). The Board ranks the same blend.
+     v2 (2026-06-24): drive-thru speed leads with a JUNE MTD live card + a 2026 YTD card; by-peak /
+     R2P-KVS-parked cards labelled with their last-complete month; delivery + voice labelled with month + YTD.
+     Page reloads every 10 min and reloads data each load (daily-fresh). Deploy: push-pages.ps1 -> GH Pages. -->
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Service Area</title>
@@ -28,6 +31,7 @@
   .huge .of{font-size:6vh;color:#fff;font-weight:700}
   .sub{font-size:4.2vh;font-weight:700;max-width:82vw}
   .score{font-size:3.2vh;color:#cdd}
+  .fine{font-size:2.3vh;color:#8aa;font-weight:600;margin-top:.6vh}
   .board{width:74vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:2.9vh}
   .row{display:flex;align-items:center;gap:1.5vw;background:#13243f;padding:1vh 2vw;border-radius:1vh}
   .row.me{background:#1f6fd6;font-weight:900}
@@ -78,13 +82,15 @@ function buildCards(d){
   const lm = d.liveMtd||null;           // current-month (June MTD) live drive-thru
   const ytd = d.ytd||null;              // 2026 calendar YTD
 
-  // 1) JUNE MTD LIVE — current-month drive-thru speed (the freshest source), leads the rotation
+  // 1) JUNE MTD LIVE — current-month drive-thru speed (the freshest source), leads the rotation.
+  // Framed prominently as MONTH-TO-DATE; the actual coverage (days / through-date) is fine print below.
   if(lm){
-    cards.push({a:"gold",h:'<div class="kicker">'+esc(lm.month)+' so far · live drive-thru · OEPE w/ parked</div>'+
+    cards.push({a:"gold",h:'<div class="kicker">'+esc(lm.month)+' — Month to Date · live drive-thru · OEPE w/ parked</div>'+
       '<div class="title">'+esc(d.loc)+'</div>'+
-      '<div class="huge '+(oepeTone(lm.oepe_s,g)==="bad"?"":"")+'" style="color:'+(oepeTone(lm.oepe_s,g)==="good"?"#46e07a":oepeTone(lm.oepe_s,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(lm.oepe_s)+'<span class="of">s OEPE</span></div>'+
-      '<div class="sub">'+esc(lm.month)+' month-to-date · '+fmt(lm.days)+' days · '+fmt(lm.cars)+' cars · faster is better</div>'+
-      '<div class="score">FC R2P '+fmt(lm.fc_r2p_s)+'s &nbsp;·&nbsp; Parked '+fmt(lm.park_pct,1)+'% &nbsp;·&nbsp; through '+esc(lm.through||"")+'</div>'});
+      '<div class="huge" style="color:'+(oepeTone(lm.oepe_s,g)==="good"?"#46e07a":oepeTone(lm.oepe_s,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(lm.oepe_s)+'<span class="of">s OEPE</span></div>'+
+      '<div class="sub">'+esc(lm.month)+' month-to-date drive-thru speed · faster is better</div>'+
+      '<div class="score">FC R2P '+fmt(lm.fc_r2p_s)+'s &nbsp;·&nbsp; Parked '+fmt(lm.park_pct,1)+'%</div>'+
+      '<div class="fine">data through '+esc(lm.through||"")+' · '+fmt(lm.days)+' day'+(lm.days===1?"":"s")+' available · '+fmt(lm.cars)+' cars</div>'});
   }
 
   // 1b) 2026 YTD — the year so far (Jan–prior month monthly + this month MTD live)
@@ -99,18 +105,23 @@ function buildCards(d){
       '</div>'});
   }
 
-  // 2) DT SPEED RACE — OEPE w/o parked vs all 12 (lower = faster). Cross-store, last-complete month only.
-  const big = d.race.rank===1
-    ? '<div class="huge">🏁 #1!</div><div class="sub">'+esc(d.loc)+' was the fastest drive-thru in '+esc(through)+'. Hold the lead!</div>'
-    : '<div class="huge">'+(d.race.rank?ord(d.race.rank):"—")+'<span class="of"> of '+d.race.total+'</span></div><div class="sub">'+
-      (d.race.gap!=null?d.race.gap+' sec slower than #1 — let\'s shave seconds.':"Let's climb the board.")+'</div>';
-  cards.push({a:"blue",h:'<div class="kicker">DT Speed Race · '+esc(through)+' (last full month) · OEPE w/o parked</div><div class="title">'+esc(d.loc)+'</div>'+big+
-    (d.race.oepe!=null?'<div class="score">Our 3-peak OEPE: <b>'+fmt(d.race.oepe)+'s</b> &nbsp;·&nbsp; '+esc(through)+' &nbsp;·&nbsp; faster is better</div>':"")});
+  // 2) GUEST-EXPERIENCE RACE — cross-store blend of VOICE OSAT + Accuracy + Friendliness (HIGHER = better).
+  // Replaces the old DT-speed race. Latest month where all three metrics are present; data-through stated.
+  const gx = d.gxRace||{standings:[]};
+  if(gx.rank!=null){
+    const gbig = gx.rank===1
+      ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' is the best guest experience of '+gx.total+'. Hold the lead!</div>'
+      : '<div class="huge">'+ord(gx.rank)+'<span class="of"> of '+gx.total+'</span></div><div class="sub">'+
+        (gx.gap!=null?fmt(gx.gap,1)+' points behind #1 — let\'s close the gap.':"Let's climb the board.")+'</div>';
+    cards.push({a:"blue",h:'<div class="kicker">Guest Experience Race · '+esc(gx.month)+' · OSAT + Accuracy + Friendliness</div><div class="title">'+esc(d.loc)+'</div>'+gbig+
+      (gx.blend!=null?'<div class="score">Our score: <b>'+fmt(gx.blend,1)+'</b> &nbsp;·&nbsp; OSAT '+fmt(gx.sat,1)+'% · Accuracy '+fmt(gx.accuracy,1)+'% · Friendly '+fmt(gx.friendliness,1)+'% · higher is better</div>':"")+
+      '<div class="fine">equal-weight blend · data through '+esc(gx.month)+'</div>'});
 
-  // 3) THE BOARD — all 12, fastest first (last-complete month)
-  cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(through)+' (last full month) · seconds (lower = faster)</div>'+
-    '<div class="title2">Drive-thru speed — all '+d.race.total+'</div><div class="board">'+
-    d.race.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.oepe)+'<span class="un">s</span></span></div>').join("")+'</div>'});
+    // 3) THE BOARD — all 12 ranked by guest-experience blend, best first
+    cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(gx.month)+' · guest-experience score (higher = better)</div>'+
+      '<div class="title2">Guest experience — all '+gx.total+'</div><div class="board">'+
+      gx.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.blend,1)+'</span></div>').join("")+'</div>'});
+  }
 
   // 4) OEPE BY PEAK (monthly, last-complete month)
   if(d.byPeak&&d.byPeak.length){
@@ -183,7 +194,7 @@ function buildCards(d){
 function render(d){
   const cards=buildCards(d), stage=document.getElementById("stage");
   stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
-  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · Service Area"+(d.liveMtd?" · "+esc(d.liveMtd.month)+" MTD through "+esc(d.liveMtd.through||""):"")+(d.live&&d.live.date?" · live drive-thru through "+esc(d.live.date):"")+" · cross-store board "+esc(d.monthName);
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · Service Area"+(d.liveMtd?" · "+esc(d.liveMtd.month)+" MTD through "+esc(d.liveMtd.through||""):"")+(d.live&&d.live.date?" · live drive-thru through "+esc(d.live.date):"")+(d.gxRace&&d.gxRace.month?" · guest-experience board "+esc(d.gxRace.month):"");
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
   setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
 }
