@@ -1,9 +1,14 @@
 <!doctype html>
-<!-- service.html v3 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v4 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store; default below is also 3444)
      Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
      full-screen cards. Crew-facing: store-level only, no names/pay. Every number states its data-through date.
+     v4 (2026-06-24): (1) BENCHMARK EVERY STAT VS ORG — every metric card shows the all-12-store org average,
+     this store's rank ("Nth of 12", direction-aware), and a +/- delta vs org (the benchLine/benchPill
+     helpers read each metric's `bench` block from the payload). (2) FOUR DAILY PRODUCT RANKER cards —
+     Crafted Sodas, Refreshers, Fried Apple Pies, FIFA World Cup Meals — each a 12-store leaderboard shown
+     by BOTH raw units and per-1,000 guests, with this store highlighted; data-through stated.
      v3 (2026-06-24): (1) the lead drive-thru card is framed as JUNE — MONTH TO DATE (the MTD number leads,
      coverage in fine print). (2) the cross-store race is reframed from DT-speed into a GUEST-EXPERIENCE
      race: stores ranked on an equal-weight blend of VOICE OSAT + Accuracy + Friendliness (higher = better),
@@ -32,6 +37,25 @@
   .sub{font-size:4.2vh;font-weight:700;max-width:82vw}
   .score{font-size:3.2vh;color:#cdd}
   .fine{font-size:2.3vh;color:#8aa;font-weight:600;margin-top:.6vh}
+  /* org benchmark line shown under a headline metric: "Org avg X · 3rd of 12 · +Y vs org" */
+  .bench{font-size:2.5vh;color:#cfe3ff;font-weight:700;margin-top:.4vh;display:flex;gap:1.4vw;
+    align-items:center;justify-content:center;flex-wrap:wrap}
+  .bench .rk{background:#1f6fd6;color:#fff;border-radius:1vh;padding:.3vh 1.4vw;font-weight:900}
+  .bench .rk.top{background:#FFC72C;color:#0a1424}
+  .bench .dl{font-weight:900}.bench .dl.up{color:#46e07a}.bench .dl.dn{color:#ff7a6b}
+  /* small benchmark pill for tiles (org avg + rank) */
+  .tbench{font-size:2vh;color:#bcd;font-weight:700;margin-top:.4vh;line-height:1.25}
+  .tbench .rk{color:#FFC72C;font-weight:900}.tbench .rk.top{color:#46e07a}
+  .tbench .dl.up{color:#46e07a}.tbench .dl.dn{color:#ff7a6b}
+  /* product-ranker card: two side-by-side mini-boards (raw units | per 1k guests) */
+  .rank2{display:flex;gap:3vw;max-width:92vw;align-items:flex-start;justify-content:center}
+  .rankcol{flex:1;max-width:44vw;display:flex;flex-direction:column;gap:.55vh}
+  .rankcol .ch{font-size:2.6vh;font-weight:800;color:#9fd;margin-bottom:.5vh;text-align:center}
+  .rankcol .rr{display:flex;align-items:center;gap:1vw;background:#13243f;padding:.7vh 1.2vw;border-radius:.9vh;font-size:2.3vh}
+  .rankcol .rr.me{background:#1f6fd6;font-weight:900}
+  .rankcol .rr .rk{width:3vw;color:#FFC72C;font-weight:900}.rankcol .rr.me .rk{color:#fff}
+  .rankcol .rr .nm{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rankcol .rr .vl{font-weight:800}.rankcol .rr .un{font-size:1.7vh;color:#9bb;margin-left:.4vw}
   .board{width:74vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:2.9vh}
   .row{display:flex;align-items:center;gap:1.5vw;background:#13243f;padding:1vh 2vw;border-radius:1vh}
   .row.me{background:#1f6fd6;font-weight:900}
@@ -76,6 +100,37 @@ const oepeTone = (v,g) => v==null ? "" : (v<=g.oepe_o ? "good" : (v<=g.oepe_g ? 
 // R2P goal tone: lower seconds better. r2p_g (40) is best, r2p_p (60) is the floor.
 const r2pTone = (v,g) => v==null ? "" : (v<=g.r2p_g ? "good" : (v<=g.r2p_p ? "" : "bad"));
 
+// ── ORG BENCHMARK rendering ──────────────────────────────────────────────────────────────────
+// A benchmark block from the payload: { org_avg, rank, total, me, delta, lower_is_better }.
+// A delta is "good" (green ▲) when it moves the right way: for lower-is-better metrics a NEGATIVE delta
+// is good; otherwise a POSITIVE delta is good. We show the delta's beat/behind sign relative to org.
+function deltaParts(b,dec){
+  if(!b||b.delta==null) return null;
+  const good = b.lower_is_better ? b.delta<0 : b.delta>0;
+  const sign = b.delta>0 ? "+" : (b.delta<0 ? "−" : "±");          // − is a true minus glyph
+  return { txt: sign+fmt(Math.abs(b.delta),dec)+" vs org", cls: b.delta===0?"":(good?"up":"dn") };
+}
+// big benchmark line under a headline metric. `unit` appended to the org avg; `dec` rounding for display.
+function benchLine(b,unit,dec){
+  if(!b) return "";
+  unit=unit||""; dec=dec==null?1:dec;
+  const top = b.rank===1;
+  let h='<div class="bench"><span>Org avg '+fmt(b.org_avg,dec)+esc(unit)+'</span>';
+  if(b.rank!=null) h+='<span class="rk'+(top?" top":"")+'">'+(top?"🏆 #1 of "+b.total:ord(b.rank)+" of "+b.total)+'</span>';
+  const d=deltaParts(b,dec); if(d) h+='<span class="dl '+d.cls+'">'+esc(d.txt)+'</span>';
+  return h+'</div>';
+}
+// compact benchmark pill for inside a tile (org avg + rank + delta), wraps to 2 short lines.
+function benchPill(b,unit,dec){
+  if(!b) return "";
+  unit=unit||""; dec=dec==null?1:dec;
+  const top = b.rank===1;
+  let h='<div class="tbench">org '+fmt(b.org_avg,dec)+esc(unit);
+  if(b.rank!=null) h+=' · <span class="rk'+(top?" top":"")+'">'+ord(b.rank)+'/'+b.total+'</span>';
+  const d=deltaParts(b,dec); if(d) h+='<br><span class="dl '+d.cls+'">'+esc(d.txt)+'</span>';
+  return h+'</div>';
+}
+
 function buildCards(d){
   const cards=[], g=d.goals||{};
   const through = d.monthName;          // monthly cross-store numbers run through this (last-complete) month
@@ -85,12 +140,18 @@ function buildCards(d){
   // 1) JUNE MTD LIVE — current-month drive-thru speed (the freshest source), leads the rotation.
   // Framed prominently as MONTH-TO-DATE; the actual coverage (days / through-date) is fine print below.
   if(lm){
+    const lb=lm.bench||{};
     cards.push({a:"gold",h:'<div class="kicker">'+esc(lm.month)+' — Month to Date · live drive-thru · OEPE w/ parked</div>'+
       '<div class="title">'+esc(d.loc)+'</div>'+
       '<div class="huge" style="color:'+(oepeTone(lm.oepe_s,g)==="good"?"#46e07a":oepeTone(lm.oepe_s,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(lm.oepe_s)+'<span class="of">s OEPE</span></div>'+
       '<div class="sub">'+esc(lm.month)+' month-to-date drive-thru speed · faster is better</div>'+
+      benchLine(lb.oepe,"s",0)+
       '<div class="score">FC R2P '+fmt(lm.fc_r2p_s)+'s &nbsp;·&nbsp; Parked '+fmt(lm.park_pct,1)+'%</div>'+
-      '<div class="fine">data through '+esc(lm.through||"")+' · '+fmt(lm.days)+' day'+(lm.days===1?"":"s")+' available · '+fmt(lm.cars)+' cars</div>'});
+      ((lb.fc_r2p||lb.parked)?'<div class="bench" style="font-size:2.1vh">'+
+        (lb.fc_r2p?'<span>FC R2P org '+fmt(lb.fc_r2p.org_avg,1)+'s · '+ord(lb.fc_r2p.rank)+'/'+lb.fc_r2p.total+'</span>':"")+
+        (lb.parked?'<span>Parked org '+fmt(lb.parked.org_avg,1)+'% · '+ord(lb.parked.rank)+'/'+lb.parked.total+'</span>':"")+
+      '</div>':"")+
+      '<div class="fine">data through '+esc(lm.through||"")+' · '+fmt(lm.days)+' day'+(lm.days===1?"":"s")+' available · '+fmt(lm.cars)+' cars · org avg = all '+(lb.oepe?lb.oepe.total:12)+' stores, same window</div>'});
   }
 
   // 1b) 2026 YTD — the year so far (Jan–prior month monthly + this month MTD live)
@@ -98,7 +159,7 @@ function buildCards(d){
     cards.push({a:"teal",h:'<div class="kicker">'+esc(ytd.label)+' · drive-thru · through '+esc(ytd.through||"")+'</div>'+
       '<div class="title2">Our year so far</div>'+
       '<div class="tiles">'+
-      '<div class="tile"><div class="tlab">OEPE</div><div class="tval">'+fmt(ytd.oepe_s)+'<span class="u">s</span></div><div class="tgoal">w/ parked · faster is better</div></div>'+
+      '<div class="tile"><div class="tlab">OEPE</div><div class="tval">'+fmt(ytd.oepe_s)+'<span class="u">s</span></div><div class="tgoal">w/ parked · faster is better</div>'+benchPill((ytd.bench||{}).oepe,"s",0)+'</div>'+
       (ytd.r2p_s!=null?'<div class="tile"><div class="tlab">R2P</div><div class="tval">'+fmt(ytd.r2p_s)+'<span class="u">s</span></div><div class="tgoal">Jan–'+esc(through)+'</div></div>':"")+
       (ytd.kvs_s!=null?'<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(ytd.kvs_s)+'<span class="u">s</span></div><div class="tgoal">Jan–'+esc(through)+'</div></div>':"")+
       (ytd.park_pct!=null?'<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(ytd.park_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div></div>':"")+
@@ -127,16 +188,19 @@ function buildCards(d){
   if(d.byPeak&&d.byPeak.length){
     cards.push({a:"blue",h:'<div class="kicker">OEPE by peak · '+esc(through)+' (last full month) · goal '+g.oepe_o+'/'+g.oepe_e+'/'+g.oepe_g+'s</div>'+
       '<div class="title2">Drive-thru speed by peak</div><div class="peaks">'+
-      d.byPeak.map(p=>'<div class="peak"><div class="pn">'+esc(p.peak)+'</div><div class="pv" style="color:'+(oepeTone(p.oepe,g)==="good"?"#46e07a":oepeTone(p.oepe,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(p.oepe)+'</div><div class="pu">seconds</div></div>').join("")+'</div>'});
+      d.byPeak.map(p=>'<div class="peak"><div class="pn">'+esc(p.peak)+'</div><div class="pv" style="color:'+(oepeTone(p.oepe,g)==="good"?"#46e07a":oepeTone(p.oepe,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(p.oepe)+'</div><div class="pu">seconds</div>'+
+        (p.bench?'<div class="tbench" style="text-align:center">org '+fmt(p.bench.org_avg,0)+'s · <span class="rk'+(p.bench.rank===1?" top":"")+'">'+ord(p.bench.rank)+'/'+p.bench.total+'</span></div>':"")+
+      '</div>').join("")+'</div>'});
   }
 
   // 5) R2P + KVS + PARKED tiles (monthly 3-peak, last-complete month)
-  cards.push({a:"teal",h:'<div class="kicker">Service quality · '+esc(through)+' (last full month)</div><div class="title2">R2P · KVS · Parked</div>'+
+  {const mb=(d.mtd&&d.mtd.bench)||{};
+  cards.push({a:"teal",h:'<div class="kicker">Service quality · '+esc(through)+' (last full month) · org avg = all 12 stores</div><div class="title2">R2P · KVS · Parked</div>'+
     '<div class="tiles">'+
-    '<div class="tile '+r2pTone(d.mtd.r2p,g)+'"><div class="tlab">R2P</div><div class="tval">'+fmt(d.mtd.r2p)+'<span class="u">s</span></div><div class="tgoal">goal '+g.r2p_g+'/'+g.r2p_s+'/'+g.r2p_p+'s · lower is faster</div></div>'+
-    '<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(d.mtd.kvs)+'<span class="u">s</span></div><div class="tgoal">kitchen→serve</div></div>'+
-    '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(d.mtd.parked_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div></div>'+
-    '</div>'});
+    '<div class="tile '+r2pTone(d.mtd.r2p,g)+'"><div class="tlab">R2P</div><div class="tval">'+fmt(d.mtd.r2p)+'<span class="u">s</span></div><div class="tgoal">goal '+g.r2p_g+'/'+g.r2p_s+'/'+g.r2p_p+'s · lower is faster</div>'+benchPill(mb.r2p,"s",0)+'</div>'+
+    '<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(d.mtd.kvs)+'<span class="u">s</span></div><div class="tgoal">kitchen→serve</div>'+benchPill(mb.kvs,"s",0)+'</div>'+
+    '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(d.mtd.parked_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div>'+benchPill(mb.parked_pct,"%",1)+'</div>'+
+    '</div>'});}
 
   // 5) LIVE TODAY (DataPass daily feed)
   if(d.live&&d.live.day){
@@ -156,11 +220,12 @@ function buildCards(d){
 
   // 6) DELIVERY (monthly)
   if(d.delivery){
-    cards.push({a:"teal",h:'<div class="kicker">McDelivery · '+esc(d.delivery.month)+'</div><div class="title2">Delivery guests</div>'+
+    {const db=d.delivery.bench||{};
+    cards.push({a:"teal",h:'<div class="kicker">McDelivery · '+esc(d.delivery.month)+' · org avg = all 12 stores</div><div class="title2">Delivery guests</div>'+
       '<div class="tiles">'+
-      '<div class="tile"><div class="tlab">CSAT</div><div class="tval">'+fmt(d.delivery.csat,1)+'<span class="u">★</span></div><div class="tgoal">guest star rating</div></div>'+
-      '<div class="tile"><div class="tlab">Restaurant time</div><div class="tval">'+fmt(d.delivery.restaurant_time_min,1)+'<span class="u">min</span></div><div class="tgoal">our part of the trip · target ~2.9</div></div>'+
-      '</div>'});
+      '<div class="tile"><div class="tlab">CSAT</div><div class="tval">'+fmt(d.delivery.csat,1)+'<span class="u">★</span></div><div class="tgoal">guest star rating</div>'+benchPill(db.csat,"★",1)+'</div>'+
+      '<div class="tile"><div class="tlab">Restaurant time</div><div class="tval">'+fmt(d.delivery.restaurant_time_min,1)+'<span class="u">min</span></div><div class="tgoal">our part of the trip · target ~2.9</div>'+benchPill(db.restaurant_time,"m",1)+'</div>'+
+      '</div>'});}
   }
 
   // 7) GUEST VOICE — DT satisfaction + B2B
@@ -169,9 +234,9 @@ function buildCards(d){
     const vm = v.dt_osat.month ? new Date(v.dt_osat.month+"T00:00:00Z").toLocaleString("en-US",{month:"long",year:"numeric",timeZone:"UTC"}) : through;
     cards.push({a:"gold",h:'<div class="kicker">Guest voice · '+esc(vm)+(v.dt_osat.ytd!=null?' · 2026 YTD '+fmt(v.dt_osat.ytd,1)+'%':"")+'</div><div class="title2">Drive-thru satisfaction</div>'+
       '<div class="tiles">'+
-      '<div class="tile"><div class="tlab">DT Overall Sat</div><div class="tval">'+fmt(v.dt_osat.score,1)+'<span class="u">%</span></div><div class="tgoal">top-box'+(v.dt_osat.ytd!=null?' · YTD '+fmt(v.dt_osat.ytd,1)+'%':"")+'</div></div>'+
-      (v.dt_b2b&&v.dt_b2b.score!=null?'<div class="tile"><div class="tlab">DT Bottom-2-Box</div><div class="tval">'+fmt(v.dt_b2b.score,1)+'<span class="u">%</span></div><div class="tgoal">lower is better</div></div>':"")+
-      (v.fast&&v.fast.score!=null?'<div class="tile"><div class="tlab">"Fast"</div><div class="tval">'+fmt(v.fast.score,1)+'<span class="u">%</span></div><div class="tgoal">guests calling us fast</div></div>':"")+
+      '<div class="tile"><div class="tlab">DT Overall Sat</div><div class="tval">'+fmt(v.dt_osat.score,1)+'<span class="u">%</span></div><div class="tgoal">top-box'+(v.dt_osat.ytd!=null?' · YTD '+fmt(v.dt_osat.ytd,1)+'%':"")+'</div>'+benchPill(v.dt_osat.bench,"%",1)+'</div>'+
+      (v.dt_b2b&&v.dt_b2b.score!=null?'<div class="tile"><div class="tlab">DT Bottom-2-Box</div><div class="tval">'+fmt(v.dt_b2b.score,1)+'<span class="u">%</span></div><div class="tgoal">lower is better</div>'+benchPill(v.dt_b2b.bench,"%",1)+'</div>':"")+
+      (v.fast&&v.fast.score!=null?'<div class="tile"><div class="tlab">"Fast"</div><div class="tval">'+fmt(v.fast.score,1)+'<span class="u">%</span></div><div class="tgoal">guests calling us fast</div>'+benchPill(v.fast.bench,"%",1)+'</div>':"")+
       '</div>'});
   }
   // 7b) DT OSAT trend
@@ -186,6 +251,30 @@ function buildCards(d){
     cards.push({a:"gold",h:'<div class="kicker">Guest shout-outs · service & speed</div><div class="title2">Crew wins</div>'+
       '<div class="quotes">'+d.praise.slice(0,3).map(p=>'<div class="q">“'+esc(p.text)+'”<div class="score" style="margin-top:.4vh">'+esc(p.when)+'</div></div>').join("")+'</div>'});
   }
+
+  // 8b) DAILY PRODUCT RANKERS — one card per product, two mini-boards (raw units | per 1,000 guests).
+  // Both rankings are shown because Eddie wanted "both"; this store is highlighted in each. Data-through
+  // comes from the rolling product window (PMIX feed retains ~6 days), stated in the kicker.
+  const colors=["blue","teal","gold","blue"];
+  (d.rankers||[]).forEach((rk,ix)=>{
+    if(!rk.standings||!rk.standings.length) return;
+    const byUnits=rk.standings.slice().sort((a,b)=>a.rank_units-b.rank_units);
+    const byRate =rk.standings.slice().sort((a,b)=>a.rank_per1k-b.rank_per1k);
+    const meTxt = rk.me
+      ? (esc(d.loc)+': '+(rk.me.rank_units===1?'🏆 #1':ord(rk.me.rank_units))+' of '+rk.total+' by units ('+fmt(rk.me.units)+') · '+
+         (rk.me.rank_per1k===1?'🏆 #1':ord(rk.me.rank_per1k))+' of '+rk.total+' per 1k guests ('+fmt(rk.me.per_1k,1)+')')
+      : esc(d.loc)+': not selling this yet';
+    const col=(rows,key,unit,dec)=>'<div class="rankcol"><div class="ch">'+(key==="units"?"Raw units":"Per 1,000 guests")+'</div>'+
+      rows.map(r=>'<div class="rr '+(r.me?"me":"")+'"><span class="rk">'+(key==="units"?r.rank_units:r.rank_per1k)+'</span>'+
+        '<span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+(key==="units"?fmt(r.units):fmt(r.per_1k,1))+
+        '<span class="un">'+unit+'</span></span></div>').join("")+'</div>';
+    cards.push({a:colors[ix%colors.length],h:
+      '<div class="kicker">Daily product race · '+esc(rk.label)+' · '+esc(rk.win_from||"")+'→'+esc(rk.data_through||"")+'</div>'+
+      '<div class="title2">'+esc(rk.label)+' — all '+rk.total+'</div>'+
+      '<div class="sub" style="font-size:3vh">'+meTxt+'</div>'+
+      '<div class="rank2">'+col(byUnits,"units","",0)+col(byRate,"rate","",1)+'</div>'+
+      '<div class="fine">ranked by units and by units per 1,000 guest counts · data through '+esc(rk.data_through||"")+' · all '+rk.total+' stores</div>'});
+  });
 
   // 9..N) EDITABLE manual cards
   (d.editable||[]).forEach(c=>cards.push({a:"blue",h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
