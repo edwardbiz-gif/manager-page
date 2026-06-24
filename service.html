@@ -1,0 +1,167 @@
+<!doctype html>
+<!-- service.html v1 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+     https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
+     (3444 = Boulder Hill, the live demo store; default below is also 3444)
+     Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
+     full-screen cards. Crew-facing: store-level only, no names/pay. Every number states its data-through date.
+     Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Service Area</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+  html,body{height:100%;background:#0a1424;color:#fff;overflow:hidden}
+  #stage{position:fixed;inset:0}
+  .card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:4vh 6vw;opacity:0;transition:opacity .8s ease;gap:2.2vh}
+  .card.on{opacity:1}
+  .card.blue{background:radial-gradient(circle at 50% 28%,#103a6e,#0a1424 75%)}
+  .card.teal{background:radial-gradient(circle at 50% 28%,#0c4f4a,#0a1424 75%)}
+  .card.gold{background:radial-gradient(circle at 50% 28%,#5a4500,#0a1424 75%)}
+  .kicker{color:#37C2FF;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
+  .title{font-size:7vh;font-weight:900;line-height:1}
+  .title2{font-size:5.2vh;font-weight:900;color:#37C2FF}
+  .huge{font-size:21vh;font-weight:900;line-height:.9;color:#FFC72C}
+  .huge .of{font-size:6vh;color:#fff;font-weight:700}
+  .sub{font-size:4.2vh;font-weight:700;max-width:82vw}
+  .score{font-size:3.2vh;color:#cdd}
+  .board{width:74vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:2.9vh}
+  .row{display:flex;align-items:center;gap:1.5vw;background:#13243f;padding:1vh 2vw;border-radius:1vh}
+  .row.me{background:#1f6fd6;font-weight:900}
+  .row .rk{width:4vw;color:#FFC72C;font-weight:900}.row.me .rk{color:#fff}
+  .row .nm{flex:1;text-align:left}.row .vl{font-weight:800}
+  .row .un{font-size:2vh;color:#9bb;font-weight:600;margin-left:.4vw}
+  .tiles{display:flex;gap:3vw;flex-wrap:wrap;align-items:stretch;justify-content:center;max-width:90vw}
+  .tile{background:#13243f;border-radius:1.6vh;padding:3vh 3.5vw;min-width:24vw;display:flex;
+    flex-direction:column;align-items:center;gap:1vh}
+  .tile .tlab{font-size:3vh;font-weight:800;color:#9fd}
+  .tile .tval{font-size:9vh;font-weight:900;color:#FFC72C;line-height:1}
+  .tile .tval .u{font-size:3.4vh;color:#fff;font-weight:700}
+  .tile .tgoal{font-size:2.4vh;color:#9bb}
+  .tile.good .tval{color:#46e07a}.tile.bad .tval{color:#ff7a6b}
+  .peaks{display:flex;gap:3vw;align-items:flex-end;justify-content:center;max-width:90vw}
+  .peak{display:flex;flex-direction:column;align-items:center;gap:1.2vh;min-width:18vw}
+  .peak .pn{font-size:3.4vh;font-weight:800}
+  .peak .pv{font-size:8vh;font-weight:900;line-height:1}
+  .peak .pu{font-size:2.6vh;color:#9bb}
+  .quotes{display:flex;flex-direction:column;gap:2.6vh;max-width:84vw}
+  .q{font-size:4.2vh;font-style:italic}
+  .body{display:flex;flex-direction:column;gap:2vh;max-width:82vw}.ln{font-size:4.4vh;font-weight:700}
+  .bars{display:flex;align-items:flex-end;gap:2.2vw;height:46vh}
+  .bar{width:10vw;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .fill{width:100%;background:linear-gradient(#37C2FF,#1f6fd6);border-radius:1vh 1vh 0 0;min-height:2vh}
+  .bv{font-size:2.4vh;font-weight:800;margin-top:1vh}.bm{font-size:2.2vh;color:#9bb}
+  #foot{position:fixed;bottom:1.4vh;width:100%;text-align:center;color:#6b8;font-size:1.9vh}
+  #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#37C2FF;text-align:center;padding:6vw}
+</style></head><body>
+<div id="stage"></div><div id="foot"></div>
+<script>
+const FN = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/service-screen";
+// No apikey/Authorization header: the function has verify_jwt OFF and the gateway allows anonymous
+// GET; auth is the in-URL capability token (?t=). Sending those headers would also trip the CORS
+// preflight (the function only allow-lists content-type) — mirrors kitchen.html's headerless fetch.
+const qs = new URLSearchParams(location.search);
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const ord = n => { const s=["th","st","nd","rd"],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+const fmt = (v,dec=0) => v==null ? "—" : Number(v).toFixed(dec);
+// OEPE goal tone: lower seconds = faster = better. g.oepe_o (Outstanding) is the toughest target.
+const oepeTone = (v,g) => v==null ? "" : (v<=g.oepe_o ? "good" : (v<=g.oepe_g ? "" : "bad"));
+// R2P goal tone: lower seconds better. r2p_g (40) is best, r2p_p (60) is the floor.
+const r2pTone = (v,g) => v==null ? "" : (v<=g.r2p_g ? "good" : (v<=g.r2p_p ? "" : "bad"));
+
+function buildCards(d){
+  const cards=[], g=d.goals||{};
+  const through = d.monthName; // monthly numbers run through this month
+  // 1) DT SPEED RACE — OEPE w/o parked vs all 12 (lower = faster)
+  const big = d.race.rank===1
+    ? '<div class="huge">🏁 #1!</div><div class="sub">'+esc(d.loc)+' is the fastest drive-thru in '+esc(through)+'. Hold the lead!</div>'
+    : '<div class="huge">'+(d.race.rank?ord(d.race.rank):"—")+'<span class="of"> of '+d.race.total+'</span></div><div class="sub">'+
+      (d.race.gap!=null?d.race.gap+' sec slower than #1 — let\'s shave seconds.':"Let's climb the board.")+'</div>';
+  cards.push({a:"blue",h:'<div class="kicker">'+esc(through)+' · DT Speed Race · OEPE w/o parked</div><div class="title">'+esc(d.loc)+'</div>'+big+
+    (d.race.oepe!=null?'<div class="score">Our 3-peak OEPE: <b>'+fmt(d.race.oepe)+'s</b> &nbsp;·&nbsp; faster is better</div>':"")});
+
+  // 2) THE BOARD — all 12, fastest first
+  cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(through)+' · seconds (lower = faster)</div>'+
+    '<div class="title2">Drive-thru speed — all '+d.race.total+'</div><div class="board">'+
+    d.race.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.oepe)+'<span class="un">s</span></span></div>').join("")+'</div>'});
+
+  // 3) OEPE BY PEAK (monthly)
+  if(d.byPeak&&d.byPeak.length){
+    cards.push({a:"blue",h:'<div class="kicker">OEPE by peak · '+esc(through)+' · goal '+g.oepe_o+'/'+g.oepe_e+'/'+g.oepe_g+'s</div>'+
+      '<div class="title2">Drive-thru speed by peak</div><div class="peaks">'+
+      d.byPeak.map(p=>'<div class="peak"><div class="pn">'+esc(p.peak)+'</div><div class="pv" style="color:'+(oepeTone(p.oepe,g)==="good"?"#46e07a":oepeTone(p.oepe,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(p.oepe)+'</div><div class="pu">seconds</div></div>').join("")+'</div>'});
+  }
+
+  // 4) R2P + KVS + PARKED tiles (monthly 3-peak)
+  cards.push({a:"teal",h:'<div class="kicker">Service quality · '+esc(through)+'</div><div class="title2">R2P · KVS · Parked</div>'+
+    '<div class="tiles">'+
+    '<div class="tile '+r2pTone(d.mtd.r2p,g)+'"><div class="tlab">R2P</div><div class="tval">'+fmt(d.mtd.r2p)+'<span class="u">s</span></div><div class="tgoal">goal '+g.r2p_g+'/'+g.r2p_s+'/'+g.r2p_p+'s · lower is faster</div></div>'+
+    '<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(d.mtd.kvs)+'<span class="u">s</span></div><div class="tgoal">kitchen→serve</div></div>'+
+    '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(d.mtd.parked_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div></div>'+
+    '</div>'});
+
+  // 5) LIVE TODAY (DataPass daily feed)
+  if(d.live&&d.live.day){
+    const ld=d.live.day, dlab=esc(d.live.date);
+    cards.push({a:"gold",h:'<div class="kicker">Live drive-thru · '+dlab+'</div><div class="title2">Yesterday\'s drive-thru</div>'+
+      '<div class="tiles">'+
+      '<div class="tile '+oepeTone(ld.oepe_s,g)+'"><div class="tlab">OEPE</div><div class="tval">'+fmt(ld.oepe_s,0)+'<span class="u">s</span></div><div class="tgoal">'+fmt(ld.dt_cars)+' cars</div></div>'+
+      '<div class="tile"><div class="tlab">FC R2P</div><div class="tval">'+fmt(ld.fc_r2p_s,0)+'<span class="u">s</span></div><div class="tgoal">front-counter ready-to-present</div></div>'+
+      '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(ld.park_pct,1)+'<span class="u">%</span></div><div class="tgoal">pull-forwards</div></div>'+
+      '</div>'});
+  }
+  // 5b) LIVE BY DAYPART (today)
+  if(d.live&&d.live.dayparts&&d.live.dayparts.length){
+    cards.push({a:"blue",h:'<div class="kicker">Live OEPE by daypart · '+esc(d.live.date)+' · seconds</div><div class="title2">Where the clock ran</div>'+
+      '<div class="board">'+d.live.dayparts.map(p=>'<div class="row"><span class="nm">'+esc(p.daypart)+'</span><span class="vl">'+fmt(p.oepe_s,0)+'<span class="un">s · '+fmt(p.cars)+' cars</span></span></div>').join("")+'</div>'});
+  }
+
+  // 6) DELIVERY (monthly)
+  if(d.delivery){
+    cards.push({a:"teal",h:'<div class="kicker">McDelivery · '+esc(d.delivery.month)+'</div><div class="title2">Delivery guests</div>'+
+      '<div class="tiles">'+
+      '<div class="tile"><div class="tlab">CSAT</div><div class="tval">'+fmt(d.delivery.csat,1)+'<span class="u">★</span></div><div class="tgoal">guest star rating</div></div>'+
+      '<div class="tile"><div class="tlab">Restaurant time</div><div class="tval">'+fmt(d.delivery.restaurant_time_min,1)+'<span class="u">min</span></div><div class="tgoal">our part of the trip · target ~2.9</div></div>'+
+      '</div>'});
+  }
+
+  // 7) GUEST VOICE — DT satisfaction + B2B
+  const v=d.voice||{};
+  if(v.dt_osat&&v.dt_osat.score!=null){
+    const vm = v.dt_osat.month ? new Date(v.dt_osat.month+"T00:00:00Z").toLocaleString("en-US",{month:"long",year:"numeric",timeZone:"UTC"}) : through;
+    cards.push({a:"gold",h:'<div class="kicker">Guest voice · '+esc(vm)+'</div><div class="title2">Drive-thru satisfaction</div>'+
+      '<div class="tiles">'+
+      '<div class="tile"><div class="tlab">DT Overall Sat</div><div class="tval">'+fmt(v.dt_osat.score,1)+'<span class="u">%</span></div><div class="tgoal">top-box</div></div>'+
+      (v.dt_b2b&&v.dt_b2b.score!=null?'<div class="tile"><div class="tlab">DT Bottom-2-Box</div><div class="tval">'+fmt(v.dt_b2b.score,1)+'<span class="u">%</span></div><div class="tgoal">lower is better</div></div>':"")+
+      (v.fast&&v.fast.score!=null?'<div class="tile"><div class="tlab">"Fast"</div><div class="tval">'+fmt(v.fast.score,1)+'<span class="u">%</span></div><div class="tgoal">guests calling us fast</div></div>':"")+
+      '</div>'});
+  }
+  // 7b) DT OSAT trend
+  if(v.dt_osat&&v.dt_osat.trend&&v.dt_osat.trend.length>=2){
+    const tr=v.dt_osat.trend, mx=Math.max.apply(null,tr.map(t=>t.v).concat([1]));
+    cards.push({a:"teal",h:'<div class="kicker">Our trend · DT Overall Satisfaction</div><div class="title2">Beat our best</div><div class="bars">'+
+      tr.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+fmt(t.v,0)+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'});
+  }
+
+  // 8) PRAISE quotes
+  if(d.praise&&d.praise.length){
+    cards.push({a:"gold",h:'<div class="kicker">Guest shout-outs · service & speed</div><div class="title2">Crew wins</div>'+
+      '<div class="quotes">'+d.praise.slice(0,3).map(p=>'<div class="q">“'+esc(p.text)+'”<div class="score" style="margin-top:.4vh">'+esc(p.when)+'</div></div>').join("")+'</div>'});
+  }
+
+  // 9..N) EDITABLE manual cards
+  (d.editable||[]).forEach(c=>cards.push({a:"blue",h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
+  return cards;
+}
+function render(d){
+  const cards=buildCards(d), stage=document.getElementById("stage");
+  stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · Service Area · monthly through "+esc(d.monthName)+(d.live&&d.live.date?" · live drive-thru through "+esc(d.live.date):"");
+  const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
+  setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
+}
+fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
+  .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Service screen: '+esc(d.error||"unavailable")+'. Check the link.</div>';return;} render(d); })
+  .catch(e=>{document.body.innerHTML='<div id="err">Service screen offline — retrying…</div>';setTimeout(()=>location.reload(),30000);});
+setTimeout(()=>location.reload(),600000); // refresh data every 10 min
+</script></body></html>
