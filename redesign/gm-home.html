@@ -1,0 +1,546 @@
+<!--
+  GM HOME — "Today / priorities" mockup (Field-First spine, plan-spec §3.1 / §4)
+  Self-contained: HTML + CSS + inline SVG. Zero frameworks, GH-Pages friendly.
+  SAMPLE DATA only — shaped like the real Supabase views (NOT wired to live data).
+  Store: Boulder Hill #3444 · data-through 2026-06-24 (P&L txn 2026-06-24).
+  Lock #796: NEW file only; production board untouched.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GM Today — Boulder Hill #3444</title>
+<style>
+/* ===== Two-tier tokens (plan-spec §4) ===== */
+:root{
+  /* primitive ramp — McD anchored */
+  --mcd-green:#2c5f2d; --mcd-gold:#ffc72c; --mcd-red:#da291c;
+  --paper:#eceee9; --surface:#ffffff; --surface-2:#f4f5f3;
+  --ink:#1f2421; --ink-muted:#6b7280; --line:#e7e8e5;
+  --good:#1f8a4c; --warn:#b45309; --bad:#b42318;
+  --fav:#1f8a4c; --unfav:#b42318;
+  --accent:var(--mcd-green);
+  --r-tile:16px; --r-chip:999px;
+  --sp:8px;
+  --sh-1:0 1px 2px rgba(20,30,25,.06);
+  --sh-2:0 4px 16px rgba(20,30,25,.10);
+  --sh-3:0 12px 36px rgba(20,30,25,.16);
+  --hero:clamp(26px,7vw,34px);
+  /* severity */
+  --sev-1:#b42318; --sev-2:#b45309; --sev-3:#4b6cb7;
+}
+body[data-theme=arches]{
+  --paper:#0b1118; --surface:#1b2632; --surface-2:#141d27;
+  --ink:#eef4fb; --ink-muted:#9fb0c2; --line:#2a3744;
+  --accent:var(--mcd-gold);
+  --good:#43d39e; --warn:#fbbf24; --bad:#e5484d;
+  --fav:#43d39e; --unfav:#e5484d;
+  --sev-1:#e5484d; --sev-2:#fbbf24; --sev-3:#7aa2ff;
+  --sh-1:0 1px 2px rgba(0,0,0,.4);
+  --sh-2:0 4px 16px rgba(0,0,0,.5);
+  --sh-3:0 12px 36px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--paper); color:var(--ink); line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(1200px 600px at 50% -200px, rgba(44,95,45,.05), transparent);
+}
+body[data-theme=arches]{
+  background-image:radial-gradient(900px 700px at 50% -150px, #18324a 0%, #0b1118 60%);
+}
+
+/* ===== phone frame, responsive to desktop ===== */
+.wrap{max-width:432px;margin:0 auto;padding:0 0 92px;position:relative}
+@media(min-width:900px){
+  .wrap{max-width:1180px;padding:0 24px 40px}
+  .desk-grid{display:grid;grid-template-columns:minmax(360px,1fr) 1.25fr;gap:20px;align-items:start}
+  .desk-grid .col-feed{position:sticky;top:16px}
+  .tabbar{display:none!important}
+  .wrap{padding-bottom:40px}
+}
+@media(max-width:899px){ .desk-grid{display:block} }
+
+/* ===== top chrome ===== */
+.topbar{
+  position:sticky;top:0;z-index:30;background:var(--surface);
+  border-bottom:1px solid var(--line);box-shadow:var(--sh-1);
+  display:flex;align-items:center;gap:10px;padding:11px 14px;
+}
+.brandmark{width:30px;height:30px;border-radius:8px;background:var(--mcd-gold);
+  display:grid;place-items:center;flex:0 0 auto;box-shadow:var(--sh-1)}
+.brandmark svg{width:20px;height:20px}
+.topbar .who{flex:1;min-width:0}
+.topbar .who b{font-size:14px;display:block;line-height:1.15}
+.topbar .who span{font-size:11px;color:var(--ink-muted)}
+.vstamp{font-size:10px;color:var(--ink-muted);border:1px solid var(--line);
+  border-radius:999px;padding:2px 8px;white-space:nowrap}
+.theme-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  border-radius:999px;width:34px;height:34px;font-size:15px;cursor:pointer;flex:0 0 auto}
+
+/* ===== Zone 1 — VERDICT (BLUF) ===== */
+.verdict{margin:14px;border-radius:var(--r-tile);padding:18px 18px 16px;position:relative;overflow:hidden;
+  border:1px solid var(--line);box-shadow:var(--sh-2);
+  background:linear-gradient(160deg,rgba(180,131,9,.12),rgba(180,131,9,.03))}
+.verdict.clear{background:linear-gradient(160deg,rgba(31,138,76,.13),rgba(31,138,76,.03))}
+.verdict .eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.verdict .bignum{font-size:var(--hero);font-weight:800;line-height:1.05;margin:6px 0 2px;letter-spacing:-.5px}
+.verdict .bignum em{font-style:normal;color:var(--warn)}
+.verdict.clear .bignum em{color:var(--good)}
+.verdict .sub{font-size:13px;color:var(--ink-muted)}
+.verdict .thru{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:11px;
+  color:var(--ink-muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px;background:var(--surface)}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 0 rgba(180,83,9,.5);
+  animation:pulse 2.2s infinite}
+.verdict.clear .pulse-dot{background:var(--good);box-shadow:0 0 0 0 rgba(31,138,76,.5)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(180,83,9,.45)}70%{box-shadow:0 0 0 9px rgba(180,83,9,0)}100%{box-shadow:0 0 0 0 rgba(180,83,9,0)}}
+
+/* ===== pinned strip (race / OSAT / bonus) ===== */
+.pins{display:flex;gap:8px;margin:0 14px 6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.pins::-webkit-scrollbar{display:none}
+.pin{flex:0 0 auto;border-radius:12px;padding:9px 12px;min-width:148px;border:1px solid var(--line);
+  background:var(--surface);box-shadow:var(--sh-1)}
+.pin .pt{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.pin .pv{font-size:15px;font-weight:800;margin-top:1px}
+.pin .pn{font-size:10.5px;color:var(--ink-muted)}
+.pin.gold{background:linear-gradient(135deg,rgba(255,199,44,.22),rgba(255,199,44,.05));border-color:rgba(255,199,44,.5)}
+.pin.win .pv{color:var(--good)}
+
+/* ===== section headers ===== */
+.shead{display:flex;align-items:baseline;justify-content:space-between;margin:18px 14px 8px}
+.shead h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0;font-weight:800}
+.shead .h-meta{font-size:10.5px;color:var(--ink-muted);font-weight:600}
+
+/* ===== chip strip ===== */
+.chips{display:flex;gap:7px;margin:0 14px 4px;flex-wrap:wrap}
+.chip{font-size:11.5px;border:1px solid var(--line);border-radius:var(--r-chip);padding:4px 11px;background:var(--surface);
+  display:inline-flex;gap:6px;align-items:center;font-weight:600;color:var(--ink)}
+.chip b{font-weight:800}
+.chip.alert{border-color:var(--bad);color:var(--bad)}
+.chip.warn{border-color:var(--warn);color:var(--warn)}
+
+/* ===== Zone 2 — STORY CARDS (verdict -> why -> action) ===== */
+.feed{margin:8px 14px 0;display:flex;flex-direction:column;gap:11px}
+.story{background:var(--surface);border:1px solid var(--line);border-left-width:4px;border-radius:14px;
+  box-shadow:var(--sh-1);overflow:hidden;animation:rise .5s ease both}
+.story.s1{border-left-color:var(--sev-1)} .story.s2{border-left-color:var(--sev-2)} .story.s3{border-left-color:var(--sev-3)}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.story,.verdict .bignum{animation:none!important}}
+.story .top{display:flex;gap:10px;padding:12px 13px 6px;align-items:flex-start}
+.sev-badge{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 7px;border-radius:6px;margin-top:1px;color:#fff}
+.s1 .sev-badge{background:var(--sev-1)} .s2 .sev-badge{background:var(--sev-2)} .s3 .sev-badge{background:var(--sev-3)}
+.story .hl{flex:1;min-width:0}
+.story .hl h3{margin:0;font-size:14.5px;font-weight:700;line-height:1.25}
+.story .hl .why{margin:4px 0 0;font-size:12px;color:var(--ink-muted)}
+.story .hl .why b{color:var(--ink);font-weight:700}
+.story .spark{flex:0 0 auto;width:62px;height:28px;margin-top:2px}
+.story .acts{display:flex;gap:8px;padding:4px 13px 13px;flex-wrap:wrap}
+.btn{font-size:12.5px;font-weight:700;border-radius:10px;padding:8px 13px;border:1px solid var(--line);
+  background:var(--surface-2);color:var(--ink);cursor:pointer;min-height:40px;flex:1}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+body[data-theme=arches] .btn.primary{color:#1b2632}
+.btn.ghost{flex:0 0 auto}
+.story.done{opacity:.5;filter:saturate(.4)}
+.story.done .acts{display:none}
+.story .donetag{display:none;font-size:11px;color:var(--good);font-weight:700;padding:0 13px 11px}
+.story.done .donetag{display:block}
+
+/* honest no-data state */
+.nodata{font-size:11.5px;color:var(--ink-muted);font-style:italic;padding:2px 13px 12px}
+
+/* ===== Zone 3 — glance tiles ===== */
+.glance{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 14px 0}
+.gtile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--sh-1)}
+.gtile .gl{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.gtile .gv{font-size:23px;font-weight:800;line-height:1.05;margin-top:3px;letter-spacing:-.4px}
+.gtile .gd{font-size:11px;margin-top:1px;font-weight:700}
+.gtile .gd.up{color:var(--fav)} .gtile .gd.down{color:var(--unfav)}
+.gtile .gsub{font-size:10px;color:var(--ink-muted);margin-top:3px}
+.gtile .bullet{margin-top:7px}
+
+/* ===== collapsed module tiles (other tabs preview) ===== */
+.modules{margin:8px 14px 0;display:flex;flex-direction:column;gap:9px}
+.mod{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--sh-1)}
+.mod>summary{list-style:none;cursor:pointer;padding:13px;display:flex;align-items:center;gap:10px;min-height:48px}
+.mod>summary::-webkit-details-marker{display:none}
+.mod .mi{font-size:18px;flex:0 0 auto}
+.mod .mt{flex:1;min-width:0}
+.mod .mt b{font-size:13.5px;display:block}
+.mod .mt span{font-size:10.5px;color:var(--ink-muted)}
+.mod .chev{transition:transform .2s;color:var(--ink-muted);flex:0 0 auto}
+.mod[open] .chev{transform:rotate(90deg)}
+.mod .body{padding:0 13px 13px;border-top:1px solid var(--line);margin-top:2px;padding-top:11px}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--ink-muted)} .kv .v{font-weight:700}
+.kv .v.up{color:var(--fav)} .kv .v.down{color:var(--unfav)}
+.ct{font-size:9.5px;color:var(--ink-muted);font-weight:600}
+.tag-new{font-size:8.5px;font-weight:800;letter-spacing:.04em;color:#0369a1;border:1px solid #7dd3fc;
+  background:rgba(14,165,233,.1);border-radius:5px;padding:1px 5px;text-transform:uppercase}
+body[data-theme=arches] .tag-new{color:#7dd3fc}
+
+/* waterfall + bullet captions */
+.cap{font-size:9.5px;color:var(--ink-muted);margin-top:5px}
+
+/* ===== intake CTA ===== */
+.intake{margin:16px 14px 0;border:1px dashed var(--accent);border-radius:14px;padding:14px;text-align:center;
+  background:var(--surface-2)}
+.intake b{font-size:13.5px} .intake p{margin:3px 0 10px;font-size:11.5px;color:var(--ink-muted)}
+
+/* ===== bottom tab bar ===== */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:var(--surface);
+  border-top:1px solid var(--line);box-shadow:0 -4px 18px rgba(20,30,25,.10);
+  padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1;border:0;background:none;padding:8px 2px 9px;cursor:pointer;color:var(--ink-muted);
+  display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9.5px;font-weight:700;min-height:54px}
+.tab svg{width:21px;height:21px}
+.tab.active{color:var(--accent)}
+.tab .tdot{width:5px;height:5px;border-radius:50%;background:var(--bad);position:absolute;margin:-3px 0 0 16px}
+
+.foot{text-align:center;font-size:10px;color:var(--ink-muted);margin:22px 14px 0;line-height:1.5}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.desk-only{display:none}
+@media(min-width:900px){.desk-only{display:block}}
+</style>
+
+<div class="wrap">
+  <!-- TOP CHROME -->
+  <div class="topbar">
+    <div class="brandmark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M4 20V9c0-3 2.2-5 4-5s4 2 4 5c0-3 2.2-5 4-5s4 2 4 5v11" fill="none" stroke="#2c5f2d" stroke-width="2.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="who">
+      <b>Hi, Maria</b>
+      <span>GM · Boulder Hill #3444</span>
+    </div>
+    <span class="vstamp">api v89</span>
+    <button class="theme-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+  </div>
+
+  <div class="desk-grid">
+  <!-- LEFT COLUMN on desktop: verdict + feed -->
+  <div class="col-feed">
+    <!-- ZONE 1 — VERDICT -->
+    <section class="verdict" id="verdict" aria-label="Today verdict">
+      <div class="eyebrow">Your store today</div>
+      <div class="bignum"><em id="vcount">3</em> things need you today</div>
+      <div class="sub">Sales are up, but labor and one guest issue need a look.</div>
+      <div class="thru"><span class="pulse-dot"></span> Data through Jun 24, 2026</div>
+    </section>
+
+    <!-- PINNED STRIP -->
+    <div class="pins" aria-label="Pinned contests">
+      <div class="pin gold win">
+        <div class="pt">🏆 Cleanliness race · June</div>
+        <div class="pv">#2 of 12</div>
+        <div class="pn">$100 if you finish top-3 · thru Jun 24</div>
+      </div>
+      <div class="pin">
+        <div class="pt">🎯 OSAT incentive</div>
+        <div class="pv">72.8% <span style="font-size:11px;color:var(--good)">✓ on track</span></div>
+        <div class="pn">$100 to every store ≥72% in June</div>
+      </div>
+    </div>
+
+    <!-- ZONE 2 — PRIORITY STACK -->
+    <div class="shead"><h2>What needs you</h2><span class="h-meta">scored · 3 active</span></div>
+    <div class="chips">
+      <span class="chip alert">Overdue <b>1</b></span>
+      <span class="chip warn">Due ≤7d <b>2</b></span>
+      <span class="chip">Hi-pri <b>2</b></span>
+      <span class="chip">Active tasks <b>6</b></span>
+    </div>
+
+    <div class="feed" id="feed">
+      <!-- Card 1 — guest complaint -->
+      <article class="story s1">
+        <div class="top">
+          <span class="sev-badge">Urgent</span>
+          <div class="hl">
+            <h3>Open complaint, 2 days no response</h3>
+            <p class="why">1-800 case <b>#31728</b> · "Service/Staff" · SLA breach at <b>48h</b>. Customer asked for a callback.</p>
+          </div>
+          <svg class="spark" viewBox="0 0 62 28" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points="0,8 12,10 24,7 36,14 48,20 62,24" fill="none" stroke="var(--bad)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </div>
+        <div class="acts">
+          <button class="btn primary" onclick="resolveCard(this)">Draft reply</button>
+          <button class="btn ghost" onclick="resolveCard(this)">Resolve</button>
+        </div>
+        <div class="donetag">✓ Resolved — verdict updated</div>
+      </article>
+
+      <!-- Card 2 — labor / deploy -->
+      <article class="story s2">
+        <div class="top">
+          <span class="sev-badge">Watch</span>
+          <div class="hl">
+            <h3>Front counter short for lunch rush</h3>
+            <p class="why">Deploy vs demand: <b>−1 head</b> at 11:45a (actual 2 vs forecast 3). Labor MTD <b>26.4%</b> (target pending source).</p>
+          </div>
+          <svg class="spark" viewBox="0 0 62 28" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points="0,18 12,16 24,17 36,12 48,9 62,7" fill="none" stroke="var(--warn)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </div>
+        <div class="acts">
+          <button class="btn primary" onclick="resolveCard(this)">View deployment</button>
+          <button class="btn ghost" onclick="resolveCard(this)">Acknowledge</button>
+        </div>
+        <div class="donetag">✓ Acknowledged</div>
+      </article>
+
+      <!-- Card 3 — training deadline -->
+      <article class="story s2">
+        <div class="top">
+          <span class="sev-badge">Watch</span>
+          <div class="hl">
+            <h3>New hire training due in 3 days</h3>
+            <p class="why"><b>Antonio R.</b> · 9 of 14 mandatory courses done · PBS deadline <b>Jun 27</b> (hire + 14d).</p>
+          </div>
+          <svg class="spark" viewBox="0 0 62 28" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points="0,22 12,19 24,16 36,14 48,11 62,9" fill="none" stroke="var(--mcd-green)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+          </svg>
+        </div>
+        <div class="acts">
+          <button class="btn primary" onclick="resolveCard(this)">See courses</button>
+          <button class="btn ghost" onclick="resolveCard(this)">Mark done</button>
+        </div>
+        <div class="donetag">✓ Marked done</div>
+      </article>
+
+      <!-- honest no-data example -->
+      <article class="story s3">
+        <div class="top">
+          <span class="sev-badge">FYI</span>
+          <div class="hl">
+            <h3>Drive-thru speed — not enough data</h3>
+            <p class="why">Only <b>n=18</b> OEPE samples this period (need ≥30). No verdict shown until the sample is reliable.</p>
+          </div>
+        </div>
+        <div class="nodata">No fabricated red — re-checks when the sample reaches 30.</div>
+      </article>
+    </div>
+  </div><!-- /col-feed -->
+
+  <!-- RIGHT COLUMN on desktop: glance + modules -->
+  <div class="col-detail">
+    <!-- ZONE 3 — TODAY AT A GLANCE -->
+    <div class="shead"><h2>Today at a glance</h2><span class="h-meta">MTD thru Jun 24</span></div>
+    <div class="glance">
+      <div class="gtile">
+        <div class="gl">Sales MTD · YoY</div>
+        <div class="gv" style="color:var(--fav)">+6.2%</div>
+        <div class="gd up">▲ $214,880 · GC +2.1%</div>
+        <div class="gsub">24 days loaded · vs LY rebuilt</div>
+      </div>
+      <div class="gtile">
+        <div class="gl">OSAT</div>
+        <div class="gv">72.8%</div>
+        <div class="gd up">▲ +1.4 vs CHICAGO-MOCNI</div>
+        <div class="gsub">rank #3 of 12 · n=216</div>
+      </div>
+      <div class="gtile">
+        <div class="gl">Labor % of sales</div>
+        <div class="gv" style="color:var(--fav)">25.8%</div>
+        <div class="gd up">lowest in org · leading the pack</div>
+        <!-- level bar: labor on a 0–40% scale (no sourced target yet) -->
+        <svg class="bullet" viewBox="0 0 120 12" width="100%" height="12" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0" y="3" width="120" height="6" fill="var(--surface-2)"/>
+          <rect x="0" y="3" width="77" height="6" fill="var(--fav)" opacity=".85"/>
+        </svg>
+        <div class="cap">bar = labor level (0–40%) · target pending source</div>
+      </div>
+      <div class="gtile">
+        <div class="gl">Open guest items</div>
+        <div class="gv" style="color:var(--unfav)">2</div>
+        <div class="gd down">1 needs response now</div>
+        <div class="gsub">last 30d: 7 total · 3 negative</div>
+      </div>
+    </div>
+
+    <!-- OTHER TABS (collapsed preview of NUMBERS / TEAM modules) -->
+    <div class="shead"><h2>More for your store</h2><span class="h-meta">tap to expand</span></div>
+    <div class="modules">
+
+      <!-- NUMBERS: P&L up-to-PAC with waterfall -->
+      <details class="mod">
+        <summary>
+          <span class="mi">💵</span>
+          <span class="mt"><b>P&amp;L up to PAC <span class="tag-new">new</span></b><span>closed-YTD · thru May · pre-Withum</span></span>
+          <span class="ct">PAC +32.8%</span>
+          <span class="chev">›</span>
+        </summary>
+        <div class="body">
+          <!-- Sales -> PAC waterfall (sample) -->
+          <svg viewBox="0 0 360 130" width="100%" height="118" preserveAspectRatio="xMidYMid meet" aria-label="Sales to PAC waterfall">
+            <!-- baseline -->
+            <line x1="0" y1="108" x2="360" y2="108" stroke="var(--line)" stroke-width="1"/>
+            <!-- Net sales (full, 100%) -->
+            <rect x="6"   y="20" width="48" height="88" fill="var(--mcd-green)" opacity=".85"/>
+            <!-- Food 25.2% (down: 100 -> 74.8) -->
+            <rect x="66"  y="20"   width="48" height="22.2" fill="var(--unfav)" opacity=".8"/>
+            <!-- Labor 25.8% (down: 74.8 -> 49.0) -->
+            <rect x="126" y="42.2" width="48" height="22.7" fill="var(--unfav)" opacity=".8"/>
+            <!-- Controllables 16.2% (down: 49.0 -> 32.8) -->
+            <rect x="186" y="64.9" width="48" height="14.2" fill="var(--unfav)" opacity=".8"/>
+            <!-- PAC +32.8% (positive, bar up from baseline) -->
+            <rect x="246" y="79.1" width="48" height="28.9" fill="var(--fav)"/>
+            <!-- labels -->
+            <g font-size="8.5" fill="var(--ink-muted)" text-anchor="middle">
+              <text x="30" y="122">Sales</text>
+              <text x="90" y="122">Food</text>
+              <text x="150" y="122">Labor</text>
+              <text x="210" y="122">Ctrl</text>
+              <text x="270" y="122">PAC</text>
+            </g>
+            <g font-size="9" font-weight="700" text-anchor="middle">
+              <text x="30" y="16" fill="var(--ink)">100%</text>
+              <text x="90" y="16" fill="var(--unfav)">25.2%</text>
+              <text x="150" y="38" fill="var(--unfav)">25.8%</text>
+              <text x="210" y="60" fill="var(--unfav)">16.2</text>
+              <text x="270" y="75" fill="var(--fav)">+32.8%</text>
+            </g>
+          </svg>
+          <div class="cap">Net sales → cost lines → PAC. Color = unfavorable variance only (IBCS). Reads precomputed _pct columns — never recomputed client-side. No sourced PAC target column yet (plan-spec §6.4) — level shown honestly.</div>
+          <div class="kv"><span class="k">Net sales (closed-YTD, Apr–May)</span><span class="v">$356K</span></div>
+          <div class="kv"><span class="k">Food %</span><span class="v">25.2%</span></div>
+          <div class="kv"><span class="k">Labor %</span><span class="v">25.8%</span></div>
+          <div class="kv"><span class="k">PAC %</span><span class="v up">+32.8%</span></div>
+          <div class="kv"><span class="k">Reconciled to Withum</span><span class="v">No · pre-Withum</span></div>
+        </div>
+      </details>
+
+      <!-- NUMBERS: sales trend (lab grammar) -->
+      <details class="mod">
+        <summary>
+          <span class="mi">📈</span>
+          <span class="mt"><b>Sales — weekly YoY</b><span>this year vs last · complete weeks</span></span>
+          <span class="ct">thru Jun 22</span>
+          <span class="chev">›</span>
+        </summary>
+        <div class="body">
+          <svg viewBox="0 0 360 120" width="100%" height="118" preserveAspectRatio="none" aria-label="Weekly sales this year vs last">
+            <!-- gridlines -->
+            <g stroke="var(--line)" stroke-width="1">
+              <line x1="0" y1="30" x2="360" y2="30"/><line x1="0" y1="60" x2="360" y2="60"/><line x1="0" y1="90" x2="360" y2="90"/>
+            </g>
+            <!-- last year dashed -->
+            <polyline points="0,78 60,72 120,80 180,66 240,70 300,60 360,64" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+            <!-- this year solid, LTO-colored segment near end -->
+            <polyline points="0,70 60,64 120,66 180,52 240,48" fill="none" stroke="var(--mcd-green)" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+            <polyline points="240,48 300,40 360,38" fill="none" stroke="#ef4444" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+            <circle cx="240" cy="48" r="2.6" fill="#ef4444"/><circle cx="360" cy="38" r="2.6" fill="#ef4444"/>
+            <text x="356" y="32" font-size="8.5" fill="var(--ink)" text-anchor="end">$71K</text>
+          </svg>
+          <div class="cap"><span style="color:var(--mcd-green)">━</span> This year &nbsp; <span style="color:#64748b">┄</span> Last year &nbsp; <span style="color:#ef4444">━</span> Big Arch LTO. Product sales/wk, complete weeks only.</div>
+        </div>
+      </details>
+
+      <!-- TEAM: training -->
+      <details class="mod">
+        <summary>
+          <span class="mi">🎓</span>
+          <span class="mt"><b>New-hire training</b><span>mandatory courses vs hire+14d</span></span>
+          <span class="ct">refreshed Jun 25</span>
+          <span class="chev">›</span>
+        </summary>
+        <div class="body">
+          <div class="kv"><span class="k">Antonio R. · due Jun 27</span><span class="v down">9/14</span></div>
+          <div class="kv"><span class="k">Brianna K. · due Jul 2</span><span class="v">12/14</span></div>
+          <div class="kv"><span class="k">Devin S. · complete</span><span class="v up">14/14 ✓</span></div>
+          <div class="cap">Names shown First-L only (PII gating). Deadline = hire + 14d per US PBS.</div>
+        </div>
+      </details>
+
+      <!-- GUESTS: voice -->
+      <details class="mod">
+        <summary>
+          <span class="mi">⭐</span>
+          <span class="mt"><b>VOICE</b><span>freshest source per metric · daypart: All</span></span>
+          <span class="ct">period Jun 2026</span>
+          <span class="chev">›</span>
+        </summary>
+        <div class="body">
+          <div class="kv"><span class="k">OSAT</span><span class="v up">72.8% ▲</span></div>
+          <div class="kv"><span class="k">Accuracy</span><span class="v up">88.1% ▲</span></div>
+          <div class="kv"><span class="k">Overall Cleanliness</span><span class="v up">81.4% ▲</span></div>
+          <div class="kv"><span class="k">Fast B2B (lower=better)</span><span class="v down">3.6 ▲</span></div>
+          <div class="cap">vs BU benchmark CHICAGO-MOCNI · org rank #3/12 · * n&lt;30 metrics asterisked.</div>
+        </div>
+      </details>
+
+      <!-- NUMBERS: invoice tracker -->
+      <details class="mod">
+        <summary>
+          <span class="mi">🧾</span>
+          <span class="mt"><b>MTD invoices <span class="tag-new">new</span></b><span>posted vs in-flight</span></span>
+          <span class="ct">MTD thru Jun 24</span>
+          <span class="chev">›</span>
+        </summary>
+        <div class="body">
+          <div class="kv"><span class="k">Food — posted (8 inv)</span><span class="v">$97,072</span></div>
+          <div class="kv"><span class="k">Food — in-flight (3 inv)</span><span class="v">$18,440</span></div>
+          <div class="kv"><span class="k">Paper — posted (4 inv)</span><span class="v">$11,205</span></div>
+          <div class="cap">In-flight = detected, not yet posted to R365. MTD framing through today.</div>
+        </div>
+      </details>
+    </div>
+
+    <!-- INTAKE CTA (GM-only) -->
+    <div class="intake">
+      <b>Need something?</b>
+      <p>Maintenance, IT, office, or a question — routes to the right person + your supervisor.</p>
+      <button class="btn primary" style="flex:0 0 auto;display:inline-block" onclick="alert('Sample mockup — intake routes to dept owner + supervisor (INTAKE_ROUTING).')">＋ I need something</button>
+    </div>
+
+    <div class="foot">
+      Mockup · Field-First GM Today home · sample data shaped like live Supabase views.<br>
+      Boulder Hill #3444 · data through Jun 24, 2026 · not wired to live data.
+    </div>
+  </div><!-- /col-detail -->
+  </div><!-- /desk-grid -->
+</div>
+
+<!-- BOTTOM TAB BAR (phone) -->
+<nav class="tabbar" aria-label="Sections">
+  <button class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>Today<span class="tdot"></span></button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M9 19v-7M14 19v-11M19 19V9"/></svg>Numbers</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.5-7 10-7 10z"/></svg>Guests</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 6a3 3 0 010 6M21 20a6 6 0 00-4-5.6"/></svg>Team</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+</nav>
+
+<script>
+// theme toggle (mirrors the auto sunset 'arches' flip — manual here for demo)
+var tb=document.getElementById('themeBtn');
+tb.onclick=function(){
+  var on=document.body.getAttribute('data-theme')==='arches';
+  if(on){document.body.removeAttribute('data-theme');tb.textContent='🌙';}
+  else{document.body.setAttribute('data-theme','arches');tb.textContent='☀️';}
+};
+
+// verdict count-up (the one restrained animation)
+(function(){
+  var el=document.getElementById('vcount');var target=parseInt(el.textContent,10);
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  el.textContent='0';var n=0;var t=setInterval(function(){n++;el.textContent=n;if(n>=target)clearInterval(t);},140);
+})();
+
+// act-and-dismiss: resolving a card decrements the verdict
+function resolveCard(btn){
+  var card=btn.closest('.story');if(card.classList.contains('done'))return;
+  card.classList.add('done');
+  var v=document.getElementById('vcount');var n=Math.max(0,parseInt(v.textContent,10)-1);
+  v.textContent=n;
+  var vd=document.getElementById('verdict');
+  if(n===0){vd.classList.add('clear');vd.querySelector('.bignum').innerHTML='<em>All clear</em> — nothing needs you';
+    vd.querySelector('.sub').textContent='Nice work. New items will surface here as they come in.';}
+}
+
+// bottom tab active state (visual only in this single-screen mockup)
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick=function(){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});t.classList.add('active');};
+});
+</script>

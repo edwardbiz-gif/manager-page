@@ -1,0 +1,523 @@
+<!--
+  Manager-Page Redesign — SUPERVISOR PATCH mockup (Field-First "Floor board")
+  Implements the chosen visual design system from docs/plans/manager-page-redesign/plan-spec.md §4.
+  Screen: §3.2 Supervisor home — patch rollup + cross-store exception feed + DRILL-INTO-ANY-GM view-as.
+  Self-contained HTML/CSS + inline SVG. No frameworks, no web fonts, GH-Pages friendly. Mobile-first.
+  SAMPLE DATA shaped like the real views (Randy Tidaback's real patch, data-through 2026-06-24).
+  COORDINATION LOCK #796: this is a NEW file. Production board files were not touched.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patch · Randy Tidaback — Manager Page (redesign mockup)</title>
+<style>
+/* ============================================================ TOKENS (two-tier) */
+:root{
+  /* primitive — McD-anchored ramp */
+  --mc-green:#2c5f2d; --mc-gold:#ffc72c; --mc-red:#da291c;
+  --paper:#eceee9; --surface:#ffffff; --surface-2:#f4f5f3; --line:#e7e8e5;
+  --ink:#1f2421; --ink-muted:#6b726c; --ink-faint:#9aa09a;
+  --good:#1f9d57; --good-bg:#e7f6ee; --warn:#b45309; --warn-bg:#fdf2e2; --bad:#c8260f; --bad-bg:#fbeae7;
+  --sev1:#c8260f; --sev2:#b45309; --sev3:#1f9d57;
+  --sp:8px; --r-tile:16px; --r-chip:999px;
+  --sh-1:0 1px 2px rgba(20,30,20,.06); --sh-2:0 4px 14px rgba(20,30,20,.10); --sh-3:0 14px 40px rgba(20,30,20,.18);
+  --hero:clamp(26px,7vw,34px);
+  /* semantic */
+  --accent:var(--mc-green); --accent-ink:#fff;
+  --bg:var(--paper);
+}
+body[data-theme=arches]{
+  --paper:#0d1419; --surface:#1b2632; --surface-2:#16202a; --line:#2a3744;
+  --ink:#eef4fb; --ink-muted:#9fb1c1; --ink-faint:#6c7d8c;
+  --good:#43d39e; --good-bg:#143026; --warn:#f0a23a; --warn-bg:#33260f; --bad:#e5484d; --bad-bg:#3a1417;
+  --sev1:#e5484d; --sev2:#f0a23a; --sev3:#43d39e;
+  --surface:#1b2632; --accent:var(--mc-gold); --accent-ink:#1a1205;
+  --bg:radial-gradient(1200px 600px at 70% -10%, #1d2b38 0%, #0d1419 60%);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.45; -webkit-font-smoothing:antialiased;
+  padding:18px 10px 40px; transition:background .4s,color .4s;
+}
+/* ============================================================ PHONE FRAME */
+.phone{
+  max-width:432px; margin:0 auto; background:var(--surface); border-radius:26px;
+  box-shadow:var(--sh-3); overflow:hidden; position:relative; min-height:760px;
+  border:1px solid var(--line);
+}
+.scroll{ height:760px; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:74px; scroll-behavior:smooth;}
+.scroll::-webkit-scrollbar{width:0}
+@media(min-width:520px){ .phone{max-width:520px} }
+
+/* ============================================================ HEADER */
+.hdr{ position:sticky; top:0; z-index:30; background:linear-gradient(180deg,var(--surface) 70%,transparent);
+  padding:14px 16px 8px; backdrop-filter:blur(6px);}
+.hdr .row{display:flex; align-items:center; justify-content:space-between; gap:8px}
+.who{font-weight:800; font-size:15px; letter-spacing:.2px}
+.who small{display:block; font-weight:600; color:var(--ink-muted); font-size:11px; letter-spacing:.4px; text-transform:uppercase}
+.stamp{font-size:10px; color:var(--ink-faint); font-weight:700; letter-spacing:.5px}
+.stamp b{color:var(--accent)}
+.thbtn{appearance:none; border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+  width:34px;height:34px;border-radius:50%; font-size:15px; cursor:pointer}
+
+/* ============================================================ VERDICT (BLUF) */
+.verdict{ margin:8px 14px 4px; border-radius:var(--r-tile); padding:16px 16px 14px; position:relative; overflow:hidden;
+  background:var(--warn-bg); border:1px solid color-mix(in srgb,var(--warn) 30%, transparent);}
+.verdict .eye{font-size:10.5px; font-weight:800; letter-spacing:1.4px; text-transform:uppercase; color:var(--warn)}
+.verdict h1{margin:2px 0 2px; font-size:var(--hero); font-weight:800; line-height:1.12; letter-spacing:-.4px}
+.verdict h1 .cnt{color:var(--warn)}
+.verdict p{margin:4px 0 0; font-size:12px; color:var(--ink-muted)}
+.verdict .dot{position:absolute; right:-30px; top:-30px; width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, color-mix(in srgb,var(--warn) 22%,transparent), transparent 70%)}
+
+/* ============================================================ SECTIONS / TABS */
+.lane{padding:6px 14px 2px}
+.lane-h{display:flex; align-items:baseline; justify-content:space-between; margin:14px 2px 6px}
+.lane-h .t{font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--accent)}
+.lane-h .c{font-size:10.5px; font-weight:700; color:var(--ink-faint); letter-spacing:.4px}
+
+/* ============================================================ GLANCE TILES (lab YoY trio device) */
+.tiles{display:flex; gap:8px}
+.tile{flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--line); border-radius:14px; padding:10px 9px; text-align:center}
+.tile .lab{font-size:9.5px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:var(--ink-faint)}
+.tile .big{font-size:20px; font-weight:800; margin:2px 0 0; letter-spacing:-.3px}
+.tile .sub{font-size:10.5px; color:var(--ink-muted); font-weight:600}
+.tile .div{height:1px; background:var(--line); margin:6px 0 4px}
+.tile .gc{font-size:10px; color:var(--ink-muted); font-weight:700}
+.up{color:var(--good)} .dn{color:var(--bad)} .na{color:var(--ink-faint)}
+
+/* ============================================================ STORY / EXCEPTION CARDS */
+.story{ background:var(--surface); border:1px solid var(--line); border-left-width:4px; border-radius:14px;
+  padding:11px 12px; margin-bottom:9px; box-shadow:var(--sh-1); position:relative;
+  animation:rise .5s both;}
+.story.s1{border-left-color:var(--sev1)} .story.s2{border-left-color:var(--sev2)} .story.s3{border-left-color:var(--sev3)}
+.story .top{display:flex; align-items:center; gap:8px}
+.tag{font-size:9.5px; font-weight:800; letter-spacing:.6px; padding:2px 7px; border-radius:var(--r-chip); white-space:nowrap}
+.tag.store{background:var(--surface-2); color:var(--ink-muted); border:1px solid var(--line)}
+.tag.sev1{background:var(--bad-bg); color:var(--bad)} .tag.sev2{background:var(--warn-bg); color:var(--warn)} .tag.sev3{background:var(--good-bg); color:var(--good)}
+.story h3{margin:7px 0 3px; font-size:13.5px; font-weight:800; letter-spacing:-.2px}
+.story .why{font-size:11.5px; color:var(--ink-muted); display:flex; align-items:center; gap:7px}
+.story .acts{display:flex; gap:7px; margin-top:9px; flex-wrap:wrap}
+.btn{appearance:none; border:0; border-radius:var(--r-chip); padding:7px 13px; font-size:11.5px; font-weight:800;
+  cursor:pointer; min-height:34px}
+.btn.go{background:var(--accent); color:var(--accent-ink)}
+.btn.ghost{background:var(--surface-2); color:var(--ink); border:1px solid var(--line)}
+
+/* ============================================================ PATCH ROLLUP ROWS */
+.srow{ width:100%; text-align:left; background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:11px 12px; margin-bottom:8px; cursor:pointer; display:block; box-shadow:var(--sh-1);
+  transition:transform .12s, box-shadow .12s; animation:rise .5s both;}
+.srow:active{transform:scale(.985)}
+.srow:hover{box-shadow:var(--sh-2)}
+.srow .l1{display:flex; align-items:center; justify-content:space-between; gap:8px}
+.srow .nm{font-weight:800; font-size:14px; letter-spacing:-.2px}
+.srow .nm .no{font-size:10.5px; color:var(--ink-faint); font-weight:700; margin-left:5px}
+.pac{font-size:13px; font-weight:800; padding:2px 8px; border-radius:var(--r-chip)}
+.pac.pos{background:var(--good-bg); color:var(--good)} .pac.neg{background:var(--bad-bg); color:var(--bad)}
+.srow .l2{display:flex; align-items:center; gap:14px; margin-top:9px}
+.dots{display:flex; gap:12px; flex:1}
+.dotcol{display:flex; flex-direction:column; align-items:center; gap:3px}
+.dotcol .dl{font-size:8.5px; font-weight:800; letter-spacing:.6px; color:var(--ink-faint); text-transform:uppercase}
+.sdot{width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 3px color-mix(in srgb,var(--ink) 5%,transparent)}
+.sdot.g{background:var(--good)} .sdot.a{background:var(--warn)} .sdot.r{background:var(--bad)}
+.exb{font-size:10px; font-weight:800; padding:3px 8px; border-radius:var(--r-chip); white-space:nowrap}
+.exb.has{background:var(--bad-bg); color:var(--bad)} .exb.clean{background:var(--good-bg); color:var(--good)}
+.srow .drill{font-size:10.5px; font-weight:800; color:var(--accent); margin-top:8px; display:flex; align-items:center; gap:5px}
+.srow .drill svg{width:13px;height:13px}
+
+/* chips */
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 4px}
+.chip{font-size:10.5px; font-weight:800; padding:5px 10px; border-radius:var(--r-chip); background:var(--surface-2); border:1px solid var(--line)}
+.chip b{color:var(--ink)} .chip.alert b{color:var(--bad)} .chip.warn b{color:var(--warn)}
+
+/* ============================================================ BOTTOM TAB BAR */
+.tabbar{position:absolute; left:0; right:0; bottom:0; height:62px; background:color-mix(in srgb,var(--surface) 92%,transparent);
+  backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; z-index:40}
+.tab{flex:1; border:0; background:transparent; cursor:pointer; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:2px; color:var(--ink-faint); font-size:10px; font-weight:800; letter-spacing:.3px; min-height:44px}
+.tab svg{width:21px;height:21px}
+.tab.on{color:var(--accent)}
+
+/* ============================================================ VIEW-AS DRILL (slide-in GM home) */
+.veil{position:absolute; inset:0; background:rgba(8,12,10,.35); z-index:50; opacity:0; pointer-events:none; transition:opacity .25s}
+.veil.show{opacity:1; pointer-events:auto}
+.gmhome{position:absolute; inset:0; z-index:60; background:var(--surface); transform:translateX(100%);
+  transition:transform .32s cubic-bezier(.4,.0,.2,1); display:flex; flex-direction:column}
+.gmhome.show{transform:translateX(0)}
+.vbanner{flex:0 0 auto; background:var(--mc-gold); color:#1a1205; padding:9px 12px; display:flex; align-items:center; gap:9px; font-weight:800; font-size:12px}
+body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
+.vbanner .eye{font-size:9px; letter-spacing:1px; text-transform:uppercase; opacity:.7}
+.vbanner .x{margin-left:auto; appearance:none; border:0; background:rgba(0,0,0,.14); color:#1a1205; font-weight:800;
+  border-radius:var(--r-chip); padding:6px 12px; font-size:11px; cursor:pointer; min-height:34px}
+.crumb{flex:0 0 auto; padding:7px 14px; font-size:10.5px; color:var(--ink-faint); font-weight:700; background:var(--surface-2); border-bottom:1px solid var(--line)}
+.crumb b{color:var(--ink)}
+.gmbody{flex:1; overflow-y:auto; padding:4px 14px 24px}
+.gmbody::-webkit-scrollbar{width:0}
+.rolock{font-size:10px; font-weight:700; color:var(--warn); display:flex; align-items:center; gap:5px; margin:8px 2px}
+
+/* misc */
+.foot{text-align:center; font-size:9.5px; color:var(--ink-faint); padding:16px 14px 4px; font-weight:600}
+.cap{font-size:9.5px; color:var(--ink-faint); margin:2px 2px 0; font-weight:600}
+@keyframes rise{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+.spark{display:inline-block; vertical-align:middle}
+</style>
+</head>
+<body data-theme="light">
+
+<div class="phone">
+  <div class="scroll" id="scroll">
+
+    <!-- HEADER -->
+    <div class="hdr">
+      <div class="row">
+        <div class="who">Hi, Randy <small>Supervisor · North patch · 5 stores</small></div>
+        <div style="display:flex; gap:8px; align-items:center">
+          <span class="stamp">api <b>v2</b></span>
+          <button class="thbtn" id="theme" title="theme">◐</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VERDICT / BLUF (rolls up the patch) -->
+    <div class="verdict">
+      <div class="dot"></div>
+      <div class="eye">North patch · closed-YTD thru May</div>
+      <h1><span class="cnt" id="cnt">7</span> things need attention</h1>
+      <p>Patch PAC <b>+35.81%</b> (best in org) · 5 of 5 stores PAC-positive · labor is the swing factor across stores.</p>
+    </div>
+
+    <!-- PATCH PULSE CHIPS -->
+    <div class="lane">
+      <div class="chips">
+        <span class="chip alert">Overdue <b>2</b></span>
+        <span class="chip warn">Hi-pri <b>3</b></span>
+        <span class="chip">Open guest items <b>5</b></span>
+        <span class="chip warn">Training overdue <b>4</b></span>
+      </div>
+    </div>
+
+    <!-- PATCH ROLLUP TILES (lab YoY grammar) -->
+    <div class="lane">
+      <div class="lane-h"><span class="t">Patch at a glance</span><span class="c">MTD thru Jun 24</span></div>
+      <div class="tiles">
+        <div class="tile">
+          <div class="lab">Sales MTD</div>
+          <div class="big up">+4.6%</div>
+          <div class="sub">$1.58M YoY</div>
+          <div class="div"></div>
+          <div class="gc">GC <span class="dn">−0.8%</span></div>
+        </div>
+        <div class="tile">
+          <div class="lab">Patch PAC</div>
+          <div class="big up">+35.81%</div>
+          <div class="sub">+$1.98M</div>
+          <div class="div"></div>
+          <div class="gc">Labor <span class="up">26.4%</span></div>
+        </div>
+        <div class="tile">
+          <div class="lab">Guest score</div>
+          <div class="big dn">71.4%</div>
+          <div class="sub">OSAT · −1.6 vs BU</div>
+          <div class="div"></div>
+          <div class="gc">Rank <b>4/12</b></div>
+        </div>
+      </div>
+      <div class="cap">Sales-weighted YoY · PAC from v_r365_pnl_ytd_sup (closed-YTD, pre-Withum; level only — no sourced target yet, plan-spec §6.4) · OSAT freshest SMG source.</div>
+    </div>
+
+    <!-- CROSS-STORE EXCEPTION FEED (severity-then-store) -->
+    <div class="lane">
+      <div class="lane-h"><span class="t">What needs you today</span><span class="c">7 across 5 stores</span></div>
+
+      <div class="story s2">
+        <div class="top">
+          <span class="tag store">Lake St · #72</span>
+          <span class="tag sev2">LABOR GAP</span>
+        </div>
+        <h3>Labor at 26.2% — trail Boulder Hill's 25.6%</h3>
+        <div class="why">
+          <span class="ph" data-spark="#b45309|26.5,26.4,26.3,26.2,26.2,26.2"></span>
+          <span>PAC +32.0% (profitable, 3rd on patch) · trim mid-daypart over-staffing to close the ~0.6pt labor gap.</span>
+        </div>
+        <div class="acts">
+          <button class="btn go" onclick="openGM('Lake St','#72')">View as GM →</button>
+          <button class="btn ghost">Message GM</button>
+        </div>
+      </div>
+
+      <div class="story s1">
+        <div class="top">
+          <span class="tag store">Farnsworth · #4152</span>
+          <span class="tag sev1">OVERDUE</span>
+        </div>
+        <h3>2 new-hire trainings past the 14-day PBS deadline</h3>
+        <div class="why">
+          <span class="ph" data-spark="#c8260f|2,2,3,3,4,2"></span>
+          <span>Both crew hired May 28 · deadline Jun 11 · 0 of 14 mandatory complete.</span>
+        </div>
+        <div class="acts">
+          <button class="btn go" onclick="openGM('Farnsworth','#4152')">View as GM →</button>
+          <button class="btn ghost">Draft nudge</button>
+        </div>
+      </div>
+
+      <div class="story s2">
+        <div class="top">
+          <span class="tag store">Eola BP · #16669</span>
+          <span class="tag sev2">GUESTS</span>
+        </div>
+        <h3>3 open complaints, oldest 6 days unanswered</h3>
+        <div class="why">
+          <span class="ph" data-spark="#b45309|1,2,2,3,3,3"></span>
+          <span>Service/Staff theme · SLA breach on #4471 · OSAT 69.2% (−2.2 vs BU).</span>
+        </div>
+        <div class="acts">
+          <button class="btn go" onclick="openGM('Eola BP','#16669')">View as GM →</button>
+          <button class="btn ghost">See feedback</button>
+        </div>
+      </div>
+
+      <div class="story s2">
+        <div class="top">
+          <span class="tag store">Orchard · #31728</span>
+          <span class="tag sev2">DEPLOY</span>
+        </div>
+        <h3>Lunch deploy short 2 heads vs forecast</h3>
+        <div class="why">
+          <span class="ph" data-spark="#b45309|0,-1,-2,-2,-1,-2"></span>
+          <span>11:15–12:00 FrontCounter gap · GC −2.1% MTD · speed at risk.</span>
+        </div>
+        <div class="acts">
+          <button class="btn go" onclick="openGM('Orchard','#31728')">View as GM →</button>
+          <button class="btn ghost">Acknowledge</button>
+        </div>
+      </div>
+
+      <div class="story s3">
+        <div class="top">
+          <span class="tag store">Boulder Hill · #3444</span>
+          <span class="tag sev3">WIN</span>
+        </div>
+        <h3>Patch & org PAC leader (+33.91%)</h3>
+        <div class="why">
+          <span class="ph" data-spark="#1f9d57|32.5,33,33.4,33.7,33.8,33.9"></span>
+          <span>Food 25.3% · labor 25.6% (lowest in org) — the patch playbook. Share with the other 4.</span>
+        </div>
+        <div class="acts">
+          <button class="btn go" onclick="openGM('Boulder Hill','#3444')">View as GM →</button>
+          <button class="btn ghost">Pin as model</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PER-STORE ROLLUP — the drill affordance -->
+    <div class="lane">
+      <div class="lane-h"><span class="t">Patch rollup · tap to view as GM</span><span class="c">worst-first</span></div>
+      <div id="rollup"></div>
+      <div class="cap">Dots = peer-relative status (green ≥ median / amber watch / red miss). Tap a store to open its GM Today home read-only.</div>
+    </div>
+
+    <div class="foot">
+      SUPERVISOR PATCH mockup · Field-First design system · plan-spec.md §3.2 / §4<br>
+      Sample data shaped like v_r365_pnl_ytd_sup / v_r365_pnl_ytd_store_closed / sales_summary · closed-YTD thru May, data-through 2026-06-24
+    </div>
+
+  </div><!-- /scroll -->
+
+  <!-- BOTTOM TABS -->
+  <div class="tabbar">
+    <button class="tab on"><span class="ph-ic" data-ic="today"></span><span>Today</span></button>
+    <button class="tab"><span class="ph-ic" data-ic="numbers"></span><span>Numbers</span></button>
+    <button class="tab"><span class="ph-ic" data-ic="guests"></span><span>Guests</span></button>
+    <button class="tab"><span class="ph-ic" data-ic="team"></span><span>Team</span></button>
+    <button class="tab"><span class="ph-ic" data-ic="more"></span><span>More</span></button>
+  </div>
+
+  <!-- VIEW-AS DRILL -->
+  <div class="veil" id="veil" onclick="closeGM()"></div>
+  <div class="gmhome" id="gmhome">
+    <div class="vbanner">
+      <span class="eye">Viewing as GM</span>
+      <span id="vbName">—</span>
+      <button class="x" onclick="closeGM()">↩ Return to patch</button>
+    </div>
+    <div class="crumb">Portfolio › <b>Randy's patch</b> › <b id="vbCrumb">—</b></div>
+    <div class="gmbody" id="gmbody"></div>
+  </div>
+
+</div><!-- /phone -->
+
+<script>
+/* ---------- inline-SVG helpers (token-themed, zero KB) ---------- */
+function spark(color, csv){
+  var v = csv.split(',').map(Number), n=v.length, w=58, h=18, pad=2;
+  var mn=Math.min.apply(null,v), mx=Math.max.apply(null,v), rng=(mx-mn)||1;
+  var pts = v.map(function(d,i){
+    var x = pad + i*(w-pad*2)/(n-1);
+    var y = h-pad - (d-mn)/rng*(h-pad*2);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  return '<svg class="spark" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+
+    '<polyline fill="none" stroke="'+color+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '+
+    'vector-effect="non-scaling-stroke" points="'+pts+'"/></svg>';
+}
+function ic(name){
+  var p={
+    today:'<path d="M4 5h16M4 12h10M4 19h7"/>',
+    numbers:'<path d="M4 19V9M10 19V4M16 19v-7M21 19H3"/>',
+    guests:'<path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',
+    team:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M17 11a3 3 0 1 0-3-3M21 20a5 5 0 0 0-5-5"/>',
+    more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'
+  }[name];
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+}
+
+/* ---------- hydrate inline-SVG placeholders in static markup ---------- */
+(function hydrate(){
+  Array.prototype.forEach.call(document.querySelectorAll('.ph'), function(el){
+    var d = el.getAttribute('data-spark').split('|');
+    el.outerHTML = spark(d[0], d[1]);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.ph-ic'), function(el){
+    el.outerHTML = ic(el.getAttribute('data-ic'));
+  });
+})();
+
+/* ---------- SAMPLE patch data (shaped like v_r365_pnl_ytd_store_closed + sales_summary; Randy's real 5) ---------- */
+/* closed-YTD (Apr–May), all PAC-positive; dots are peer-relative (labor-leaders green, laggards amber) */
+var STORES = [
+  {name:'Farnsworth', no:'#4152', pac:30.42, sales:'+5.2%', labor:28.02, food:25.90, dots:['g','a','a','r'], ex:2,
+   verdict:'2 things need you today', vmood:'warn'},
+  {name:'Lake St', no:'#72', pac:31.97, sales:'+4.7%', labor:26.24, food:25.21, dots:['g','a','a','a'], ex:2,
+   verdict:'2 things need you today', vmood:'warn'},
+  {name:'Orchard', no:'#31728', pac:32.75, sales:'+3.0%', labor:25.79, food:25.23, dots:['g','g','g','a'], ex:1,
+   verdict:'1 thing needs you today', vmood:'warn'},
+  {name:'Eola BP', no:'#16669', pac:33.14, sales:'+3.6%', labor:26.06, food:24.02, dots:['g','r','g','g'], ex:1,
+   verdict:'1 thing needs you today', vmood:'warn'},
+  {name:'Boulder Hill', no:'#3444', pac:33.91, sales:'+3.0%', labor:25.57, food:25.29, dots:['g','a','g','g'], ex:0,
+   verdict:"you're clear", vmood:'good'}
+];
+var DOTLABELS=['Sales','Guests','Labor','People'];
+
+/* ---------- render the patch rollup rows (worst-first) ---------- */
+(function renderRollup(){
+  var html = STORES.map(function(s,i){
+    var pcls = s.pac>=0?'pos':'neg', psign=s.pac>=0?'+':'';
+    var dots = s.dots.map(function(c,j){
+      return '<div class="dotcol"><span class="sdot '+c+'"></span><span class="dl">'+DOTLABELS[j]+'</span></div>';
+    }).join('');
+    var exb = s.ex>0 ? '<span class="exb has">'+s.ex+' open</span>' : '<span class="exb clean">clear</span>';
+    return '<button class="srow" style="animation-delay:'+(i*55)+'ms" onclick="openGM(\''+s.name+'\',\''+s.no+'\')">'+
+      '<div class="l1"><span class="nm">'+s.name+'<span class="no">'+s.no+'</span></span>'+
+        '<span class="pac '+pcls+'">PAC '+psign+s.pac.toFixed(2)+'%</span></div>'+
+      '<div class="l2"><div class="dots">'+dots+'</div>'+exb+'</div>'+
+      '<div class="drill">Open GM Today home (read-only) '+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'+
+      '</div>'+
+    '</button>';
+  }).join('');
+  document.getElementById('rollup').innerHTML = html;
+})();
+
+/* ---------- VIEW-AS: slide in the target store's GM Today home (read lens) ---------- */
+function openGM(name, no){
+  var s = STORES.filter(function(x){return x.name===name;})[0] || STORES[0];
+  document.getElementById('vbName').textContent = name+' '+no;
+  document.getElementById('vbCrumb').textContent = name;
+  document.getElementById('gmbody').innerHTML = gmHome(s);
+  document.getElementById('veil').classList.add('show');
+  document.getElementById('gmhome').classList.add('show');
+}
+function closeGM(){
+  document.getElementById('veil').classList.remove('show');
+  document.getElementById('gmhome').classList.remove('show');
+}
+
+/* the GM Today home rendered for the lensed store — same render path, read-only */
+function gmHome(s){
+  var pcls = s.pac>=0?'up':'dn', psign=s.pac>=0?'+':'';
+  var vbg = s.vmood==='good' ? 'var(--good-bg)' : 'var(--warn-bg)';
+  var vbd = s.vmood==='good' ? 'var(--good)' : 'var(--warn)';
+  var verdictNum = s.ex>0 ? '<span class="cnt" style="color:'+vbd+'">'+s.ex+'</span> ' : '';
+  var clear = s.vmood==='good';
+
+  var cards = clear ? winCard(s) : exCards(s);
+
+  return ''+
+   '<div class="rolock">🔒 Read-only lens — actions disabled while viewing as GM. Start/stop audited under Randy Tidaback.</div>'+
+   '<div class="verdict" style="margin:6px 0 4px; background:'+vbg+'; border-color:color-mix(in srgb,'+vbd+' 30%, transparent)">'+
+     '<div class="dot" style="background:radial-gradient(circle at 30% 30%, color-mix(in srgb,'+vbd+' 22%,transparent), transparent 70%)"></div>'+
+     '<div class="eye" style="color:'+vbd+'">'+s.name+' '+s.no+' · closed-YTD thru May</div>'+
+     '<h1 style="font-size:26px">'+verdictNum+s.verdict+'</h1>'+
+     '<p>PAC <b>'+psign+s.pac.toFixed(2)+'%</b> (profitable) · labor '+s.labor.toFixed(1)+'% · food '+s.food.toFixed(1)+'% (closed-YTD).</p>'+
+   '</div>'+
+
+   '<div class="lane" style="padding:6px 0 2px"><div class="lane-h"><span class="t">Today at a glance</span><span class="c">MTD thru Jun 24</span></div>'+
+     '<div class="tiles">'+
+       '<div class="tile"><div class="lab">Sales MTD</div><div class="big up">'+s.sales+'</div><div class="sub">YoY</div><div class="div"></div><div class="gc">vs LY</div></div>'+
+       '<div class="tile"><div class="lab">PAC YTD</div><div class="big '+pcls+'">'+psign+s.pac.toFixed(1)+'%</div><div class="sub">closed-YTD</div><div class="div"></div><div class="gc">Withum pend</div></div>'+
+       '<div class="tile"><div class="lab">Labor</div><div class="big '+(s.labor>27?'dn':'up')+'">'+s.labor.toFixed(1)+'%</div><div class="sub">of sales</div><div class="div"></div><div class="gc">tgt pending</div></div>'+
+     '</div></div>'+
+
+   '<div class="lane" style="padding:6px 0 2px"><div class="lane-h"><span class="t">What needs you today</span><span class="c">'+(s.ex||'0')+' items</span></div>'+
+     cards +
+   '</div>'+
+   '<div class="foot">GM Today home (Field-First §3.1) rendered at this store\'s scope · view-as read lens.</div>';
+}
+
+function exCards(s){
+  var bank = {
+    'Farnsworth':[
+      ['s1','TRAINING','2 new hires past PBS deadline','Hired May 28 · deadline Jun 11 · 0/14 done.','#c8260f','2,3,3,4,4,2'],
+      ['s2','LABOR','Labor 28.0% — highest on patch','PAC +30.4% (profitable) · +2.4 pts vs Boulder Hill 25.6%.','#b45309','27,27.5,28,28,28,28']
+    ],
+    'Lake St':[
+      ['s2','LABOR','Labor 26.2% — trim mid-daypart','PAC +32.0% (profitable) · ~0.6pt gap to the leader.','#b45309','26.5,26.4,26.3,26.2,26.2,26.2'],
+      ['s2','TASK','Approve the cleaning rota','Hi-pri · assigned by Randy · due today.','#b45309','2,2,1,2,1,1']
+    ],
+    'Orchard':[
+      ['s2','GUESTS','Reply to 1 open complaint','SLA clock at 18h · Service theme.','#b45309','1,1,2,2,2,1']
+    ],
+    'Eola BP':[
+      ['s2','GUESTS','3 open complaints, oldest 6 days','OSAT 69.2% (−2.2 vs BU) · Service theme.','#b45309','1,2,2,3,3,3']
+    ]
+  };
+  var rows = bank[s.name] || [];
+  return rows.map(function(r){
+    return '<div class="story '+r[0]+'">'+
+      '<div class="top"><span class="tag '+(r[0]==='s1'?'sev1':'sev2')+'">'+r[1]+'</span></div>'+
+      '<h3>'+r[2]+'</h3>'+
+      '<div class="why">'+spark(r[4],r[5])+'<span>'+r[3]+'</span></div>'+
+      '<div class="acts"><button class="btn ghost" disabled style="opacity:.55">Action (disabled in lens)</button></div>'+
+    '</div>';
+  }).join('');
+}
+function winCard(s){
+  return '<div class="story s3">'+
+    '<div class="top"><span class="tag sev3">CLEAR</span></div>'+
+    '<h3>Nothing needs you right now ✅</h3>'+
+    '<div class="why">'+spark('#1f9d57','32.5,33,33.4,33.7,33.8,33.9')+'<span>PAC +33.91% · patch & org leader on 25.6% labor. Keep running the play.</span></div>'+
+  '</div>';
+}
+
+/* ---------- count-up on the verdict number (the single restrained motion) ---------- */
+(function countUp(){
+  var el=document.getElementById('cnt'), end=7, t0=null;
+  if(window.matchMedia('(prefers-reduced-motion:reduce)').matches){el.textContent=end;return;}
+  function step(ts){ if(!t0)t0=ts; var p=Math.min((ts-t0)/650,1);
+    el.textContent=Math.round(p*end); if(p<1)requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+})();
+
+/* ---------- theme toggle (auto-arches in production by Chicago sunset) ---------- */
+document.getElementById('theme').addEventListener('click',function(){
+  var b=document.body; b.dataset.theme = b.dataset.theme==='arches' ? 'light' : 'arches';
+});
+</script>
+</body>
+</html>

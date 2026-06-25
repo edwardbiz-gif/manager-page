@@ -1,0 +1,472 @@
+<!--
+  Manager-Page Redesign — NUMBERS / Sales screen mockup (the "?view=lab" feel carried forward)
+  Field-First spine + IBCS visual grammar + lab YoY-as-hero grammar (plan-spec.md §4, §5, §6)
+  STANDALONE visual mockup. Realistic SAMPLE data shaped like sales_summary / v_datapass_lto_rank.
+  Data-through: MTD 2026-06-24 (24 days). NOT wired to live data. New file only — lock #796 honored.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NUMBERS · Sales — Manager Page (mockup)</title>
+<style>
+/* ============================== TOKENS ============================== */
+:root{
+  /* primitive ramp — McD anchored */
+  --mcd-green:#2c5f2d; --mcd-gold:#ffc72c; --mcd-red:#da291c;
+  --paper:#eceee9; --surface:#ffffff; --surface-2:#f4f5f3; --surface-3:#fbfcfb;
+  --ink:#1f2421; --ink-muted:#71776f; --ink-faint:#9aa097; --line:#e7e8e5;
+  --good:#1f9d57; --warn:#c2710c; --bad:#c4321f;
+  --fav:#1f9d57; --unfav:#c4321f;        /* variance by favorability, not direction */
+  --prior:#9aa097;                         /* IBCS prior = gray */
+  --accent:var(--mcd-green); --on-accent:#fff;
+  --r-tile:16px; --r-chip:999px;
+  --sp:8px;
+  --sh-1:0 1px 2px rgba(20,30,20,.06);
+  --sh-2:0 4px 14px rgba(20,30,20,.10);
+  --sh-3:0 14px 40px rgba(20,30,20,.16);
+  --hero:clamp(28px,8vw,40px);
+  --maxw:432px;
+}
+body[data-theme=arches]{
+  --paper:#0b1016; --surface:#1b2632; --surface-2:#16202b; --surface-3:#202d3a;
+  --ink:#eef4fb; --ink-muted:#9fb0c0; --ink-faint:#6b7d8c; --line:#2a3947;
+  --good:#43d39e; --warn:#f0a23b; --bad:#e5484d;
+  --fav:#43d39e; --unfav:#e5484d; --prior:#5d6f7e;
+  --accent:var(--mcd-gold); --on-accent:#1b2632;
+  --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-2:0 6px 18px rgba(0,0,0,.5); --sh-3:0 18px 48px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--paper); color:var(--ink); line-height:1.45;
+  -webkit-font-smoothing:antialiased; padding:18px 0 0;
+  transition:background .4s,color .4s;
+}
+body[data-theme=arches]{background:radial-gradient(120% 90% at 50% 0%,#16222e 0%,#0b1016 70%)}
+
+/* ============================== FRAME ============================== */
+.phone{
+  max-width:var(--maxw); margin:0 auto; background:var(--surface-2);
+  border-radius:26px; box-shadow:var(--sh-3); overflow:hidden;
+  border:1px solid var(--line); position:relative; min-height:96vh;
+}
+.scroll{padding:0 13px 96px; overflow-x:hidden}
+
+/* top app bar */
+.appbar{
+  position:sticky; top:0; z-index:40; padding:12px 14px 11px;
+  background:linear-gradient(180deg,var(--surface) 70%,rgba(255,255,255,0));
+  backdrop-filter:saturate(1.2) blur(6px);
+}
+body[data-theme=arches] .appbar{background:linear-gradient(180deg,var(--surface) 70%,rgba(27,38,50,0))}
+.appbar .row{display:flex; align-items:center; gap:9px}
+.appbar .who{font-size:13px; font-weight:800; letter-spacing:.2px}
+.appbar .sub{font-size:10.5px; color:var(--ink-muted); margin-top:1px}
+.appbar .spacer{flex:1}
+.vstamp{font-size:9.5px; color:var(--ink-faint); font-weight:700; letter-spacing:.4px}
+.themebtn{
+  border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+  border-radius:var(--r-chip); font-size:14px; width:34px; height:34px; cursor:pointer;
+  display:grid; place-items:center;
+}
+
+/* view-as banner */
+.viewas{
+  display:flex; align-items:center; gap:8px; margin:0 1px 11px;
+  background:color-mix(in srgb,var(--warn) 16%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--warn) 45%,var(--surface));
+  color:var(--ink); border-radius:12px; padding:8px 11px; font-size:12px; font-weight:600;
+}
+.viewas b{color:var(--warn)}
+.viewas .x{margin-left:auto; font-weight:800; color:var(--warn); cursor:pointer; font-size:11px;
+  border:1px solid color-mix(in srgb,var(--warn) 45%,var(--surface)); border-radius:999px; padding:4px 9px}
+
+/* store switcher chip rail */
+.storebar{display:flex; gap:7px; overflow-x:auto; padding:2px 1px 12px; scrollbar-width:none}
+.storebar::-webkit-scrollbar{display:none}
+.schip{
+  flex:0 0 auto; border:1px solid var(--line); background:var(--surface);
+  border-radius:var(--r-chip); padding:7px 13px; font-size:12px; font-weight:700;
+  color:var(--ink-muted); cursor:pointer; white-space:nowrap; box-shadow:var(--sh-1);
+}
+.schip.on{background:var(--accent); color:var(--on-accent); border-color:var(--accent)}
+
+/* ============================== CARD / MODULE TILE ============================== */
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-tile);
+  box-shadow:var(--sh-2); padding:14px 14px 15px; margin:0 0 13px;
+  animation:rise .5s cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes rise{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+@media(prefers-reduced-motion:reduce){.card{animation:none}}
+.chead{display:flex; align-items:baseline; gap:7px; margin-bottom:11px}
+.chead h3{
+  margin:0; font-size:13px; font-weight:800; letter-spacing:.7px; text-transform:uppercase;
+  color:var(--accent); display:flex; align-items:center; gap:6px;
+}
+.ct{margin-left:auto; font-size:10px; font-weight:700; color:var(--ink-faint); letter-spacing:.2px}
+.newbadge{font-size:8.5px; font-weight:800; letter-spacing:.6px; color:#0ea5e9;
+  border:1px solid #0ea5e9; border-radius:4px; padding:1px 4px; margin-left:5px}
+
+/* ============================== VERDICT ============================== */
+.verdict{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--good) 12%,var(--surface)),var(--surface));
+  border:1px solid color-mix(in srgb,var(--good) 30%,var(--line));
+  border-radius:var(--r-tile); padding:15px 15px 14px; margin:0 0 13px; box-shadow:var(--sh-2);
+  animation:rise .5s both;
+}
+.verdict .vlab{font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--good)}
+.verdict .vbig{font-size:var(--hero); font-weight:800; letter-spacing:-1px; line-height:1.05; margin:5px 0 3px}
+.verdict .vbig .pos{color:var(--good)}
+.verdict .vsay{font-size:12.5px; color:var(--ink-muted); font-weight:600}
+.verdict .vthru{font-size:10px; color:var(--ink-faint); margin-top:7px; font-weight:700}
+
+/* ============================== GLANCE TILES (lab trio) ============================== */
+.trio{display:flex; gap:9px}
+.tile{flex:1; min-width:0; text-align:center; padding:9px 4px 8px; border-radius:11px;
+  background:var(--surface-2); border:1px solid var(--line)}
+.tile .tlab{font-size:9.5px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--ink-faint)}
+.tile .tpct{font-size:21px; font-weight:800; margin:3px 0 1px; letter-spacing:-.5px}
+.tile .tsub{font-size:10.5px; color:var(--ink-muted); font-weight:600}
+.tile .tdiv{height:1px; background:var(--line); margin:6px 8px 5px}
+.tile .tgc{font-size:10.5px; font-weight:700}
+.pos{color:var(--good)} .neg{color:var(--bad)} .na{color:var(--ink-faint)}
+
+/* expander */
+.exp{margin-top:11px}
+.expbtn{width:100%; text-align:left; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:10px; padding:9px 11px; font-size:12px; font-weight:700; color:var(--ink);
+  cursor:pointer; display:flex; align-items:center; gap:7px}
+.expbtn .chev{margin-left:auto; transition:transform .25s; color:var(--ink-muted)}
+.expbtn[aria-expanded=true] .chev{transform:rotate(90deg)}
+.expbody{display:none; padding-top:10px}
+.expbody.open{display:block; animation:rise .3s both}
+
+/* per-store table */
+.stbl{width:100%; border-collapse:collapse; font-size:11.5px}
+.stbl th{font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-faint);
+  font-weight:800; text-align:center; padding:0 3px 6px}
+.stbl th:first-child{text-align:left}
+.stbl td{padding:5px 3px; border-top:1px solid var(--line); text-align:center; vertical-align:middle}
+.stbl td:first-child{text-align:left; font-weight:700}
+.stbl td.me{color:var(--accent)}
+.stbl tr.merow{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.cell-p{font-weight:800; font-size:12px}
+.cell-gc{font-size:9px; color:var(--ink-faint); font-weight:700; display:block; margin-top:1px}
+
+/* ============================== CHART ============================== */
+.chartwrap{margin:4px -2px 0}
+.legend{display:flex; flex-wrap:wrap; gap:9px; margin-top:9px; font-size:10px; color:var(--ink-muted); font-weight:600}
+.legend .lg{display:inline-flex; align-items:center; gap:5px}
+.legend .sw{width:16px; height:0; border-top:2.4px solid currentColor; border-radius:2px}
+.legend .sw.dash{border-top-style:dashed; color:var(--prior)}
+.legend .dot{width:9px; height:9px; border-radius:3px}
+.cap{font-size:10px; color:var(--ink-faint); margin-top:7px; font-weight:600}
+
+/* ranker lists */
+.seg{display:flex; gap:6px; margin:2px 0 12px; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:var(--r-chip); padding:4px}
+.seg button{flex:1; border:0; background:transparent; color:var(--ink-muted); font-weight:700;
+  font-size:11.5px; padding:7px 4px; border-radius:var(--r-chip); cursor:pointer; white-space:nowrap}
+.seg button.on{background:var(--surface); color:var(--accent); box-shadow:var(--sh-1)}
+.rkr{display:none} .rkr.on{display:block; animation:rise .3s both}
+.rrow{display:flex; align-items:center; gap:10px; padding:8px 2px; border-top:1px solid var(--line)}
+.rrow:first-child{border-top:0}
+.rk{width:22px; height:22px; flex:0 0 auto; border-radius:7px; display:grid; place-items:center;
+  font-size:11px; font-weight:800; background:var(--surface-2); color:var(--ink-muted)}
+.rk.g1{background:var(--mcd-gold); color:#3a2e00}
+.rk.g2{background:#d8dbd4; color:#3a3f38}
+.rk.g3{background:#e7c9a8; color:#5a3d1c}
+.rname{font-size:12.5px; font-weight:700; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.rname.me{color:var(--accent)}
+.rbarwrap{flex:0 0 88px; height:7px; background:var(--surface-2); border-radius:5px; overflow:hidden}
+.rbar{height:100%; border-radius:5px}
+.rval{flex:0 0 56px; text-align:right; font-size:12px; font-weight:800}
+.rval small{font-size:9px; color:var(--ink-faint); font-weight:700; display:block}
+
+/* org benchmark strip */
+.bench{display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:10px; padding:8px 10px; font-size:11px; font-weight:600; color:var(--ink-muted)}
+.bench .pill{margin-left:auto; font-weight:800; padding:3px 9px; border-radius:999px; font-size:11px;
+  background:color-mix(in srgb,var(--good) 16%,var(--surface)); color:var(--good)}
+
+/* ============================== TAB BAR ============================== */
+.tabbar{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:var(--maxw);
+  display:flex; background:var(--surface); border-top:1px solid var(--line);
+  box-shadow:0 -6px 20px rgba(20,30,20,.10); z-index:50; padding-bottom:env(safe-area-inset-bottom);
+}
+body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
+.tabbar button{flex:1; border:0; background:transparent; padding:9px 2px 8px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--ink-faint);
+  font-size:9.5px; font-weight:800; letter-spacing:.3px}
+.tabbar button svg{width:21px; height:21px}
+.tabbar button.on{color:var(--accent)}
+.tabbar button .badge{position:absolute; transform:translate(11px,-3px); background:var(--mcd-red);
+  color:#fff; font-size:8px; font-weight:800; border-radius:999px; padding:0 4px; line-height:14px}
+</style>
+
+<div class="phone">
+  <div class="appbar">
+    <div class="row">
+      <div>
+        <div class="who">NUMBERS · Sales &amp; Guest Counts</div>
+        <div class="sub">Boulder Hill · #3444 · GM view</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="vstamp">api v89</div>
+      <button class="themebtn" id="themebtn" title="Toggle theme">◑</button>
+    </div>
+  </div>
+
+  <div class="scroll">
+
+    <!-- view-as banner (supervisor/owner lens) -->
+    <div class="viewas">
+      Viewing <b>Boulder Hill</b> as GM
+      <span class="x" onclick="alert('(mockup) returns to patch rollup')">Return to patch ✕</span>
+    </div>
+
+    <!-- store switcher (view-as rail) -->
+    <div class="storebar" id="storebar"></div>
+
+    <!-- VERDICT -->
+    <div class="verdict">
+      <div class="vlab">Sales verdict</div>
+      <div class="vbig">Boulder Hill is <span class="pos" id="verdNum">+3.0%</span> YoY</div>
+      <div class="vsay">$491K MTD on flat guest counts (−2.1%) — check is carrying the gain. LTOs landing top-3 org-wide.</div>
+      <div class="vthru">Data thru Jun 24 · 24 days MTD · vs same days last year</div>
+    </div>
+
+    <!-- SALES & GUEST COUNT YoY (lab trio) -->
+    <div class="card">
+      <div class="chead"><h3>📊 Sales &amp; Guest YoY</h3><span class="ct">thru Jun 24</span></div>
+      <div class="trio">
+        <div class="tile">
+          <div class="tlab">Yesterday</div>
+          <div class="tpct pos">+6.2%</div>
+          <div class="tsub">$22.4K</div>
+          <div class="tdiv"></div>
+          <div class="tgc">GC <span class="pos">+1.1%</span></div>
+        </div>
+        <div class="tile">
+          <div class="tlab">MTD</div>
+          <div class="tpct pos">+3.0%</div>
+          <div class="tsub">$491.1K</div>
+          <div class="tdiv"></div>
+          <div class="tgc">GC <span class="neg">−2.1%</span></div>
+        </div>
+        <div class="tile">
+          <div class="tlab">YTD</div>
+          <div class="tpct pos">+4.4%</div>
+          <div class="tsub">$2.91M</div>
+          <div class="tdiv"></div>
+          <div class="tgc">GC <span class="neg">−1.3%</span></div>
+        </div>
+      </div>
+
+      <div class="exp">
+        <button class="expbtn" aria-expanded="false" onclick="toggle(this,'perstore')">
+          <span>▦ Per store · org benchmark</span><span class="chev">›</span>
+        </button>
+        <div class="expbody" id="perstore">
+          <table class="stbl">
+            <thead><tr><th>Store</th><th>Yest</th><th>MTD</th><th>YTD</th></tr></thead>
+            <tbody id="stbody"></tbody>
+          </table>
+          <div class="cap">YoY% per store, sales-weighted · small "GC" line = guest-count YoY · sorted by MTD sales.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEEKLY SALES TREND (this yr solid vs LY dashed, LTO-colored) -->
+    <div class="card">
+      <div class="chead"><h3>📈 Weekly Sales</h3><span class="ct">complete weeks · thru Jun 21</span></div>
+      <div class="chartwrap" id="trendChart"></div>
+      <div class="legend">
+        <span class="lg"><span class="sw"></span>This year</span>
+        <span class="lg"><span class="sw dash"></span>Last year</span>
+        <span class="lg"><span class="dot" style="background:#ef4444"></span>Crafted Sodas</span>
+        <span class="lg"><span class="dot" style="background:#3b82f6"></span>FIFA Meals</span>
+        <span class="lg"><span class="dot" style="background:#f59e0b"></span>Apple Pies</span>
+      </div>
+      <div class="cap">Product sales per week (store), complete weeks only. Line segment colored by the freshest active LTO — promo attribution.</div>
+    </div>
+
+    <!-- WEEKLY AVG CHECK -->
+    <div class="card">
+      <div class="chead"><h3>💵 Average Check</h3><span class="ct">weekly · thru Jun 21</span></div>
+      <div class="chartwrap" id="checkChart"></div>
+      <div class="cap">Product sales ÷ guest counts, per week (store). Dashed = last year — check is the growth driver while GC sits flat.</div>
+    </div>
+
+    <!-- LTO DAILY RANKERS -->
+    <div class="card">
+      <div class="chead"><h3>🥤 LTO Rankers <span class="newbadge">UNITS/1K</span></h3><span class="ct">thru Jun 24</span></div>
+      <div class="bench">
+        Boulder Hill is a top-3 LTO store org-wide
+        <span class="pill">2 of 3 podiums</span>
+      </div>
+      <div class="seg" style="margin-top:11px">
+        <button class="on" onclick="rkr(this,'lto-soda')">Crafted Sodas</button>
+        <button onclick="rkr(this,'lto-fifa')">FIFA Meals</button>
+        <button onclick="rkr(this,'lto-pie')">Apple Pies</button>
+      </div>
+      <div class="rkr on" id="lto-soda"></div>
+      <div class="rkr" id="lto-fifa"></div>
+      <div class="rkr" id="lto-pie"></div>
+      <div class="cap">Units per 1,000 guests across all 12 stores · your store highlighted · DataPass thru Jun 24.</div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM TAB BAR -->
+  <nav class="tabbar">
+    <button onclick="t(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"/></svg>Today<span class="badge">3</span></button>
+    <button class="on" onclick="t(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-9"/><path d="M21 7v5h-5"/></svg>Numbers</button>
+    <button onclick="t(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.6-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.4-7 10-7 10z"/></svg>Guests</button>
+    <button onclick="t(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.3"/><path d="M16 20c0-2 1-3.6 3-4"/></svg>Team</button>
+    <button onclick="t(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+  </nav>
+</div>
+
+<script>
+/* ===================== SAMPLE DATA (shaped like sales_summary / v_datapass_lto_rank) ===================== */
+// org MTD = $3.41M +5.74% YoY, GC +0.22%, avg check $9.58, 24 days thru Jun 24.
+const STORES = [
+  {n:"Boulder Hill",   me:true,  yest:6.2, mtd:3.04, ytd:4.4, gcY:1.1, gcM:-2.14, gcYtd:-1.3, sales:491081},
+  {n:"Lake St",                   yest:8.1, mtd:9.84, ytd:8.9, gcY:3.0, gcM:4.10,  gcYtd:3.4,  sales:384504},
+  {n:"Farnsworth",                yest:4.4, mtd:5.23, ytd:5.0, gcY:0.7, gcM:1.19,  gcYtd:1.0,  sales:306909},
+  {n:"Orchard",                   yest:2.1, mtd:3.03, ytd:3.6, gcY:-0.9,gcM:-1.90, gcYtd:-1.7, sales:290999},
+  {n:"Oswego 2",                  yest:1.0, mtd:2.43, ytd:2.0, gcY:-2.0,gcM:-2.81, gcYtd:-2.6, sales:281244},
+  {n:"Yorkville 1",               yest:7.9, mtd:9.33, ytd:8.4, gcY:2.4, gcM:2.78,  gcYtd:2.1,  sales:263412},
+  {n:"North Naperville",          yest:1.8, mtd:3.43, ytd:3.1, gcY:-0.4,gcM:-0.78, gcYtd:-0.9, sales:258599},
+  {n:"Lisle",                     yest:3.2, mtd:4.67, ytd:4.2, gcY:0.6, gcM:0.43,  gcYtd:0.2,  sales:253876},
+  {n:"River Road",                yest:6.6, mtd:7.92, ytd:7.1, gcY:0.0, gcM:-0.48, gcYtd:-0.6, sales:239042},
+  {n:"Eola BP",                   yest:5.3, mtd:7.59, ytd:6.8, gcY:1.2, gcM:0.97,  gcYtd:0.8,  sales:224209},
+  {n:"Plano",                     yest:6.0, mtd:7.48, ytd:6.6, gcY:1.6, gcM:1.43,  gcYtd:1.1,  sales:211195},
+  {n:"Kirk",                      yest:7.2, mtd:8.13, ytd:7.4, gcY:1.9, gcM:1.68,  gcYtd:1.4,  sales:204656},
+];
+// LTO rankers: units per 1k guests (real shape) — colored to LTO
+const LTO = {
+  "lto-soda":{color:"#ef4444", rows:[
+    ["Plano",67.34],["Yorkville 1",55.35],["Boulder Hill",49.13],["Oswego 2",47.54],["Orchard",45.10],
+    ["Eola BP",45.05],["Lake St",39.42],["Farnsworth",39.08],["River Road",37.54],["Kirk",35.53],
+    ["Lisle",34.87],["North Naperville",34.59]]},
+  "lto-fifa":{color:"#3b82f6", rows:[
+    ["Boulder Hill",45.89],["Lake St",39.78],["Farnsworth",38.28],["Plano",35.83],["Orchard",35.72],
+    ["Kirk",26.96],["Oswego 2",24.95],["Yorkville 1",24.90],["North Naperville",23.76],["River Road",22.36],
+    ["Eola BP",21.68],["Lisle",21.41]]},
+  "lto-pie":{color:"#f59e0b", rows:[
+    ["Plano",53.75],["Boulder Hill",52.10],["Eola BP",48.26],["Orchard",46.41],["Lake St",33.09],
+    ["Oswego 2",32.97],["Yorkville 1",31.4],["Farnsworth",30.2],["Kirk",28.8],["River Road",27.1],
+    ["North Naperville",25.9],["Lisle",24.6]]},
+};
+// 14 weekly points for Boulder Hill — this year vs last year (sales), LTO tag per week
+const WEEKS = [
+  {m:"Mar",ty:108,ly:104,lto:null},{m:"Mar",ty:111,ly:106,lto:null},{m:"Mar",ty:107,ly:105,lto:null},
+  {m:"Apr",ty:113,ly:107,lto:"#f59e0b"},{m:"Apr",ty:118,ly:109,lto:"#f59e0b"},{m:"Apr",ty:115,ly:110,lto:"#f59e0b"},
+  {m:"May",ty:121,ly:112,lto:"#3b82f6"},{m:"May",ty:126,ly:114,lto:"#3b82f6"},{m:"May",ty:124,ly:115,lto:"#3b82f6"},
+  {m:"Jun",ty:129,ly:118,lto:"#ef4444"},{m:"Jun",ty:134,ly:120,lto:"#ef4444"},{m:"Jun",ty:131,ly:121,lto:"#ef4444"},
+  {m:"Jun",ty:138,ly:123,lto:"#ef4444"},{m:"Jun",ty:135,ly:124,lto:"#ef4444"},
+];
+const CHECK = WEEKS.map((w,i)=>({m:w.m, ty:10.4+i*0.07+(i%3)*0.04, ly:10.1+i*0.04, lto:w.lto}));
+
+/* ===================== HELPERS ===================== */
+function pc(v){const s=(v>=0?"+":"")+v.toFixed(1)+"%"; const c=v>0?"pos":v<0?"neg":"na"; return `<span class="${c}">${s}</span>`;}
+
+/* per-store table */
+(function(){
+  const b=document.getElementById('stbody');
+  b.innerHTML = STORES.map(s=>`
+    <tr class="${s.me?'merow':''}">
+      <td class="${s.me?'me':''}">${s.n}</td>
+      <td><span class="cell-p ${s.yest>=0?'pos':'neg'}">${pc(s.yest)}</span><span class="cell-gc">GC ${(s.gcY>=0?'+':'')+s.gcY.toFixed(1)}</span></td>
+      <td><span class="cell-p ${s.mtd>=0?'pos':'neg'}">${pc(s.mtd)}</span><span class="cell-gc">GC ${(s.gcM>=0?'+':'')+s.gcM.toFixed(1)}</span></td>
+      <td><span class="cell-p ${s.ytd>=0?'pos':'neg'}">${pc(s.ytd)}</span><span class="cell-gc">GC ${(s.gcYtd>=0?'+':'')+s.gcYtd.toFixed(1)}</span></td>
+    </tr>`).join('');
+})();
+
+/* store switcher rail */
+(function(){
+  const r=document.getElementById('storebar');
+  r.innerHTML = '<button class="schip">⌂ Patch rollup</button>' +
+    STORES.slice().sort((a,b)=>b.sales-a.sales).map(s=>
+      `<button class="schip ${s.me?'on':''}">${s.n}</button>`).join('');
+  r.querySelectorAll('.schip').forEach(c=>c.onclick=()=>{
+    r.querySelectorAll('.schip').forEach(x=>x.classList.remove('on')); c.classList.add('on');
+  });
+})();
+
+/* inline SVG trend: this-yr solid + last-yr dashed, LTO-colored segments, min/max labels */
+function trendSVG(data, keyTy, keyLy, fmt, showLY){
+  const W=440,H=128, padX=8, padTop=16, padBot=20;
+  const ys=data.flatMap(d=>[d[keyTy], showLY?d[keyLy]:d[keyTy]]);
+  const mn=Math.min(...ys), mx=Math.max(...ys), rng=(mx-mn)||1;
+  const x=i=>padX + i*((W-2*padX)/(data.length-1));
+  const y=v=>padTop + (1-(v-mn)/rng)*(H-padTop-padBot);
+  // gridlines
+  let g='';
+  for(let k=0;k<=3;k++){const gy=padTop+k*((H-padTop-padBot)/3);
+    g+=`<line x1="${padX}" y1="${gy}" x2="${W-padX}" y2="${gy}" stroke="var(--line)" stroke-width="1"/>`;}
+  // last year dashed
+  let ly='';
+  if(showLY){ly=`<polyline fill="none" stroke="var(--prior)" stroke-width="1.5" stroke-dasharray="4 3"
+    stroke-linecap="round" vector-effect="non-scaling-stroke" points="${data.map((d,i)=>`${x(i)},${y(d[keyLy])}`).join(' ')}"/>`;}
+  // this-year segments colored by LTO
+  let segs='';
+  for(let i=0;i<data.length-1;i++){
+    const col=data[i+1].lto||"var(--accent)";
+    segs+=`<line x1="${x(i)}" y1="${y(data[i][keyTy])}" x2="${x(i+1)}" y2="${y(data[i+1][keyTy])}"
+      stroke="${col}" stroke-width="2.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  }
+  // dots
+  let dots='';
+  data.forEach((d,i)=>{const r=d.lto?2.8:1.8; const col=d.lto||"var(--accent)";
+    dots+=`<circle cx="${x(i)}" cy="${y(d[keyTy])}" r="${r}" fill="${col}"/>`;});
+  // min/max labels
+  const tys=data.map(d=>d[keyTy]); const iMax=tys.indexOf(Math.max(...tys)), iMin=tys.indexOf(Math.min(...tys));
+  let lab='';
+  [iMax,iMin].forEach(i=>{const v=data[i][keyTy]; const yy=y(v);
+    const anchor=x(i)>W-60?'end':'start'; const dx=anchor==='end'?-4:4;
+    lab+=`<text x="${x(i)+dx}" y="${yy-6}" font-size="8.5" font-weight="800" fill="var(--ink)" text-anchor="${anchor}">${fmt(v)}</text>`;});
+  // x month labels on change
+  let xl=''; let prev='';
+  data.forEach((d,i)=>{if(d.m!==prev){xl+=`<text x="${x(i)}" y="${H-6}" font-size="8.5" fill="var(--ink-faint)" font-weight="700">${d.m}</text>`; prev=d.m;}});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="124" preserveAspectRatio="none" style="overflow:visible">
+    ${g}${ly}${segs}${dots}${lab}${xl}</svg>`;
+}
+document.getElementById('trendChart').innerHTML = trendSVG(WEEKS,'ty','ly', v=>'$'+v+'K', true);
+document.getElementById('checkChart').innerHTML = trendSVG(CHECK,'ty','ly', v=>'$'+v.toFixed(2), true);
+
+/* LTO ranker lists */
+function renderRkr(id){
+  const {color,rows}=LTO[id]; const mx=Math.max(...rows.map(r=>r[1]));
+  document.getElementById(id).innerHTML = rows.map((r,i)=>{
+    const me=r[0]==="Boulder Hill"; const rk=i+1;
+    return `<div class="rrow">
+      <span class="rk ${rk<=3?'g'+rk:''}">${rk}</span>
+      <span class="rname ${me?'me':''}">${r[0]}${me?' ·you':''}</span>
+      <span class="rbarwrap"><span class="rbar" style="width:${(r[1]/mx*100).toFixed(0)}%;background:${color}"></span></span>
+      <span class="rval">${r[1].toFixed(1)}<small>per 1k</small></span>
+    </div>`;}).join('');
+}
+Object.keys(LTO).forEach(renderRkr);
+
+/* ===================== INTERACTIONS ===================== */
+function toggle(btn,id){const open=btn.getAttribute('aria-expanded')==='true';
+  btn.setAttribute('aria-expanded',!open); document.getElementById(id).classList.toggle('open',!open);}
+function rkr(btn,id){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  document.querySelectorAll('.rkr').forEach(r=>r.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+function t(btn){btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); btn.classList.add('on');}
+
+/* auto theme by Chicago dusk + manual toggle */
+function autoTheme(){const h=new Date().getHours(); if(h>=20||h<6) document.body.setAttribute('data-theme','arches');}
+autoTheme();
+document.getElementById('themebtn').onclick=()=>{
+  document.body.setAttribute('data-theme', document.body.getAttribute('data-theme')==='arches'?'':'arches');
+};
+</script>
