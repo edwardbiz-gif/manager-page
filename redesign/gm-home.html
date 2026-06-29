@@ -202,6 +202,38 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .desk-only{display:none}
 @media(min-width:900px){.desk-only{display:block}}
+
+/* ===== clickable-detail-everywhere (plan-spec §10) ===== */
+.clk{cursor:pointer;transition:border-color .14s,box-shadow .14s,transform .12s}
+.clk:hover{border-color:var(--accent)}
+.clk:active{transform:scale(.99)}
+.tapcue{font-size:9px;font-weight:800;letter-spacing:.4px;color:var(--ink-muted);text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:5px;margin-top:8px}
+.tapcue .cv{color:var(--accent)}
+.gtile .tapcue{margin-top:6px}
+
+/* ===== drill sheet ===== */
+.veil{position:fixed;inset:0;background:rgba(15,22,18,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .22s}
+.veil.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;transform:translate(-50%,102%);bottom:0;width:100%;max-width:432px;z-index:70;
+  background:var(--surface);border-radius:20px 20px 0 0;box-shadow:0 -14px 44px rgba(15,22,18,.4);
+  transition:transform .3s cubic-bezier(.3,.7,.3,1);max-height:86%;display:flex;flex-direction:column}
+@media(min-width:900px){.sheet{max-width:560px}}
+.sheet.show{transform:translate(-50%,0)}
+.sheet .grab{width:38px;height:4px;border-radius:999px;background:var(--line);margin:9px auto 3px}
+.sheet .shd{display:flex;align-items:center;gap:9px;padding:5px 16px 11px;border-bottom:1px solid var(--line)}
+.sheet .shd .stt{font-size:13.5px;font-weight:800}
+.sheet .shd .sxx{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer}
+.sheet .sbd{overflow-y:auto;padding:13px 16px 26px}
+.sheet .sbd::-webkit-scrollbar{width:0}
+.sheet .crumb{font-size:9.5px;color:var(--ink-muted);font-weight:700;margin-bottom:9px}
+.sheet .crumb b{color:var(--ink)}
+.sheet .dsub{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:13px 0 4px}
+.sheet .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.sheet .drow:last-child{border-bottom:0}
+.sheet .drow .dk{color:var(--ink-muted);font-weight:600}
+.sheet .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
 </style>
 
 <div class="wrap">
@@ -222,21 +254,22 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
   <!-- LEFT COLUMN on desktop: verdict + feed -->
   <div class="col-feed">
     <!-- ZONE 1 — VERDICT -->
-    <section class="verdict" id="verdict" aria-label="Today verdict">
+    <section class="verdict clk" id="verdict" aria-label="Today verdict" onclick="drill('verdict')">
       <div class="eyebrow">Your store today</div>
       <div class="bignum"><em id="vcount">3</em> things need you today</div>
       <div class="sub">Sales are up, but labor and one guest issue need a look.</div>
       <div class="thru"><span class="pulse-dot"></span> Data through Jun 24, 2026</div>
+      <div class="tapcue">Tap for the full breakdown <span class="cv">›</span></div>
     </section>
 
     <!-- PINNED STRIP -->
     <div class="pins" aria-label="Pinned contests">
-      <div class="pin gold win">
+      <div class="pin gold win clk" onclick="drill('race')">
         <div class="pt">🏆 Cleanliness race · June</div>
         <div class="pv">#2 of 12</div>
         <div class="pn">$100 if you finish top-3 · thru Jun 24</div>
       </div>
-      <div class="pin">
+      <div class="pin clk" onclick="drill('osat')">
         <div class="pt">🎯 OSAT incentive</div>
         <div class="pv">72.8% <span style="font-size:11px;color:var(--good)">✓ on track</span></div>
         <div class="pn">$100 to every store ≥72% in June</div>
@@ -255,7 +288,7 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
     <div class="feed" id="feed">
       <!-- Card 1 — guest complaint -->
       <article class="story s1">
-        <div class="top">
+        <div class="top clk" onclick="drill('complaint')">
           <span class="sev-badge">Urgent</span>
           <div class="hl">
             <h3>Open complaint, 2 days no response</h3>
@@ -274,7 +307,7 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
 
       <!-- Card 2 — labor / deploy -->
       <article class="story s2">
-        <div class="top">
+        <div class="top clk" onclick="drill('labor')">
           <span class="sev-badge">Watch</span>
           <div class="hl">
             <h3>Front counter short for lunch rush</h3>
@@ -293,7 +326,7 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
 
       <!-- Card 3 — training deadline -->
       <article class="story s2">
-        <div class="top">
+        <div class="top clk" onclick="drill('training')">
           <span class="sev-badge">Watch</span>
           <div class="hl">
             <h3>New hire training due in 3 days</h3>
@@ -329,19 +362,21 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
     <!-- ZONE 3 — TODAY AT A GLANCE -->
     <div class="shead"><h2>Today at a glance</h2><span class="h-meta">MTD thru Jun 24</span></div>
     <div class="glance">
-      <div class="gtile">
+      <div class="gtile clk" onclick="drill('sales')">
         <div class="gl">Sales MTD · YoY</div>
         <div class="gv" style="color:var(--fav)">+6.2%</div>
         <div class="gd up">▲ $214,880 · GC +2.1%</div>
         <div class="gsub">24 days loaded · vs LY rebuilt</div>
+        <div class="tapcue">Details <span class="cv">›</span></div>
       </div>
-      <div class="gtile">
+      <div class="gtile clk" onclick="drill('osat')">
         <div class="gl">OSAT</div>
         <div class="gv">72.8%</div>
         <div class="gd up">▲ +1.4 vs CHICAGO-MOCNI</div>
         <div class="gsub">rank #3 of 12 · n=216</div>
+        <div class="tapcue">Details <span class="cv">›</span></div>
       </div>
-      <div class="gtile">
+      <div class="gtile clk" onclick="drill('labor')">
         <div class="gl">Labor % of sales</div>
         <div class="gv" style="color:var(--fav)">25.8%</div>
         <div class="gd up">lowest in org · leading the pack</div>
@@ -351,12 +386,14 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
           <rect x="0" y="3" width="77" height="6" fill="var(--fav)" opacity=".85"/>
         </svg>
         <div class="cap">bar = labor level (0–40%) · target pending source</div>
+        <div class="tapcue">Deploy detail <span class="cv">›</span></div>
       </div>
-      <div class="gtile">
+      <div class="gtile clk" onclick="drill('guests')">
         <div class="gl">Open guest items</div>
         <div class="gv" style="color:var(--unfav)">2</div>
         <div class="gd down">1 needs response now</div>
         <div class="gsub">last 30d: 7 total · 3 negative</div>
+        <div class="tapcue">Details <span class="cv">›</span></div>
       </div>
     </div>
 
@@ -503,6 +540,15 @@ body[data-theme=arches] .tag-new{color:#7dd3fc}
   </div><!-- /desk-grid -->
 </div>
 
+<!-- DRILL SHEET (clickable-detail-everywhere, plan-spec §10) -->
+<div class="veil" id="veil" onclick="closeDrill()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <div class="shd"><span class="stt" id="sheetTitle">Detail</span>
+    <button class="sxx" onclick="closeDrill()">Close ✕</button></div>
+  <div class="sbd" id="sheetBody"></div>
+</div>
+
 <!-- BOTTOM TAB BAR (phone) -->
 <nav class="tabbar" aria-label="Sections">
   <button class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>Today<span class="tdot"></span></button>
@@ -543,4 +589,41 @@ function resolveCard(btn){
 document.querySelectorAll('.tab').forEach(function(t){
   t.onclick=function(){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});t.classList.add('active');};
 });
+
+// ===== clickable-detail-everywhere: drill sheet (plan-spec §10) =====
+var DRILL={
+  verdict:{t:'Today · why these 3',h:'GM Today › <b>Verdict</b>',
+    rows:[['Open complaint past SLA','Urgent · #31728'],['Lunch deploy short 1 head','Watch · 11:45a'],['New-hire training due','Watch · Antonio R. Jun 27']],
+    note:'The verdict count = sum of unresolved scored exceptions. Resolve a card and it recounts.'},
+  race:{t:'Cleanliness race · June',h:'GM Today › <b>Cleanliness race</b>',
+    rows:[['Your rank','#2 of 12'],['Score (cleanliness)','81.4%'],['Leader','Eola BP 83.1%'],['Payout','$100 if top-3 at month-end']],
+    note:'Pinned everywhere. Race standings refresh daily; Paycor-punch eligibility applies.'},
+  osat:{t:'OSAT incentive',h:'GM Today › <b>OSAT</b>',
+    rows:[['OSAT MTD','72.8%'],['Threshold','≥72% in June'],['vs benchmark','+1.4 vs CHICAGO-MOCNI'],['Sample','n=216'],['Payout','$100 to every store ≥72%']],
+    note:'Freshest SMG source per metric. n<30 metrics are flagged, never a fabricated red.'},
+  sales:{t:'Sales MTD · YoY',h:'GM Today › Numbers › <b>Sales</b>',
+    rows:[['MTD YoY','+6.2%'],['MTD $','$214,880 (24 days)'],['Guest count YoY','+2.1%'],['Avg check','carrying the gain'],['YTD YoY','+4.4%']],
+    note:'LY rebuilt per row, Mon week-start. Tap through to the full weekly trend on Numbers.'},
+  labor:{t:'Labor · deploy vs demand',h:'GM Today › Team › <b>Labor / deploy</b>',
+    rows:[['Labor % MTD','25.8% (lowest in org)'],['Gap','−1 head at 11:45a'],['Actual vs forecast','2 vs 3'],['Target','pending source (§6.4)']],
+    note:'Deploy-vs-demand from persisted DataPass grid. Trim/add by daypart to hold labor %.'},
+  guests:{t:'Open guest items',h:'GM Today › Guests › <b>Open items</b>',
+    rows:[['Open now','2'],['Needs response now','1'],['Last 30d','7 total · 3 negative'],['Oldest','#31728 · 48h']],
+    note:'Unified feedback (complaints + SMG comments), needs-response weighted to the top.'},
+  complaint:{t:'Complaint #31728',h:'GM Today › Guests › <b>#31728</b>',
+    rows:[['Channel','1-800 case'],['Theme','Service/Staff'],['Age','48h (SLA breach)'],['Asked for','callback'],['Linked task','open, no GM ack']],
+    note:'Use Draft reply to prep an Outlook draft (a human sends). Resolve closes the loop + recounts the verdict.'},
+  training:{t:'New-hire training',h:'GM Today › Team › <b>Antonio R.</b>',
+    rows:[['Done','9 of 14 mandatory'],['Deadline','Jun 27 (hire+14d)'],['Days left','3'],['PBS basis','US PBS RL-2b/RL-5b']],
+    note:'From persisted v_new_hire_training. Names First-L only (PII gating).'}
+};
+function drill(key){
+  var d=DRILL[key]; if(!d)return;
+  document.getElementById('sheetTitle').textContent=d.t;
+  var rows=d.rows.map(function(r){return '<div class="drow"><span class="dk">'+r[0]+'</span><span class="dv">'+r[1]+'</span></div>';}).join('');
+  document.getElementById('sheetBody').innerHTML='<div class="crumb">'+d.h+'</div>'+rows+(d.note?'<div class="cap" style="margin-top:11px">'+d.note+'</div>':'');
+  document.getElementById('veil').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+}
+function closeDrill(){document.getElementById('veil').classList.remove('show');document.getElementById('sheet').classList.remove('show');}
 </script>

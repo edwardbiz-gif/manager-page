@@ -1,0 +1,533 @@
+<!--
+  GM HOME — "Today / priorities" — LIVE VERTICAL SLICE (plan-spec §3.1 / §4 / §6)
+  ================================================================================
+  This is the WORKING PROOF: the Field-First GM Today home rendered in the new
+  design system and WIRED TO REAL DATA from the EXISTING production manager-page
+  Edge Function (read-only). It does NOT modify the production Edge Function or
+  shell — it is a NEW standalone consumer of the existing JSON contract.
+
+  HARD CONSTRAINT (lock #796): NEW file only. Production files untouched.
+
+  DATA SOURCE
+    GET https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page?t=<token>
+    Token (capability token, ?t=): hazel-demo-gm-boulderhill (access_tokens id 107,
+    scope=manager_page, role=GM, Rodrigo Lopez, Boulder Hill #3444, store_id 3).
+    Only the SHA-256 hash is stored server-side; this plaintext came from
+    app_config['hazel_gm_link']. Read-only GET — no writes are issued.
+
+  LIVE modules (rendered from the live JSON response):
+    - Verdict / priority count (derived from tasks + complaints + feedback + voice)
+    - Pinned: Cleanliness race, OSAT incentive  (data.cleanliness_race, data.osat_incentive)
+    - Priority stack: open complaint (data.complaints), urgent/overdue tasks (data.tasks),
+      OSAT miss vs BU (data.voice_trend), guest items needing response (data.customer_feedback)
+    - Glance tiles: Sales MTD YoY (data.sales_comps/sales_summary), OSAT (data.voice_trend),
+      Labor% (data.datapass_labor), Open guest items (data.customer_feedback)
+    - Modules: P&L (see note), Sales weekly (data.sales_comps.series), New-hire training
+      (data.newHireTraining), Voice (data.voice_trend), Invoices (placeholder — see note)
+
+  PLACEHOLDER / FALLBACK modules (clearly labelled in-UI):
+    - Store P&L up-to-PAC: NOT in the GM token's JSON payload (v_r365_pnl_ytd_store is
+      owner/sup-tier in the current Edge Fn). Rendered as a labelled "not in GM API" state.
+    - MTD invoice tracker: same — not in the GM payload. Labelled placeholder.
+    Both are honest empty states per the plan-spec Narrative graft (no fabricated numbers).
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GM Today — LIVE</title>
+<style>
+/* ===== Two-tier tokens (plan-spec §4) ===== */
+:root{
+  --mcd-green:#2c5f2d; --mcd-gold:#ffc72c; --mcd-red:#da291c;
+  --paper:#eceee9; --surface:#ffffff; --surface-2:#f4f5f3;
+  --ink:#1f2421; --ink-muted:#6b7280; --line:#e7e8e5;
+  --good:#1f8a4c; --warn:#b45309; --bad:#b42318;
+  --fav:#1f8a4c; --unfav:#b42318;
+  --accent:var(--mcd-green);
+  --r-tile:16px; --r-chip:999px; --sp:8px;
+  --sh-1:0 1px 2px rgba(20,30,25,.06);
+  --sh-2:0 4px 16px rgba(20,30,25,.10);
+  --sh-3:0 12px 36px rgba(20,30,25,.16);
+  --hero:clamp(26px,7vw,34px);
+  --sev-1:#b42318; --sev-2:#b45309; --sev-3:#4b6cb7;
+}
+body[data-theme=arches]{
+  --paper:#0b1118; --surface:#1b2632; --surface-2:#141d27;
+  --ink:#eef4fb; --ink-muted:#9fb0c2; --line:#2a3744;
+  --accent:var(--mcd-gold);
+  --good:#43d39e; --warn:#fbbf24; --bad:#e5484d;
+  --fav:#43d39e; --unfav:#e5484d;
+  --sev-1:#e5484d; --sev-2:#fbbf24; --sev-3:#7aa2ff;
+  --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-2:0 4px 16px rgba(0,0,0,.5); --sh-3:0 12px 36px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--paper);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(1200px 600px at 50% -200px, rgba(44,95,45,.05), transparent);}
+body[data-theme=arches]{background-image:radial-gradient(900px 700px at 50% -150px, #18324a 0%, #0b1118 60%);}
+.wrap{max-width:432px;margin:0 auto;padding:0 0 92px;position:relative}
+@media(min-width:900px){
+  .wrap{max-width:1180px;padding:0 24px 40px}
+  .desk-grid{display:grid;grid-template-columns:minmax(360px,1fr) 1.25fr;gap:20px;align-items:start}
+  .desk-grid .col-feed{position:sticky;top:16px}
+  .tabbar{display:none!important}
+  .wrap{padding-bottom:40px}
+}
+@media(max-width:899px){.desk-grid{display:block}}
+.topbar{position:sticky;top:0;z-index:30;background:var(--surface);border-bottom:1px solid var(--line);
+  box-shadow:var(--sh-1);display:flex;align-items:center;gap:10px;padding:11px 14px;}
+.brandmark{width:30px;height:30px;border-radius:8px;background:var(--mcd-gold);display:grid;place-items:center;
+  flex:0 0 auto;box-shadow:var(--sh-1)}
+.brandmark svg{width:20px;height:20px}
+.topbar .who{flex:1;min-width:0}
+.topbar .who b{font-size:14px;display:block;line-height:1.15}
+.topbar .who span{font-size:11px;color:var(--ink-muted)}
+.vstamp{font-size:10px;color:var(--ink-muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.vstamp.live{border-color:var(--good);color:var(--good)}
+.theme-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:999px;
+  width:34px;height:34px;font-size:15px;cursor:pointer;flex:0 0 auto}
+/* verdict */
+.verdict{margin:14px;border-radius:var(--r-tile);padding:18px 18px 16px;position:relative;overflow:hidden;
+  border:1px solid var(--line);box-shadow:var(--sh-2);background:linear-gradient(160deg,rgba(180,131,9,.12),rgba(180,131,9,.03))}
+.verdict.clear{background:linear-gradient(160deg,rgba(31,138,76,.13),rgba(31,138,76,.03))}
+.verdict .eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.verdict .bignum{font-size:var(--hero);font-weight:800;line-height:1.05;margin:6px 0 2px;letter-spacing:-.5px}
+.verdict .bignum em{font-style:normal;color:var(--warn)}
+.verdict.clear .bignum em{color:var(--good)}
+.verdict .sub{font-size:13px;color:var(--ink-muted)}
+.verdict .thru{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:11px;color:var(--ink-muted);
+  border:1px solid var(--line);border-radius:999px;padding:3px 9px;background:var(--surface)}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 0 rgba(180,83,9,.5);animation:pulse 2.2s infinite}
+.verdict.clear .pulse-dot{background:var(--good)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(180,83,9,.45)}70%{box-shadow:0 0 0 9px rgba(180,83,9,0)}100%{box-shadow:0 0 0 0 rgba(180,83,9,0)}}
+/* pins */
+.pins{display:flex;gap:8px;margin:0 14px 6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.pins::-webkit-scrollbar{display:none}
+.pin{flex:0 0 auto;border-radius:12px;padding:9px 12px;min-width:160px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--sh-1)}
+.pin .pt{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.pin .pv{font-size:15px;font-weight:800;margin-top:1px}
+.pin .pn{font-size:10.5px;color:var(--ink-muted)}
+.pin.gold{background:linear-gradient(135deg,rgba(255,199,44,.22),rgba(255,199,44,.05));border-color:rgba(255,199,44,.5)}
+.pin.win .pv{color:var(--good)}
+.shead{display:flex;align-items:baseline;justify-content:space-between;margin:18px 14px 8px}
+.shead h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0;font-weight:800}
+.shead .h-meta{font-size:10.5px;color:var(--ink-muted);font-weight:600}
+.chips{display:flex;gap:7px;margin:0 14px 4px;flex-wrap:wrap}
+.chip{font-size:11.5px;border:1px solid var(--line);border-radius:var(--r-chip);padding:4px 11px;background:var(--surface);
+  display:inline-flex;gap:6px;align-items:center;font-weight:600;color:var(--ink)}
+.chip b{font-weight:800}
+.chip.alert{border-color:var(--bad);color:var(--bad)} .chip.warn{border-color:var(--warn);color:var(--warn)}
+/* story cards */
+.feed{margin:8px 14px 0;display:flex;flex-direction:column;gap:11px}
+.story{background:var(--surface);border:1px solid var(--line);border-left-width:4px;border-radius:14px;box-shadow:var(--sh-1);
+  overflow:hidden;animation:rise .5s ease both}
+.story.s1{border-left-color:var(--sev-1)} .story.s2{border-left-color:var(--sev-2)} .story.s3{border-left-color:var(--sev-3)}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.story,.verdict .bignum{animation:none!important}}
+.story .top{display:flex;gap:10px;padding:12px 13px 6px;align-items:flex-start}
+.sev-badge{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:6px;margin-top:1px;color:#fff}
+.s1 .sev-badge{background:var(--sev-1)} .s2 .sev-badge{background:var(--sev-2)} .s3 .sev-badge{background:var(--sev-3)}
+.story .hl{flex:1;min-width:0}
+.story .hl h3{margin:0;font-size:14.5px;font-weight:700;line-height:1.25}
+.story .hl .why{margin:4px 0 0;font-size:12px;color:var(--ink-muted)}
+.story .hl .why b{color:var(--ink);font-weight:700}
+.story .spark{flex:0 0 auto;width:62px;height:28px;margin-top:2px}
+.story .acts{display:flex;gap:8px;padding:4px 13px 13px;flex-wrap:wrap}
+.btn{font-size:12.5px;font-weight:700;border-radius:10px;padding:8px 13px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--ink);cursor:pointer;min-height:40px;flex:1}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+body[data-theme=arches] .btn.primary{color:#1b2632}
+.btn.ghost{flex:0 0 auto}
+.story.done{opacity:.5;filter:saturate(.4)} .story.done .acts{display:none}
+.story .donetag{display:none;font-size:11px;color:var(--good);font-weight:700;padding:0 13px 11px}
+.story.done .donetag{display:block}
+.nodata{font-size:11.5px;color:var(--ink-muted);font-style:italic;padding:2px 13px 12px}
+/* glance */
+.glance{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 14px 0}
+.gtile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--sh-1)}
+.gtile .gl{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-muted);font-weight:700}
+.gtile .gv{font-size:23px;font-weight:800;line-height:1.05;margin-top:3px;letter-spacing:-.4px}
+.gtile .gd{font-size:11px;margin-top:1px;font-weight:700}
+.gtile .gd.up{color:var(--fav)} .gtile .gd.down{color:var(--unfav)}
+.gtile .gsub{font-size:10px;color:var(--ink-muted);margin-top:3px}
+.gtile .bullet{margin-top:7px}
+/* modules */
+.modules{margin:8px 14px 0;display:flex;flex-direction:column;gap:9px}
+.mod{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--sh-1)}
+.mod>summary{list-style:none;cursor:pointer;padding:13px;display:flex;align-items:center;gap:10px;min-height:48px}
+.mod>summary::-webkit-details-marker{display:none}
+.mod .mi{font-size:18px;flex:0 0 auto} .mod .mt{flex:1;min-width:0}
+.mod .mt b{font-size:13.5px;display:block} .mod .mt span{font-size:10.5px;color:var(--ink-muted)}
+.mod .chev{transition:transform .2s;color:var(--ink-muted);flex:0 0 auto}
+.mod[open] .chev{transform:rotate(90deg)}
+.mod .body{padding:0 13px 13px;border-top:1px solid var(--line);margin-top:2px;padding-top:11px}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--ink-muted)} .kv .v{font-weight:700} .kv .v.up{color:var(--fav)} .kv .v.down{color:var(--unfav)}
+.ct{font-size:9.5px;color:var(--ink-muted);font-weight:600}
+.tag-new{font-size:8.5px;font-weight:800;letter-spacing:.04em;color:#0369a1;border:1px solid #7dd3fc;background:rgba(14,165,233,.1);
+  border-radius:5px;padding:1px 5px;text-transform:uppercase}
+.tag-ph{font-size:8.5px;font-weight:800;letter-spacing:.04em;color:var(--warn);border:1px solid var(--warn);background:rgba(180,83,9,.08);
+  border-radius:5px;padding:1px 5px;text-transform:uppercase}
+body[data-theme=arches] .tag-new{color:#7dd3fc}
+.cap{font-size:9.5px;color:var(--ink-muted);margin-top:5px}
+.intake{margin:16px 14px 0;border:1px dashed var(--accent);border-radius:14px;padding:14px;text-align:center;background:var(--surface-2)}
+.intake b{font-size:13.5px} .intake p{margin:3px 0 10px;font-size:11.5px;color:var(--ink-muted)}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;background:var(--surface);border-top:1px solid var(--line);
+  box-shadow:0 -4px 18px rgba(20,30,25,.10);padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1;border:0;background:none;padding:8px 2px 9px;cursor:pointer;color:var(--ink-muted);display:flex;flex-direction:column;
+  align-items:center;gap:2px;font-size:9.5px;font-weight:700;min-height:54px;position:relative}
+.tab svg{width:21px;height:21px} .tab.active{color:var(--accent)}
+.tab .tdot{width:5px;height:5px;border-radius:50%;background:var(--bad);position:absolute;top:5px;right:calc(50% - 18px)}
+.foot{text-align:center;font-size:10px;color:var(--ink-muted);margin:22px 14px 0;line-height:1.5}
+/* skeleton */
+.sk{background:linear-gradient(90deg,var(--surface-2) 25%,var(--line) 37%,var(--surface-2) 63%);background-size:400% 100%;
+  animation:shimmer 1.4s ease infinite;border-radius:8px}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@media(prefers-reduced-motion:reduce){.sk{animation:none}}
+.errbox{margin:14px;padding:16px;border:1px solid var(--bad);border-radius:14px;background:rgba(180,35,24,.06);color:var(--bad);font-size:13px}
+.desk-only{display:none}
+@media(min-width:900px){.desk-only{display:block}}
+</style>
+
+<div class="wrap">
+  <div class="topbar">
+    <div class="brandmark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M4 20V9c0-3 2.2-5 4-5s4 2 4 5c0-3 2.2-5 4-5s4 2 4 5v11" fill="none" stroke="#2c5f2d" stroke-width="2.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="who"><b id="who-name">Loading…</b><span id="who-sub">connecting to live board</span></div>
+    <span class="vstamp" id="vstamp">api …</span>
+    <button class="theme-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+  </div>
+
+  <div id="root">
+    <!-- skeleton (sized to final layout, no CLS) -->
+    <div id="skel">
+      <div class="verdict"><div class="sk" style="height:14px;width:40%"></div><div class="sk" style="height:30px;width:80%;margin:10px 0"></div><div class="sk" style="height:14px;width:60%"></div></div>
+      <div class="pins"><div class="pin"><div class="sk" style="height:46px"></div></div><div class="pin"><div class="sk" style="height:46px"></div></div></div>
+      <div class="feed"><div class="story s1"><div class="top"><div class="hl"><div class="sk" style="height:16px;width:70%"></div><div class="sk" style="height:12px;width:90%;margin-top:8px"></div></div></div></div>
+      <div class="story s2"><div class="top"><div class="hl"><div class="sk" style="height:16px;width:60%"></div><div class="sk" style="height:12px;width:85%;margin-top:8px"></div></div></div></div></div>
+    </div>
+  </div>
+</div>
+
+<nav class="tabbar" aria-label="Sections">
+  <button class="tab active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>Today<span class="tdot" id="todaydot" style="display:none"></span></button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M9 19v-7M14 19v-11M19 19V9"/></svg>Numbers</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.5-7 10-7 10z"/></svg>Guests</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 6a3 3 0 010 6M21 20a6 6 0 00-4-5.6"/></svg>Team</button>
+  <button class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+</nav>
+
+<script>
+// ============================================================================
+// LIVE DATA WIRING — read-only GET against the existing production Edge Function
+// ============================================================================
+var ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
+// Capability token override via ?t= on THIS page; defaults to the Boulder Hill GM token.
+var qp = new URLSearchParams(location.search);
+var TOKEN = qp.get('t') || "0R03iGRi8nNwleEO_TQXdDTRufsc23hI";
+var SHELL_VERSION = "slice-1";
+
+// ---- tiny render helpers (escape, money, pct, dates) ----
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function money(n){if(n==null||isNaN(n))return '—';var a=Math.abs(n);if(a>=1e6)return '$'+(n/1e6).toFixed(2)+'M';if(a>=1e3)return '$'+Math.round(n/1e3)+'K';return '$'+Math.round(n).toLocaleString();}
+function moneyFull(n){return n==null||isNaN(n)?'—':'$'+Math.round(n).toLocaleString();}
+function pct(n,d){if(n==null||isNaN(n))return '—';return (n>0?'+':'')+Number(n).toFixed(d==null?1:d)+'%';}
+function fmtDate(s){if(!s)return '';var d=new Date(s);if(isNaN(d))return esc(s);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function daysUntil(s){if(!s)return null;var d=new Date(s);if(isNaN(d))return null;return Math.round((d-new Date())/86400000);}
+function sectWrap(fn){try{return fn();}catch(e){console.error('sect error',e);return '<div class="nodata">Couldn’t render this section ('+esc(e.message)+').</div>';}}
+
+// sparkline from numeric series (token-themed, zero KB)
+function sparkline(vals,color){
+  if(!vals||!vals.length) return '';
+  var w=62,h=28,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1;
+  var pts=vals.map(function(v,i){var x=(i/(vals.length-1||1))*w;var y=h-2-((v-mn)/rng)*(h-4);return x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+  return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>';
+}
+
+// ---- the main render: maps the LIVE payload into the Field-First GM home ----
+function renderBoard(d){
+  var m = d.manager||{};
+  var store = (d.sales_summary&&d.sales_summary[0]&&d.sales_summary[0].store_name) || 'your store';
+  var nsn = (d.datapass_labor&&d.datapass_labor.selected_nsn) || (d.service_times&&d.service_times.selected_nsn) || '';
+  document.getElementById('who-name').textContent = 'Hi, '+((m.first_name)||'GM');
+  document.getElementById('who-sub').textContent = (m.role||'GM')+' · '+store+(nsn?' #'+nsn:'');
+  var vs=document.getElementById('vstamp'); vs.textContent='api '+(d.fn_version||'?')+' · LIVE'; vs.classList.add('live');
+
+  // ---------- build the priority stack from REAL data (advisory scoring, plan-spec §7.5 lite) ----------
+  var cards=[];
+
+  // (1) open complaints needing response -> Urgent
+  var comps = (d.complaints||[]).filter(function(c){return c.task_status!=='closed' && c.task_status!=='done';});
+  comps.forEach(function(c){
+    var age = c.received_at? Math.max(0,Math.round((new Date()-new Date(c.received_at))/86400000)) : null;
+    cards.push({sev:1,label:'Urgent',
+      h:'Open complaint — '+esc(c.issue_reason||c.issue_category||'guest issue'),
+      why:'Case <b>#'+esc(c.case_number)+'</b> · '+esc(c.issue_category||'')+(age!=null?' · received <b>'+age+'d</b> ago':'')+(c.recovery_needed?' · recovery needed':''),
+      spark:'<svg class="spark" viewBox="0 0 62 28" preserveAspectRatio="none"><polyline points="0,8 12,10 24,7 36,14 48,20 62,24" fill="none" stroke="var(--bad)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>',
+      acts:['Draft reply','Resolve']});
+  });
+
+  // (2) urgent / overdue tasks
+  (d.tasks||[]).forEach(function(t){
+    if(t.status==='done'||t.status==='closed') return;
+    var du = daysUntil(t.due_at);
+    var overdue = du!=null && du<0;
+    var urgent = t.priority==='urgent';
+    var hi = t.priority==='high';
+    if(!(overdue||urgent||hi)) return; // only surface what needs the GM
+    var sev = (overdue||urgent)?1:2;
+    cards.push({sev:sev,label:overdue?'Overdue':(urgent?'Urgent':'High'),
+      h:esc(t.title),
+      why:(t.category?'<b>'+esc(t.category)+'</b> · ':'')+(t.due_at?(overdue?'overdue by <b>'+Math.abs(du)+'d</b>':'due in <b>'+du+'d</b> ('+fmtDate(t.due_at)+')'):'no due date')+(t.priority?' · '+esc(t.priority)+' priority':''),
+      acts:['Open task','Mark done']});
+  });
+
+  // (3) OSAT miss vs Business Unit (voice) -> Watch, with honest n<30 handling.
+  //     Shape: voice_trend.entities[i].cells[<metric>] = {june,delta,n,bu,lower_better,rank,rank_of}
+  var vt=d.voice_trend;
+  var myEnt = vt && Array.isArray(vt.entities) && vt.entities.length ? vt.entities[0] : null;
+  if(myEnt && myEnt.cells){
+    var osat = myEnt.cells['Overall Satisfaction'];
+    if(osat && osat.june!=null){
+      var n = osat.n||0;
+      if(n>0 && n<30){
+        cards.push({sev:3,label:'FYI',h:'OSAT — not enough data yet',
+          why:'Only <b>n='+n+'</b> VOICE responses this period (need ≥30). No verdict until the sample is reliable.',
+          nodata:'No fabricated red — re-checks as the sample grows.'});
+      } else if(osat.bu!=null && osat.june < osat.bu){
+        cards.push({sev:2,label:'Watch',h:'OSAT below Business Unit',
+          why:'Overall Satisfaction <b>'+osat.june.toFixed(1)+'%</b> vs BU <b>'+osat.bu.toFixed(1)+'%</b> ('+(osat.june-osat.bu).toFixed(1)+' pts)'+(osat.rank?' · rank #'+osat.rank+'/'+osat.rank_of:'')+(n?' · n='+n:''),
+          acts:['See VOICE','Acknowledge']});
+      }
+    }
+  }
+
+  // (4) guest items needing response (customer feedback)
+  var cf=d.customer_feedback;
+  if(cf && cf.summary && cf.summary.needs_response>0){
+    cards.push({sev:2,label:'Watch',h:cf.summary.needs_response+' guest item'+(cf.summary.needs_response>1?'s':'')+' need a response',
+      why:'Last 30d: <b>'+cf.summary.last30_total+'</b> total · <b>'+cf.summary.last30_negative+'</b> negative · avg rating <b>'+(cf.summary.avg_rating_30||0).toFixed(2)+'</b>'+(cf.data_through?' · thru '+esc(cf.data_through):''),
+      acts:['Open feedback','Acknowledge']});
+  }
+
+  // (5) new-hire training past deadline (only when hire dates drive a real deadline)
+  var nh=d.newHireTraining;
+  if(nh && nh.summary){
+    if(nh.summary.overdue>0){
+      cards.push({sev:2,label:'Watch',h:nh.summary.overdue+' new hire(s) past training deadline',
+        why:'<b>'+nh.summary.overdue+'</b> overdue · <b>'+(nh.summary.due_soon||0)+'</b> due soon · hire+14d PBS deadline · thru '+esc(nh.data_through||''),
+        acts:['See courses','Mark done']});
+    }
+  }
+
+  // sort severity then keep top 7
+  cards.sort(function(a,b){return a.sev-b.sev;});
+  var shown = cards.slice(0,7);
+  var activeCount = shown.filter(function(c){return !c.nodata;}).length;
+
+  // ---------- chips (real counts) ----------
+  var tlist=(d.tasks||[]).filter(function(t){return t.status!=='done'&&t.status!=='closed';});
+  var overdueN = tlist.filter(function(t){var du=daysUntil(t.due_at);return du!=null&&du<0;}).length;
+  var soonN = tlist.filter(function(t){var du=daysUntil(t.due_at);return du!=null&&du>=0&&du<=7;}).length;
+  var hiN = tlist.filter(function(t){return t.priority==='high'||t.priority==='urgent';}).length;
+
+  // ---------- pins (cleanliness race + OSAT incentive) ----------
+  function myRow(arr,id){return (arr||[]).filter(function(s){return s.store_id===id;})[0];}
+  var myId = m && m.role==='GM' ? (d.sales_summary&&d.sales_summary[0]&&d.sales_summary[0].store_id) : null;
+  var pinsHtml = sectWrap(function(){
+    var h='';
+    var cr=d.cleanliness_race;
+    if(cr && cr.standings){
+      var mine=myRow(cr.standings, myId)|| (cr.your_store_ids&&myRow(cr.standings,cr.your_store_ids[0]));
+      h+='<div class="pin gold"><div class="pt">🏆 '+esc(cr.title||'Cleanliness race')+'</div>'
+        +'<div class="pv">'+(mine?('#'+mine.rank+' of '+cr.standings.length):'—')+'</div>'
+        +'<div class="pn">'+(mine?(mine.score!=null?mine.score.toFixed(1)+'% · ':'')+'thru '+esc(cr.data_through||''):esc(cr.note||''))+'</div></div>';
+    }
+    var oi=d.osat_incentive;
+    if(oi && oi.standings){
+      var minО=myRow(oi.standings, myId)||(oi.your_store_ids&&myRow(oi.standings,oi.your_store_ids[0]));
+      var inMoney=minО&&minО.in_money;
+      h+='<div class="pin'+(inMoney?' win':'')+'"><div class="pt">🎯 '+esc(oi.title||'OSAT incentive')+'</div>'
+        +'<div class="pv">'+(minО?minО.score.toFixed(1)+'%':'—')+' <span style="font-size:11px;color:var(--'+(inMoney?'good':'unfav')+')">'+(inMoney?'✓ in money':'below '+(oi.threshold||72)+'%')+'</span></div>'
+        +'<div class="pn">'+esc(oi.amount||'')+' · thru '+esc(oi.data_through||'')+'</div></div>';
+    }
+    return h||'<div class="nodata">No active contests in the live payload.</div>';
+  });
+
+  // ---------- priority stack html ----------
+  var feedHtml = shown.map(function(c){
+    var acts = c.acts? '<div class="acts">'+c.acts.map(function(a,i){return '<button class="btn '+(i===0?'primary':'ghost')+'" onclick="resolveCard(this)">'+esc(a)+'</button>';}).join('')+'</div><div class="donetag">✓ Done — verdict updated</div>':'';
+    var nd = c.nodata? '<div class="nodata">'+esc(c.nodata)+'</div>':'';
+    return '<article class="story s'+c.sev+'"><div class="top"><span class="sev-badge">'+esc(c.label)+'</span>'
+      +'<div class="hl"><h3>'+c.h+'</h3><p class="why">'+c.why+'</p></div>'+(c.spark||'')+'</div>'+acts+nd+'</article>';
+  }).join('') || '<div class="nodata">Nothing needs you right now — all clear.</div>';
+
+  // ---------- glance tiles (real) ----------
+  var sc=d.sales_comps, ss=(d.sales_summary&&d.sales_summary[0])||{};
+  var laborTile=(d.datapass_labor&&d.datapass_labor.tiles&&d.datapass_labor.tiles[0])||null;
+  var voiceOsat = (myEnt&&myEnt.cells&&myEnt.cells['Overall Satisfaction'])||null;
+  var glanceHtml = sectWrap(function(){
+    var sYoY = sc&&sc.mtd? sc.mtd.sales_yoy : ss.mtd_yoy_pct;
+    var sVal = sc&&sc.mtd? sc.mtd.sales : ss.mtd_product_sales;
+    var gcYoY = sc&&sc.mtd? sc.mtd.gc_yoy : ss.mtd_gc_yoy_pct;
+    var laborPct = laborTile? laborTile.total_labor_pct : null;
+    var laborTarget = laborTile? laborTile.target_pct : null;
+    var t1='<div class="gtile"><div class="gl">Sales MTD · YoY</div>'
+      +'<div class="gv" style="color:var(--'+(sYoY>=0?'fav':'unfav')+')">'+pct(sYoY)+'</div>'
+      +'<div class="gd '+(sYoY>=0?'up':'down')+'">'+(sYoY>=0?'▲':'▼')+' '+moneyFull(sVal)+' · GC '+pct(gcYoY)+'</div>'
+      +'<div class="gsub">'+(ss.mtd_days_loaded||'')+' days loaded · thru '+fmtDate(ss.mtd_last_day)+'</div></div>';
+    var oN = voiceOsat&&voiceOsat.n;
+    var t2='<div class="gtile"><div class="gl">OSAT</div>'
+      +'<div class="gv">'+(voiceOsat&&voiceOsat.june!=null?voiceOsat.june.toFixed(1)+'%':'—')+'</div>'
+      +'<div class="gd '+(voiceOsat&&voiceOsat.rank&&voiceOsat.rank<=6?'up':'down')+'">'+(voiceOsat&&voiceOsat.rank?'rank #'+voiceOsat.rank+'/'+voiceOsat.rank_of:'')+(voiceOsat&&voiceOsat.bu!=null?' · vs BU '+voiceOsat.bu.toFixed(1)+'%':'')+'</div>'
+      +'<div class="gsub">'+(oN?'n='+oN+(oN<30?' · small sample*':''):'')+' · '+esc((vt&&vt.data_through)||'')+'</div></div>';
+    var overTarget = laborTarget!=null && laborPct!=null ? laborPct-laborTarget : null;
+    var t3='<div class="gtile"><div class="gl">Labor % (DataPass)</div>'
+      +'<div class="gv" style="color:var(--'+(overTarget!=null?(overTarget>0?'unfav':'fav'):'ink')+')">'+(laborPct!=null?laborPct.toFixed(1)+'%':'—')+'</div>'
+      +'<div class="gd '+(overTarget>0?'down':'up')+'">'+(laborTarget!=null?(overTarget>0?'▲ +'+overTarget.toFixed(1)+' over '+laborTarget+'%':'on target'):'no target set')+'</div>'
+      +'<div class="gsub">'+(laborTile?'closed '+fmtDate(laborTile.labor_date):'')+' · single-day basis</div></div>';
+    var cf2=d.customer_feedback&&d.customer_feedback.summary;
+    var t4='<div class="gtile"><div class="gl">Open guest items</div>'
+      +'<div class="gv" style="color:var(--'+(cf2&&cf2.needs_response>0?'unfav':'fav')+')">'+(cf2?cf2.needs_response:'—')+'</div>'
+      +'<div class="gd '+(cf2&&cf2.needs_response>0?'down':'up')+'">'+(cf2?(cf2.needs_response>0?'need response now':'all answered'):'')+'</div>'
+      +'<div class="gsub">'+(cf2?'last 30d: '+cf2.last30_total+' total · '+cf2.last30_negative+' negative':'')+'</div></div>';
+    return t1+t2+t3+t4;
+  });
+
+  // ---------- modules (collapsed previews) ----------
+  // Sales weekly trend from real daily series (aggregate to ISO-ish weekly buckets isn't needed for a sparkline)
+  var salesModule = sectWrap(function(){
+    var series=(sc&&sc.series)||[];
+    var vals=series.map(function(r){return r.sales;});
+    var w=348,h=90,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1;
+    var pts=vals.map(function(v,i){var x=(i/(vals.length-1||1))*w;var y=h-4-((v-mn)/rng)*(h-12);return x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+    var last=series[series.length-1]||{};
+    return '<details class="mod"><summary><span class="mi">📈</span>'
+      +'<span class="mt"><b>Sales — daily MTD</b><span>live ledger · thru '+esc((sc&&sc.data_through)||'')+'</span></span>'
+      +'<span class="ct">'+pct(sc&&sc.mtd&&sc.mtd.sales_yoy)+' YoY</span><span class="chev">›</span></summary>'
+      +'<div class="body"><svg viewBox="0 0 '+w+' '+h+'" width="100%" height="92" preserveAspectRatio="none" aria-label="Daily sales MTD">'
+      +'<polyline points="'+pts+'" fill="none" stroke="var(--mcd-green)" stroke-width="2.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>'
+      +'<div class="cap">Daily product sales, '+series.length+' days this month. Latest '+fmtDate(last.date)+': '+moneyFull(last.sales)+' ('+pct(last.sales_yoy)+' YoY).</div>'
+      +'<div class="kv"><span class="k">MTD product sales</span><span class="v">'+moneyFull(sc&&sc.mtd&&sc.mtd.sales)+'</span></div>'
+      +'<div class="kv"><span class="k">MTD sales YoY</span><span class="v '+((sc&&sc.mtd&&sc.mtd.sales_yoy)>=0?'up':'down')+'">'+pct(sc&&sc.mtd&&sc.mtd.sales_yoy)+'</span></div>'
+      +'<div class="kv"><span class="k">MTD guest counts YoY</span><span class="v '+((sc&&sc.mtd&&sc.mtd.gc_yoy)>=0?'up':'down')+'">'+pct(sc&&sc.mtd&&sc.mtd.gc_yoy)+'</span></div>'
+      +'<div class="kv"><span class="k">Avg check</span><span class="v">$'+(ss.mtd_avg_check||0).toFixed(2)+'</span></div></div></details>';
+  });
+
+  var voiceModule = sectWrap(function(){
+    if(!myEnt||!myEnt.cells) return '';
+    var cells=myEnt.cells;
+    function row(name){var x=cells[name];if(!x||x.june==null)return '';var lb=!!x.lower_better;
+      var good = x.bu==null?true:(lb? x.june<=x.bu : x.june>=x.bu);
+      var isB2B = name.indexOf('B2B')>=0;
+      return '<div class="kv"><span class="k">'+esc(x.label||name)+(x.n&&x.n<30?' *':'')+'</span>'
+        +'<span class="v '+(good?'up':'down')+'">'+x.june.toFixed(1)+(isB2B?'':'%')+' '+(good?'▲':'▼')+'</span></div>';}
+    var osat=cells['Overall Satisfaction'];
+    return '<details class="mod"><summary><span class="mi">⭐</span>'
+      +'<span class="mt"><b>VOICE</b><span>vs BU CHICAGO-MOCNI · '+esc(vt.data_through||'')+'</span></span>'
+      +'<span class="ct">OSAT '+(osat?osat.june.toFixed(1)+'%':'—')+'</span><span class="chev">›</span></summary>'
+      +'<div class="body">'+row('Overall Satisfaction')+row('Accuracy')+row('Overall Quality')+row('Fast')+row('Fast B2B')
+      +'<div class="cap">vs Business Unit benchmark · * = n&lt;30 small sample · polarity-aware. Live from voice_scores.</div></div></details>';
+  });
+
+  var trainModule = sectWrap(function(){
+    if(!nh||!nh.summary) return '';
+    var s=nh.summary;
+    return '<details class="mod"><summary><span class="mi">🎓</span>'
+      +'<span class="mt"><b>New-hire training</b><span>'+esc(nh.tracked_note||'')+'</span></span>'
+      +'<span class="ct">refreshed '+fmtDate(nh.refreshed_at)+'</span><span class="chev">›</span></summary>'
+      +'<div class="body"><div class="kv"><span class="k">Employees tracked</span><span class="v">'+s.employees+'</span></div>'
+      +'<div class="kv"><span class="k">New hires (in window)</span><span class="v">'+s.new_hires+'</span></div>'
+      +'<div class="kv"><span class="k">Overdue</span><span class="v '+(s.overdue>0?'down':'up')+'">'+s.overdue+'</span></div>'
+      +'<div class="kv"><span class="k">Due soon</span><span class="v">'+s.due_soon+'</span></div>'
+      +'<div class="kv"><span class="k">Complete</span><span class="v up">'+s.complete+'</span></div>'
+      +'<div class="cap">'+(nh.hire_dates_loaded?'':'Hire dates not yet loaded — deadlines pending. ')+'Names First-L only (PII gating) · deadline = hire+14d (PBS).</div></div></details>';
+  });
+
+  // P&L + invoices: NOT in the GM token payload -> honest labelled placeholders (Narrative graft)
+  var pnlPlaceholder = '<details class="mod"><summary><span class="mi">💵</span>'
+    +'<span class="mt"><b>P&amp;L up to PAC <span class="tag-ph">placeholder</span></b><span>not in the GM API response</span></span>'
+    +'<span class="ct">owner/sup tier</span><span class="chev">›</span></summary>'
+    +'<div class="body"><div class="nodata">v_r365_pnl_ytd_store is gated to owner/supervisor tokens in the current Edge Fn (v88). '
+    +'Per plan-spec §6, the GM home would read the precomputed _pct columns once exposed — never recomputed client-side. No fabricated PAC shown.</div></div></details>';
+  var invPlaceholder = '<details class="mod"><summary><span class="mi">🧾</span>'
+    +'<span class="mt"><b>MTD invoices <span class="tag-ph">placeholder</span></b><span>not in the GM API response</span></span>'
+    +'<span class="ct">v_invoice_tracker_mtd</span><span class="chev">›</span></summary>'
+    +'<div class="body"><div class="nodata">Invoice tracker (posted vs in-flight) is not in this token’s payload. Labelled placeholder — wires in once the v2 Edge Fn exposes it to the GM scope.</div></div></details>';
+
+  // ---------- assemble ----------
+  var verdictTint = activeCount===0?'clear':'';
+  var html =
+   '<div class="desk-grid"><div class="col-feed">'
+   +'<section class="verdict '+verdictTint+'" id="verdict"><div class="eyebrow">Your store today</div>'
+   +'<div class="bignum">'+(activeCount===0?'<em>All clear</em> — nothing needs you':'<em id="vcount">'+activeCount+'</em> thing'+(activeCount===1?'':'s')+' need you today')+'</div>'
+   +'<div class="sub">'+(activeCount===0?'Nice work. New items surface here as they come in.':'Live priority feed below, scored from tasks, complaints, guest feedback and VOICE.')+'</div>'
+   +'<div class="thru"><span class="pulse-dot"></span> Data through '+fmtDate((sc&&sc.data_through))+', 2026 · LIVE</div></section>'
+   +'<div class="pins" aria-label="Pinned contests">'+pinsHtml+'</div>'
+   +'<div class="shead"><h2>What needs you</h2><span class="h-meta">scored · '+activeCount+' active</span></div>'
+   +'<div class="chips"><span class="chip alert">Overdue <b>'+overdueN+'</b></span><span class="chip warn">Due ≤7d <b>'+soonN+'</b></span>'
+   +'<span class="chip">Hi-pri <b>'+hiN+'</b></span><span class="chip">Active tasks <b>'+tlist.length+'</b></span></div>'
+   +'<div class="feed" id="feed">'+feedHtml+'</div></div>'
+   +'<div class="col-detail">'
+   +'<div class="shead"><h2>Today at a glance</h2><span class="h-meta">MTD thru '+fmtDate(ss.mtd_last_day)+'</span></div>'
+   +'<div class="glance">'+glanceHtml+'</div>'
+   +'<div class="shead"><h2>More for your store</h2><span class="h-meta">tap to expand · live</span></div>'
+   +'<div class="modules">'+salesModule+pnlPlaceholder+trainModule+voiceModule+invPlaceholder+'</div>'
+   +'<div class="intake"><b>Need something?</b><p>Maintenance, IT, office, or a question — routes to the right person + your supervisor.</p>'
+   +'<button class="btn primary" style="flex:0 0 auto;display:inline-block" onclick="alert(\'Live slice: intake POST is read-only here. Production routes to dept owner + supervisor (INTAKE_ROUTING).\')">＋ I need something</button></div>'
+   +'<div class="foot">LIVE vertical slice · Field-First GM Today home · real data from manager-page '+(d.fn_version||'')+' (read-only).<br>'
+   +esc(store)+(nsn?' #'+nsn:'')+' · data through '+fmtDate(sc&&sc.data_through)+', 2026 · token: GM (Boulder Hill).</div>'
+   +'</div></div>';
+
+  document.getElementById('root').innerHTML = html;
+
+  // tab dot if anything needs the GM
+  if(activeCount>0){var td=document.getElementById('todaydot');if(td)td.style.display='block';}
+
+  // one restrained count-up
+  var el=document.getElementById('vcount');
+  if(el && !matchMedia('(prefers-reduced-motion: reduce)').matches){
+    var target=parseInt(el.textContent,10);el.textContent='0';var n=0;
+    var t=setInterval(function(){n++;el.textContent=n;if(n>=target)clearInterval(t);},140);
+  }
+  console.log('renderBoard: rendered, cards=',shown.length,'active=',activeCount,'fn_version=',d.fn_version);
+  return shown.length;
+}
+
+// act-and-dismiss (client-only in this read-only slice; production writes via audited POST)
+function resolveCard(btn){
+  var card=btn.closest('.story');if(card.classList.contains('done'))return;
+  card.classList.add('done');
+  var v=document.getElementById('vcount');
+  if(v){var n=Math.max(0,parseInt(v.textContent,10)-1);v.textContent=n;
+    var vd=document.getElementById('verdict');
+    if(n===0){vd.classList.add('clear');vd.querySelector('.bignum').innerHTML='<em>All clear</em> — nothing needs you';
+      vd.querySelector('.sub').textContent='Nice work. New items will surface here as they come in.';}}
+}
+
+// theme toggle
+var tb=document.getElementById('themeBtn');
+tb.onclick=function(){var on=document.body.getAttribute('data-theme')==='arches';
+  if(on){document.body.removeAttribute('data-theme');tb.textContent='🌙';}
+  else{document.body.setAttribute('data-theme','arches');tb.textContent='☀️';}};
+document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});t.classList.add('active');};});
+
+// ---- fetch the LIVE board ----
+(function(){
+  var t0=performance.now();
+  fetch(ENDPOINT+'?t='+encodeURIComponent(TOKEN),{method:'GET',headers:{'accept':'application/json'}})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(j){
+      console.log('live fetch ok in',Math.round(performance.now()-t0),'ms; data keys=',Object.keys(j.data||{}).length);
+      if(!j.data) throw new Error('no data object in response');
+      renderBoard(j.data);
+    })
+    .catch(function(e){
+      console.error('live fetch failed',e);
+      document.getElementById('root').innerHTML='<div class="errbox"><b>Could not load the live board.</b><br>'+esc(e.message)
+        +'<br><br>This slice fetches the production manager-page Edge Function read-only. Check the token in <code>?t=</code> or network access.</div>';
+    });
+})();
+</script>

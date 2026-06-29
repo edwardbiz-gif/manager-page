@@ -159,6 +159,35 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
 .gmbody::-webkit-scrollbar{width:0}
 .rolock{font-size:10px; font-weight:700; color:var(--warn); display:flex; align-items:center; gap:5px; margin:8px 2px}
 
+/* clickable-detail-everywhere (plan-spec §10) */
+.clk{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.clk:active{transform:scale(.98)}
+.clk:hover{box-shadow:var(--sh-2)}
+.tile.clk:hover{border-color:var(--accent)}
+.tapcue{font-size:8.5px;font-weight:800;letter-spacing:.4px;color:var(--ink-faint);text-transform:uppercase;
+  display:flex;align-items:center;gap:4px;margin-top:8px}
+.tapcue .cv{color:var(--accent);margin-left:auto}
+.tile .tapcue{justify-content:center;margin-top:5px}
+
+/* metric drill sheet (sibling of the view-as slide-in) */
+.msheet{position:absolute;left:0;right:0;bottom:0;z-index:62;background:var(--surface);
+  border-radius:20px 20px 0 0;box-shadow:0 -16px 46px rgba(8,12,10,.4);transform:translateY(102%);
+  transition:transform .3s cubic-bezier(.3,.7,.3,1);max-height:80%;display:flex;flex-direction:column}
+.msheet.show{transform:translateY(0)}
+.msheet .grab{width:38px;height:4px;border-radius:999px;background:var(--line);margin:9px auto 3px}
+.msheet .shd{display:flex;align-items:center;gap:9px;padding:5px 16px 11px;border-bottom:1px solid var(--line)}
+.msheet .shd .stt{font-size:13.5px;font-weight:800}
+.msheet .shd .sxx{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer}
+.msheet .sbd{overflow-y:auto;padding:13px 16px 26px}
+.msheet .sbd::-webkit-scrollbar{width:0}
+.msheet .crumb{font-size:9.5px;color:var(--ink-faint);font-weight:700;margin-bottom:9px}
+.msheet .crumb b{color:var(--ink)}
+.msheet .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.msheet .drow:last-child{border-bottom:0}
+.msheet .drow .dk{color:var(--ink-muted);font-weight:600}
+.msheet .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
+
 /* misc */
 .foot{text-align:center; font-size:9.5px; color:var(--ink-faint); padding:16px 14px 4px; font-weight:600}
 .cap{font-size:9.5px; color:var(--ink-faint); margin:2px 2px 0; font-weight:600}
@@ -205,26 +234,29 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
     <div class="lane">
       <div class="lane-h"><span class="t">Patch at a glance</span><span class="c">MTD thru Jun 24</span></div>
       <div class="tiles">
-        <div class="tile">
+        <div class="tile clk" onclick="openMetric('sales')">
           <div class="lab">Sales MTD</div>
           <div class="big up">+4.6%</div>
           <div class="sub">$1.58M YoY</div>
           <div class="div"></div>
           <div class="gc">GC <span class="dn">−0.8%</span></div>
+          <div class="tapcue">Details <span class="cv">›</span></div>
         </div>
-        <div class="tile">
+        <div class="tile clk" onclick="openMetric('pac')">
           <div class="lab">Patch PAC</div>
           <div class="big up">+35.81%</div>
           <div class="sub">+$1.98M</div>
           <div class="div"></div>
           <div class="gc">Labor <span class="up">26.4%</span></div>
+          <div class="tapcue">Details <span class="cv">›</span></div>
         </div>
-        <div class="tile">
+        <div class="tile clk" onclick="openMetric('guests')">
           <div class="lab">Guest score</div>
           <div class="big dn">71.4%</div>
           <div class="sub">OSAT · −1.6 vs BU</div>
           <div class="div"></div>
           <div class="gc">Rank <b>4/12</b></div>
+          <div class="tapcue">Details <span class="cv">›</span></div>
         </div>
       </div>
       <div class="cap">Sales-weighted YoY · PAC from v_r365_pnl_ytd_sup (closed-YTD, pre-Withum; level only — no sourced target yet, plan-spec §6.4) · OSAT freshest SMG source.</div>
@@ -239,7 +271,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
           <span class="tag store">Lake St · #72</span>
           <span class="tag sev2">LABOR GAP</span>
         </div>
-        <h3>Labor at 26.2% — trail Boulder Hill's 25.6%</h3>
+        <h3 class="clk" onclick="openGM('Lake St','#72')" style="cursor:pointer">Labor at 26.2% — trail Boulder Hill's 25.6% <span style="color:var(--accent);font-size:11px">›</span></h3>
         <div class="why">
           <span class="ph" data-spark="#b45309|26.5,26.4,26.3,26.2,26.2,26.2"></span>
           <span>PAC +32.0% (profitable, 3rd on patch) · trim mid-daypart over-staffing to close the ~0.6pt labor gap.</span>
@@ -255,7 +287,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
           <span class="tag store">Farnsworth · #4152</span>
           <span class="tag sev1">OVERDUE</span>
         </div>
-        <h3>2 new-hire trainings past the 14-day PBS deadline</h3>
+        <h3 class="clk" onclick="openGM('Farnsworth','#4152')" style="cursor:pointer">2 new-hire trainings past the 14-day PBS deadline <span style="color:var(--accent);font-size:11px">›</span></h3>
         <div class="why">
           <span class="ph" data-spark="#c8260f|2,2,3,3,4,2"></span>
           <span>Both crew hired May 28 · deadline Jun 11 · 0 of 14 mandatory complete.</span>
@@ -271,7 +303,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
           <span class="tag store">Eola BP · #16669</span>
           <span class="tag sev2">GUESTS</span>
         </div>
-        <h3>3 open complaints, oldest 6 days unanswered</h3>
+        <h3 class="clk" onclick="openGM('Eola BP','#16669')" style="cursor:pointer">3 open complaints, oldest 6 days unanswered <span style="color:var(--accent);font-size:11px">›</span></h3>
         <div class="why">
           <span class="ph" data-spark="#b45309|1,2,2,3,3,3"></span>
           <span>Service/Staff theme · SLA breach on #4471 · OSAT 69.2% (−2.2 vs BU).</span>
@@ -287,7 +319,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
           <span class="tag store">Orchard · #31728</span>
           <span class="tag sev2">DEPLOY</span>
         </div>
-        <h3>Lunch deploy short 2 heads vs forecast</h3>
+        <h3 class="clk" onclick="openGM('Orchard','#31728')" style="cursor:pointer">Lunch deploy short 2 heads vs forecast <span style="color:var(--accent);font-size:11px">›</span></h3>
         <div class="why">
           <span class="ph" data-spark="#b45309|0,-1,-2,-2,-1,-2"></span>
           <span>11:15–12:00 FrontCounter gap · GC −2.1% MTD · speed at risk.</span>
@@ -303,7 +335,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
           <span class="tag store">Boulder Hill · #3444</span>
           <span class="tag sev3">WIN</span>
         </div>
-        <h3>Patch & org PAC leader (+33.91%)</h3>
+        <h3 class="clk" onclick="openGM('Boulder Hill','#3444')" style="cursor:pointer">Patch & org PAC leader (+33.91%) <span style="color:var(--accent);font-size:11px">›</span></h3>
         <div class="why">
           <span class="ph" data-spark="#1f9d57|32.5,33,33.4,33.7,33.8,33.9"></span>
           <span>Food 25.3% · labor 25.6% (lowest in org) — the patch playbook. Share with the other 4.</span>
@@ -339,7 +371,7 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
   </div>
 
   <!-- VIEW-AS DRILL -->
-  <div class="veil" id="veil" onclick="closeGM()"></div>
+  <div class="veil" id="veil" onclick="closeGM();closeMetric()"></div>
   <div class="gmhome" id="gmhome">
     <div class="vbanner">
       <span class="eye">Viewing as GM</span>
@@ -348,6 +380,14 @@ body[data-theme=arches] .vbanner{background:var(--mc-gold); color:#1a1205}
     </div>
     <div class="crumb">Portfolio › <b>Randy's patch</b> › <b id="vbCrumb">—</b></div>
     <div class="gmbody" id="gmbody"></div>
+  </div>
+
+  <!-- METRIC DRILL (patch glance tiles) -->
+  <div class="msheet" id="msheet">
+    <div class="grab"></div>
+    <div class="shd"><span class="stt" id="mTitle">Detail</span>
+      <button class="sxx" onclick="closeMetric()">Close ✕</button></div>
+    <div class="sbd" id="mBody"></div>
   </div>
 
 </div><!-- /phone -->
@@ -504,6 +544,28 @@ function winCard(s){
     '<div class="why">'+spark('#1f9d57','32.5,33,33.4,33.7,33.8,33.9')+'<span>PAC +33.91% · patch & org leader on 25.6% labor. Keep running the play.</span></div>'+
   '</div>';
 }
+
+/* ---------- metric drill (patch glance tiles → detail) ---------- */
+var METRICS={
+  sales:{t:'Patch sales MTD',h:'Patch › <b>Sales MTD</b>',
+    rows:[['Patch YoY','+4.6%'],['Patch $','$1.58M YoY'],['Guest count','−0.8%'],['Best store','Lake St +4.7%'],['Lagging','Boulder Hill +3.0% (still org PAC leader)']],
+    note:'Sales-weighted YoY across the 5 stores. Tap a store row to view-as its GM for the per-store trend.'},
+  pac:{t:'Patch PAC',h:'Patch › <b>PAC</b>',
+    rows:[['Patch PAC %','+35.81% (best in org)'],['Patch PAC $','+$1.98M'],['Patch labor','26.4%'],['Leader','Boulder Hill 33.91% on 25.6% labor'],['Lagging','Farnsworth 30.42% on 28.0% labor']],
+    note:'From v_r365_pnl_ytd_sup (closed-YTD, pre-Withum). Labor is the swing factor across stores — level only, no sourced target yet (§6.4).'},
+  guests:{t:'Patch guest score',h:'Patch › <b>OSAT</b>',
+    rows:[['Patch OSAT','71.4%'],['vs BU','−1.6'],['Org rank','4 of 12'],['Worst','Eola BP 69.2%'],['Open complaints','5 across the patch']],
+    note:'Freshest SMG source per metric. Drives the cross-store exception feed above.'}
+};
+function openMetric(key){
+  var d=METRICS[key]; if(!d)return;
+  document.getElementById('mTitle').textContent=d.t;
+  var rows=d.rows.map(function(r){return '<div class="drow"><span class="dk">'+r[0]+'</span><span class="dv">'+r[1]+'</span></div>';}).join('');
+  document.getElementById('mBody').innerHTML='<div class="crumb">'+d.h+'</div>'+rows+(d.note?'<div class="cap" style="margin-top:11px">'+d.note+'</div>':'');
+  document.getElementById('veil').classList.add('show');
+  document.getElementById('msheet').classList.add('show');
+}
+function closeMetric(){document.getElementById('msheet').classList.remove('show');document.getElementById('veil').classList.remove('show');}
 
 /* ---------- count-up on the verdict number (the single restrained motion) ---------- */
 (function countUp(){

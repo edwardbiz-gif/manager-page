@@ -190,6 +190,37 @@ body[data-theme=arches] .appbar{background:linear-gradient(180deg,var(--surface)
 .bench .pill{margin-left:auto; font-weight:800; padding:3px 9px; border-radius:999px; font-size:11px;
   background:color-mix(in srgb,var(--good) 16%,var(--surface)); color:var(--good)}
 
+/* ============================== CLICKABLE DETAIL (plan-spec §10) ============================== */
+.clk{cursor:pointer;transition:border-color .14s,box-shadow .14s,transform .12s}
+.clk:hover{border-color:var(--accent)}
+.clk:active{transform:scale(.99)}
+.tapcue{font-size:9px;font-weight:800;letter-spacing:.4px;color:var(--ink-faint);text-transform:uppercase;
+  display:flex;align-items:center;gap:5px;margin-top:9px;border-top:1px dashed var(--line);padding-top:8px}
+.tapcue .cv{color:var(--accent);margin-left:auto}
+.verdict .tapcue{border-top-color:color-mix(in srgb,var(--good) 25%,var(--line))}
+
+/* drill sheet */
+.veil{position:fixed;inset:0;background:rgba(10,16,12,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .22s}
+.veil.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:50%;transform:translate(-50%,102%);bottom:0;width:100%;max-width:var(--maxw);z-index:70;
+  background:var(--surface);border-radius:20px 20px 0 0;box-shadow:0 -16px 46px rgba(10,16,12,.4);
+  transition:transform .3s cubic-bezier(.3,.7,.3,1);max-height:86%;display:flex;flex-direction:column}
+.sheet.show{transform:translate(-50%,0)}
+.sheet .grab{width:38px;height:4px;border-radius:999px;background:var(--line);margin:9px auto 3px}
+.sheet .shd{display:flex;align-items:center;gap:9px;padding:5px 16px 11px;border-bottom:1px solid var(--line)}
+.sheet .shd .stt{font-size:13.5px;font-weight:800}
+.sheet .shd .sxx{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+  border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer}
+.sheet .sbd{overflow-y:auto;padding:13px 16px 26px}
+.sheet .sbd::-webkit-scrollbar{width:0}
+.sheet .crumb{font-size:9.5px;color:var(--ink-muted);font-weight:700;margin-bottom:9px}
+.sheet .crumb b{color:var(--ink)}
+.sheet .dsub{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:13px 0 4px}
+.sheet .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.sheet .drow:last-child{border-bottom:0}
+.sheet .drow .dk{color:var(--ink-muted);font-weight:600}
+.sheet .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
+
 /* ============================== TAB BAR ============================== */
 .tabbar{
   position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:var(--maxw);
@@ -231,15 +262,16 @@ body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
     <div class="storebar" id="storebar"></div>
 
     <!-- VERDICT -->
-    <div class="verdict">
+    <div class="verdict clk" onclick="drill('verdict')">
       <div class="vlab">Sales verdict</div>
       <div class="vbig">Boulder Hill is <span class="pos" id="verdNum">+3.0%</span> YoY</div>
       <div class="vsay">$491K MTD on flat guest counts (−2.1%) — check is carrying the gain. LTOs landing top-3 org-wide.</div>
       <div class="vthru">Data thru Jun 24 · 24 days MTD · vs same days last year</div>
+      <div class="tapcue">Tap for the sales breakdown <span class="cv">›</span></div>
     </div>
 
     <!-- SALES & GUEST COUNT YoY (lab trio) -->
-    <div class="card">
+    <div class="card clk" onclick="drill('yoy')">
       <div class="chead"><h3>📊 Sales &amp; Guest YoY</h3><span class="ct">thru Jun 24</span></div>
       <div class="trio">
         <div class="tile">
@@ -266,7 +298,7 @@ body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
       </div>
 
       <div class="exp">
-        <button class="expbtn" aria-expanded="false" onclick="toggle(this,'perstore')">
+        <button class="expbtn" aria-expanded="false" onclick="event.stopPropagation();toggle(this,'perstore')">
           <span>▦ Per store · org benchmark</span><span class="chev">›</span>
         </button>
         <div class="expbody" id="perstore">
@@ -280,7 +312,7 @@ body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
     </div>
 
     <!-- WEEKLY SALES TREND (this yr solid vs LY dashed, LTO-colored) -->
-    <div class="card">
+    <div class="card clk" onclick="drill('weekly')">
       <div class="chead"><h3>📈 Weekly Sales</h3><span class="ct">complete weeks · thru Jun 21</span></div>
       <div class="chartwrap" id="trendChart"></div>
       <div class="legend">
@@ -291,26 +323,28 @@ body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
         <span class="lg"><span class="dot" style="background:#f59e0b"></span>Apple Pies</span>
       </div>
       <div class="cap">Product sales per week (store), complete weeks only. Line segment colored by the freshest active LTO — promo attribution.</div>
+      <div class="tapcue">Tap for week-by-week + LTO attribution <span class="cv">›</span></div>
     </div>
 
     <!-- WEEKLY AVG CHECK -->
-    <div class="card">
+    <div class="card clk" onclick="drill('check')">
       <div class="chead"><h3>💵 Average Check</h3><span class="ct">weekly · thru Jun 21</span></div>
       <div class="chartwrap" id="checkChart"></div>
       <div class="cap">Product sales ÷ guest counts, per week (store). Dashed = last year — check is the growth driver while GC sits flat.</div>
+      <div class="tapcue">Tap for check vs guest-count detail <span class="cv">›</span></div>
     </div>
 
     <!-- LTO DAILY RANKERS -->
-    <div class="card">
+    <div class="card clk" onclick="drill('lto')">
       <div class="chead"><h3>🥤 LTO Rankers <span class="newbadge">UNITS/1K</span></h3><span class="ct">thru Jun 24</span></div>
       <div class="bench">
         Boulder Hill is a top-3 LTO store org-wide
         <span class="pill">2 of 3 podiums</span>
       </div>
       <div class="seg" style="margin-top:11px">
-        <button class="on" onclick="rkr(this,'lto-soda')">Crafted Sodas</button>
-        <button onclick="rkr(this,'lto-fifa')">FIFA Meals</button>
-        <button onclick="rkr(this,'lto-pie')">Apple Pies</button>
+        <button class="on" onclick="event.stopPropagation();rkr(this,'lto-soda')">Crafted Sodas</button>
+        <button onclick="event.stopPropagation();rkr(this,'lto-fifa')">FIFA Meals</button>
+        <button onclick="event.stopPropagation();rkr(this,'lto-pie')">Apple Pies</button>
       </div>
       <div class="rkr on" id="lto-soda"></div>
       <div class="rkr" id="lto-fifa"></div>
@@ -318,6 +352,15 @@ body[data-theme=arches] .tabbar{box-shadow:0 -6px 20px rgba(0,0,0,.5)}
       <div class="cap">Units per 1,000 guests across all 12 stores · your store highlighted · DataPass thru Jun 24.</div>
     </div>
 
+  </div>
+
+  <!-- DRILL SHEET (clickable-detail-everywhere, plan-spec §10) -->
+  <div class="veil" id="veil" onclick="closeDrill()"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true">
+    <div class="grab"></div>
+    <div class="shd"><span class="stt" id="sheetTitle">Detail</span>
+      <button class="sxx" onclick="closeDrill()">Close ✕</button></div>
+    <div class="sbd" id="sheetBody"></div>
   </div>
 
   <!-- BOTTOM TAB BAR -->
@@ -462,6 +505,34 @@ function rkr(btn,id){
   document.getElementById(id).classList.add('on');
 }
 function t(btn){btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); btn.classList.add('on');}
+
+/* ===================== clickable-detail-everywhere: drill sheet (plan-spec §10) ===================== */
+const DRILL={
+  verdict:{t:'Sales verdict · Boulder Hill',h:'Numbers › <b>Sales verdict</b>',
+    rows:[['MTD YoY','+3.0%'],['MTD sales','$491.1K (24 days)'],['Guest count YoY','−2.1%'],['Driver','avg check carrying the gain'],['LTOs','top-3 org-wide on 2 of 3']],
+    note:'Check is up while guest counts sit flat — watch traffic. Data thru Jun 24 vs same days LY.'},
+  yoy:{t:'Sales & Guest YoY',h:'Numbers › Sales › <b>YoY</b>',
+    rows:[['Yesterday','+6.2% · GC +1.1%'],['MTD','+3.0% · GC −2.1%'],['YTD','+4.4% · GC −1.3%'],['Org MTD','+5.74% · GC +0.22%']],
+    note:'Per-store table inside the card breaks this out for all 12 (sales-weighted, sorted by MTD sales).'},
+  weekly:{t:'Weekly sales · TY vs LY',h:'Numbers › Sales › <b>Weekly trend</b>',
+    rows:[['Latest week','$135K'],['Peak week','$138K'],['vs last year','solid above dashed all year'],['Apr LTO','Apple Pies'],['May LTO','FIFA Meals'],['Jun LTO','Crafted Sodas']],
+    note:'Complete weeks only. Line segments colored by the freshest active LTO — promo attribution.'},
+  check:{t:'Average check · weekly',h:'Numbers › Sales › <b>Average check</b>',
+    rows:[['This year','rising steadily'],['Last year','dashed, below'],['Guest count','flat'],['Read','check is the growth driver while GC is flat']],
+    note:'Product sales ÷ guest counts per week. The gap to LY is the check gain.'},
+  lto:{t:'LTO rankers · units/1k',h:'Numbers › Sales › <b>LTO rankers</b>',
+    rows:[['Crafted Sodas','#3 of 12 · 49.1/1k'],['FIFA Meals','#1 of 12 · 45.9/1k'],['Apple Pies','#2 of 12 · 52.1/1k'],['Podiums','2 of 3 org-wide']],
+    note:'Units per 1,000 guests across all 12 stores. Switch the LTO tab in-card; DataPass thru Jun 24.'}
+};
+function drill(key){
+  const d=DRILL[key]; if(!d)return;
+  document.getElementById('sheetTitle').textContent=d.t;
+  const rows=d.rows.map(r=>`<div class="drow"><span class="dk">${r[0]}</span><span class="dv">${r[1]}</span></div>`).join('');
+  document.getElementById('sheetBody').innerHTML=`<div class="crumb">${d.h}</div>${rows}`+(d.note?`<div class="cap" style="margin-top:11px">${d.note}</div>`:'');
+  document.getElementById('veil').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+}
+function closeDrill(){document.getElementById('veil').classList.remove('show');document.getElementById('sheet').classList.remove('show');}
 
 /* auto theme by Chicago dusk + manual toggle */
 function autoTheme(){const h=new Date().getHours(); if(h>=20||h<6) document.body.setAttribute('data-theme','arches');}

@@ -234,6 +234,38 @@
     border-radius:50%;background:var(--bad)}
   .foot{text-align:center;font-size:10px;color:var(--ink-muted);padding:14px 18px 4px;
     line-height:1.5}
+
+  /* ---------- clickable-detail-everywhere (plan-spec §10) ---------- */
+  .clk{cursor:pointer;transition:border-color .14s,box-shadow .14s,transform .12s}
+  .clk:hover{border-color:var(--accent)}
+  .clk:active{transform:scale(.99)}
+  .tapcue{font-size:9px;font-weight:800;letter-spacing:.4px;color:var(--ink-muted);text-transform:uppercase;
+    display:flex;align-items:center;gap:5px;margin-top:9px;border-top:1px dashed var(--line);padding-top:8px}
+  .tapcue .cv{color:var(--accent);margin-left:auto}
+  .advisor .tapcue{border-top-color:rgba(255,255,255,.18);color:#cfe0c6}
+  body[data-theme="arches"] .advisor .tapcue{color:#9fb0bd}
+  .advisor .tapcue .cv{color:var(--mcd-gold)}
+  /* drill sheet */
+  .veil2{position:absolute;inset:0;background:rgba(8,12,12,.45);z-index:55;opacity:0;pointer-events:none;transition:opacity .22s}
+  .veil2.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:65;background:var(--surface);
+    border-radius:20px 20px 0 0;box-shadow:0 -16px 46px rgba(8,12,12,.4);transform:translateY(102%);
+    transition:transform .3s cubic-bezier(.3,.7,.3,1);max-height:84%;display:flex;flex-direction:column}
+  .sheet.show{transform:translateY(0)}
+  .sheet .grab{width:38px;height:4px;border-radius:999px;background:var(--line);margin:9px auto 3px}
+  .sheet .shd{display:flex;align-items:center;gap:9px;padding:5px 16px 11px;border-bottom:1px solid var(--line)}
+  .sheet .shd .stt{font-size:13.5px;font-weight:800}
+  .sheet .shd .sxx{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);
+    border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer}
+  .sheet .sbd{overflow-y:auto;padding:13px 16px 26px}
+  .sheet .sbd::-webkit-scrollbar{width:0}
+  .sheet .crumb{font-size:9.5px;color:var(--ink-muted);font-weight:700;margin-bottom:9px}
+  .sheet .crumb b{color:var(--ink)}
+  .sheet .dsub{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:13px 0 4px}
+  .sheet .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .sheet .drow:last-child{border-bottom:0}
+  .sheet .drow .dk{color:var(--ink-muted);font-weight:600}
+  .sheet .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body data-theme="light">
@@ -264,7 +296,7 @@
     <div class="lane-h">Today</div>
 
     <!-- ZONE 0 — BUSINESS ADVISOR -->
-    <div class="card advisor">
+    <div class="card advisor clk" onclick="drill('advisor')">
       <h3>&#129504; Business Advisor <span class="ct">brief thru Jun 24</span></h3>
       <div class="adv-lede">All 12 stores are solidly profitable (PAC 27&ndash;34%) and sales are up +5.7% YoY. The story isn't losses &mdash; it's the <b>6.5pp PAC spread</b>. Labor is the lever that separates the leaders from the pack.</div>
       <div class="adv-row">
@@ -280,13 +312,14 @@
         <div class="body"><b>Good:</b> Boulder Hill leads at 33.9% PAC on 25.6% labor / 25.3% food. Use it as the playbook store &mdash; the gap to it is the upside, store by store.</div>
       </div>
       <div class="adv-foot">
-        <button class="adv-refresh" onclick="bump(this)">&#8635; Update brief</button>
+        <button class="adv-refresh" onclick="event.stopPropagation();bump(this)">&#8635; Update brief</button>
         <span class="adv-meta">Anthropic spend MTD $41.20 &middot; next auto-brief Jul 8</span>
       </div>
+      <div class="tapcue">Tap for the full advisor brief <span class="cv">&rsaquo;</span></div>
     </div>
 
     <!-- ZONE 1 — PORTFOLIO VERDICT -->
-    <div class="card verdict">
+    <div class="card verdict clk" onclick="drill('verdict')">
       <div class="vlabel">Portfolio &middot; 12 stores &middot; data thru Jun 24</div>
       <div class="vbig">8 things need you</div>
       <div class="vsub">+5.7% sales YoY &middot; <span class="good">12 of 12 PAC-positive (27&ndash;34%)</span> &middot; closed-YTD</div>
@@ -383,28 +416,31 @@
     <div class="lane-h">Numbers &middot; financial truth</div>
 
     <!-- supervisor tier P&L -->
-    <div class="card">
+    <div class="card clk" onclick="drill('suptier')">
       <h3>&#128202; YTD up-to-PAC by supervisor <span class="ct">closed-YTD thru May <span class="prelim">pre-Withum</span></span></h3>
       <div id="suptier"></div>
       <div class="cap">All 3 patches solidly PAC-positive (31.8&ndash;35.8%). Bars are PAC% level on a 0&ndash;40% scale (no sourced target column yet &mdash; see plan-spec &sect;6.4; color = favorability). From <b>v_r365_pnl_ytd_sup</b>. Tap a patch in Today to drill the stores.</div>
+      <div class="tapcue">Tap to drill sup &rarr; store &rarr; monthly P&amp;L <span class="cv">&rsaquo;</span></div>
     </div>
 
     <!-- org Sales -> PAC waterfall -->
-    <div class="card">
+    <div class="card clk" onclick="drill('waterfall')">
       <h3>&#127754; Sales &rarr; PAC waterfall <span class="ct">org closed-YTD &middot; thru May</span></h3>
       <div id="waterfall"></div>
       <div class="waterfall-cap">Net sales &rarr; food &amp; paper &rarr; labor (the dominant controllable) &rarr; other controllables &rarr; PAC ~31.5%. Labor at ~27% org is the single biggest lever &mdash; and the swing factor across stores.</div>
+      <div class="tapcue">Tap for the step-by-step bridge <span class="cv">&rsaquo;</span></div>
     </div>
 
     <!-- cost % bullet bars -->
-    <div class="card">
+    <div class="card clk" onclick="drill('bullets')">
       <h3>&#128200; Org cost lines vs band <span class="ct">YTD &middot; thru Jun 23</span></h3>
       <div id="bullets"></div>
       <div class="cap">Bullet = actual vs target band (green good / amber watch / red over). Rising cost is red even though the number rose &mdash; favorability, not direction.</div>
+      <div class="tapcue">Tap for actual vs projection per line <span class="cv">&rsaquo;</span></div>
     </div>
 
     <!-- MTD invoice tracker -->
-    <div class="card">
+    <div class="card clk" onclick="drill('invoice')">
       <h3>&#129534; MTD invoice tracker <span class="ct">MTD thru Jun 24</span></h3>
       <div class="vstrip" style="margin-top:4px">
         <div class="vpill"><div class="n">$2.14M</div><div class="l">Posted</div></div>
@@ -412,13 +448,14 @@
         <div class="vpill"><div class="n">512</div><div class="l">Invoices</div></div>
       </div>
       <div class="cap">Posted (in R365) + in-flight (detected, not yet posted) by store &times; P&amp;L category. From <b>v_invoice_tracker_mtd</b>; MTD framing injected from today's date (view carries no date column).</div>
+      <div class="tapcue">Tap for the posted-vs-in-flight line breakdown <span class="cv">&rsaquo;</span></div>
     </div>
   </section>
 
   <!-- ============ GUESTS LANE ============ -->
   <section class="lane" id="lane-guests">
     <div class="lane-h">Guests &middot; feedback + complaints</div>
-    <div class="card">
+    <div class="card clk" onclick="drill('feedback')">
       <h3>&#128172; Customer feedback &middot; 30d <span class="ct">thru Jun 25</span></h3>
       <div class="vstrip" style="margin-top:4px">
         <div class="vpill"><div class="n bad">36</div><div class="l">Need response</div></div>
@@ -426,6 +463,7 @@
         <div class="vpill"><div class="n warn">6</div><div class="l">Past SLA</div></div>
       </div>
       <div class="cap">Unified <b>v_customer_feedback</b>: 78 complaints (all negative, 30 need response) + 85 SMG comments (6 need response). Open complaints weighted to the top.</div>
+      <div class="tapcue">Tap for the full feedback list <span class="cv">&rsaquo;</span></div>
     </div>
     <div class="exc sev-hi">
       <div class="exc-top"><span class="exc-icon">&#128227;</span>
@@ -449,7 +487,7 @@
   <!-- ============ TEAM LANE ============ -->
   <section class="lane" id="lane-team">
     <div class="lane-h">Team &middot; people + performance</div>
-    <div class="card">
+    <div class="card clk" onclick="drill('training')">
       <h3>&#127891; New-hire training <span class="ct">refreshed Jun 25</span></h3>
       <div class="vstrip" style="margin-top:4px">
         <div class="vpill"><div class="n">31</div><div class="l">New hires</div></div>
@@ -457,17 +495,20 @@
         <div class="vpill"><div class="n warn">7</div><div class="l">Due &le;3d</div></div>
       </div>
       <div class="cap">Mandatory PBS courses vs hire+14d deadline. From persisted <b>v_new_hire_training</b> (cheap refreshed table, not a live aggregate). Names = First L. only.</div>
+      <div class="tapcue">Tap for the per-store training breakdown <span class="cv">&rsaquo;</span></div>
     </div>
-    <div class="card">
+    <div class="card clk" onclick="drill('scorecards')">
       <h3>&#127942; Manager scorecards <span class="ct">Jun25&ndash;May26 annual</span></h3>
       <div class="bullet-row"><span class="bl">Orchard GM</span><span id="mb1" style="flex:1"></span><span class="bv good">1.94</span></div>
       <div class="bullet-row"><span class="bl">Lake St GM</span><span id="mb2" style="flex:1"></span><span class="bv warn">2.61</span></div>
       <div class="bullet-row"><span class="bl">Kirk GM</span><span id="mb3" style="flex:1"></span><span class="bv bad">3.40</span></div>
       <div class="cap">GM overall rating (1 = best). From <b>v_manager_scorecard_annual</b>; some Swing ratings provisional (<span class="warn">sw_labor_pending</span>).</div>
+      <div class="tapcue">Tap for the full GM/Swing ranking <span class="cv">&rsaquo;</span></div>
     </div>
-    <div class="card">
+    <div class="card clk" onclick="drill('bonus')">
       <h3>&#128181; Bonus &middot; Q1 2026 true-up <span class="ct">payout Jul 1 (Paycor)</span></h3>
       <div class="cap">Recipient payout graphic slot reserved (design-for, not built) &mdash; fires at the top of each recipient's board when bonuses issue. Reads <b>bonus_q1_2026_pinned.adjusted_amount</b>.</div>
+      <div class="tapcue">Tap for the bonus payout detail <span class="cv">&rsaquo;</span></div>
     </div>
   </section>
 
@@ -512,6 +553,15 @@
     <button class="tab" data-go="lane-more">
       <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
   </nav>
+
+  <!-- DRILL SHEET (clickable-detail-everywhere, plan-spec §10) -->
+  <div class="veil2" id="veil2" onclick="closeDrill()"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true">
+    <div class="grab"></div>
+    <div class="shd"><span class="stt" id="sheetTitle">Detail</span>
+      <button class="sxx" onclick="closeDrill()">Close &#10005;</button></div>
+    <div class="sbd" id="sheetBody"></div>
+  </div>
  </div>
 </div>
 
@@ -699,6 +749,48 @@ el('themebtn').addEventListener('click',()=>{
   // redraw token-colored SVG
   requestAnimationFrame(()=>{drawSparks();renderSupTier();renderWaterfall();renderBullets();renderMgr();});
 });
+
+/* ---------- clickable-detail-everywhere: drill sheet (plan-spec §10) ---------- */
+const DRILL={
+  advisor:{t:'Business Advisor · full brief',h:'Today › <b>Advisor</b>',
+    rows:[['Headline','12/12 PAC-positive · +5.7% YoY · 6.5pp spread'],['Act this week','Plano 27.4% PAC — close the ~2pt labor gap with Nick'],['Watch','30 open complaints · 6 past SLA (2 at Yorkville 1)'],['Good','Boulder Hill 33.9% PAC — the playbook store'],['Anthropic spend MTD','$41.20'],['Next auto-brief','Jul 8']],
+    note:'Blunt-voice biweekly brief, owner-gated on-demand refresh. Proactive interrupt rows for overdue-critical + portfolio anomalies.'},
+  verdict:{t:'Portfolio P&L · headline',h:'Today › <b>Portfolio verdict</b>',
+    rows:[['Sales MTD','$3.41M · +5.74% YoY'],['Guest count','438.9K · +0.22% · avg chk $9.58'],['YTD PAC (org)','31.5% weighted'],['PAC-positive','12 of 12 (27–34%)'],['Spread','6.5pp (Plano 27.4 → Boulder Hill 33.9)']],
+    note:'Headline from v_r365_pnl_ytd_store_closed (closed-YTD Apr–May). All 12 profitable — the spread, not losses, is the story.'},
+  suptier:{t:'YTD up-to-PAC by supervisor',h:'Numbers › <b>Supervisor P&L</b>',
+    rows:[['Randy Tidaback','35.81% · 5 stores · $5.53M'],['Manuel Carrillo','33.98% · 4 stores · $3.96M'],['Nick Boose','31.81% · 3 stores · $2.49M']],
+    note:'Drill: sup → store → monthly. From v_r365_pnl_ytd_sup. Level only — no sourced PAC target yet (§6.4). Tap a patch in Today to view-as a GM.'},
+  waterfall:{t:'Sales → PAC bridge (org)',h:'Numbers › <b>Sales → PAC</b>',
+    rows:[['Net sales','100%'],['− Food & paper','~28.5%'],['− Labor','~27% (dominant lever)'],['− Other controllable','~13%'],['= PAC','~31.5%']],
+    note:'Labor at ~27% org is the single biggest controllable and the swing factor across stores. Color = unfavorable variance only (IBCS).'},
+  bullets:{t:'Org cost lines vs band',h:'Numbers › <b>Cost discipline</b>',
+    rows:[['Food %','25.0% · band ≤26%'],['Labor %','27.0% · band ≤28%'],['Controllables %','40.0% · band ≤42%']],
+    note:'Bands illustrative — no sourced target column yet (plan-spec §6.4). Compare to penciled pnl_projection once locked.'},
+  invoice:{t:'MTD invoice tracker',h:'Numbers › <b>Invoices</b>',
+    rows:[['Posted (in R365)','$2.14M'],['In-flight (detected, not posted)','$418K'],['Invoices','512'],['Read','true MTD spend > posted']],
+    note:'In-flight = detected in email/triage, not yet posted. From v_invoice_tracker_mtd; MTD framing injected from today.'},
+  feedback:{t:'Customer feedback · 30d',h:'Guests › <b>Feedback</b>',
+    rows:[['Need response','36'],['Items 30d','163'],['Past SLA','6'],['Complaints','78 (all negative, 30 need response)'],['SMG comments','85 (6 need response)']],
+    note:'Unified v_customer_feedback, needs-response weighted. Open complaints float to the top.'},
+  training:{t:'New-hire training',h:'Team › <b>Training</b>',
+    rows:[['New hires','31'],['Overdue 14d','4 (Lake St 2, Farnsworth 2)'],['Due ≤3d','7'],['Basis','hire+14d PBS deadline']],
+    note:'From persisted v_new_hire_training (cheap refreshed table, not a live aggregate). Names First-L only.'},
+  scorecards:{t:'Manager scorecards',h:'Team › <b>Scorecards</b>',
+    rows:[['Orchard GM','1.94 (best)'],['Lake St GM','2.61'],['Kirk GM','3.40'],['Basis','Jun25–May26 annual']],
+    note:'GM overall rating (1 = best). From v_manager_scorecard_annual; some Swing ratings provisional (sw_labor_pending).'},
+  bonus:{t:'Bonus · Q1 2026 true-up',h:'Team › <b>Bonus</b>',
+    rows:[['Payout','Jul 1 (Paycor)'],['Source','bonus_q1_2026_pinned.adjusted_amount'],['Graphic slot','reserved (design-for, not built)']],
+    note:'Recipient payout graphic fires at the top of each recipient board when bonuses issue (July 1 Paycor go-live).'}
+};
+function drill(key){
+  const d=DRILL[key]; if(!d)return;
+  el('sheetTitle').textContent=d.t;
+  const rows=d.rows.map(r=>`<div class="drow"><span class="dk">${r[0]}</span><span class="dv">${r[1]}</span></div>`).join('');
+  el('sheetBody').innerHTML=`<div class="crumb">${d.h}</div>${rows}`+(d.note?`<div class="cap" style="margin-top:11px">${d.note}</div>`:'');
+  el('veil2').classList.add('show'); el('sheet').classList.add('show');
+}
+function closeDrill(){el('veil2').classList.remove('show');el('sheet').classList.remove('show');}
 
 /* ---------- INIT ---------- */
 renderSupTier();renderWaterfall();renderBullets();renderMgr();renderPatches();drawSparks();
