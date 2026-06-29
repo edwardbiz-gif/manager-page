@@ -1,0 +1,1618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Schmitt Ops — board (v2)</title>
+<!--
+  manager-page-v2 STATIC SHELL — the "Field-First" mobile-first board.
+  Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
+  (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
+
+  Phase 1 (GM Today lane) — ADDED ADDITIVELY (render fns + MANIFEST rows + the
+  POST action wiring), no other module's code touched. SHELL_VERSION stays
+  "v2-0.1" in lockstep with the deployed Edge Fn (fn_version v2-0.1): the TODAY
+  lane reuses EXISTING data slices (tasks, complaints, cleanliness_race,
+  osat_incentive, financials.data_through) — no JSON-contract change, so no Edge
+  Fn redeploy is needed and the version-mismatch stamp stays matched.
+    • What needs you — advisory exception feed (overdue complaints + overdue/hot
+      tasks + below-median voice/cleanliness), severity-ranked verdict→why→action.
+    • Your tasks — top open tasks + inline "Done" (action:"close").
+    • Open complaints — SLA-sorted + inline "Resolve" (action:"resolve_complaint").
+    • Pinned June Cleanliness Race + $100 OSAT Incentive (this store's rank + gap).
+  The TODAY verdict (BLUF) now shows the real priority count (calm/amber).
+
+  This is the PARALLEL redesign surface. It does NOT touch the live production
+  shell (edge-functions/manager-page-static/index.html) or the live Edge Fn.
+  It fetches the NEW deployed Edge Fn slug "manager-page-v2".
+
+  ARCHITECTURE — manifest-driven, expansion-by-structure (plan §2 axis-3, §5):
+    Every module is ONE descriptor row in the MANIFEST array:
+        { id, lane, title, render }
+    The shell's generic walker (renderBoard) filters the manifest by the active
+    lane and calls each module's render(data, opts) -> HTML, wrapped in sect()
+    isolation (one slice can't blank the board). LANES map 1:1 to the five fixed
+    bottom tabs: TODAY · NUMBERS · GUESTS · TEAM · MORE.
+
+    >>> To ADD A LANE/MODULE later: append ONE render fn + ONE MANIFEST row.
+        Nothing else changes. Phases never edit each other's code. <<<
+
+  This scaffold ships with NO lane content yet — each lane renders a single
+  honest empty-state card (a placeholder module per lane) so the render path,
+  manifest walker, theme system, tab bar, token auth, and skeleton->data paint
+  are all proven end-to-end. Later phases replace the placeholder rows with real
+  module rows.
+
+  Smoke-test contract (smoke_board.py): init() is a function; window.renderBoard
+  is a function; #app leaves the .loading state; #app has >0 .card elements;
+  no .errbox; zero console errors.
+-->
+<style>
+/* ============ TWO-TIER TOKENS (plan §4) — lifted from mockups/redesign/*.html ============ */
+:root{color-scheme:light;
+ /* primitive */
+ --mc-green:#2c5f2d; --mc-gold:#ffc72c; --mc-red:#da291c;
+ --c-good:#1a7f4b; --c-warn:#b45309; --c-bad:#c2360e;
+ --c-good-bg:#e7f5ec; --c-warn-bg:#fdf3e3; --c-bad-bg:#fdecea;
+ --paper:#eef0ec; --surface:#ffffff; --surface-2:#f5f6f3; --surface-3:#eceee9;
+ --ink:#1b201d; --ink-2:#414843; --ink-muted:#727b74; --line:#e4e6e1; --line-2:#d4d7d1;
+ --frame:radial-gradient(700px 420px at 18% -8%, #f7f3e3, #eef0ec 55%);
+ /* svg ink */
+ --svg-this:#2c5f2d; --svg-prior:#b8bdb6; --svg-grid:#e9ebe6; --svg-frame:#9aa39b;
+ /* semantic */
+ --accent:var(--mc-green); --on-accent:#fff;
+ --good:var(--c-good); --warn:var(--c-warn); --bad:var(--c-bad);
+ --good-bg:var(--c-good-bg); --warn-bg:var(--c-warn-bg); --bad-bg:var(--c-bad-bg);
+ --proj:#3b5bdb; --proj-bg:#e8edfd; --proj-line:#bcccf7;
+ --r-tile:16px; --r-chip:999px;
+ --sh-1:0 1px 2px rgba(20,30,20,.05); --sh-2:0 4px 16px rgba(20,30,20,.09);
+ --sh-3:0 14px 40px rgba(20,30,20,.16);
+}
+body[data-theme="arches"]{color-scheme:dark;
+ --paper:#0a0e13; --surface:#1b2632; --surface-2:#16202b; --surface-3:#111922;
+ --ink:#eef4fb; --ink-2:#c2d0dd; --ink-muted:#8698aa; --line:#243240; --line-2:#2d3d4d;
+ --frame:radial-gradient(900px 520px at 80% -10%, #15314a, #0a0e13 60%);
+ --accent:var(--mc-gold); --on-accent:#3a2a00;
+ --good:#43d39e; --warn:#e8a33d; --bad:#ff6a5e;
+ --good-bg:#10302a; --warn-bg:#33290a; --bad-bg:#3a1614;
+ --proj:#7c93f0; --proj-bg:#1a2440; --proj-line:#324781;
+ --svg-this:#43d39e; --svg-prior:#5a6675; --svg-grid:#22303d; --svg-frame:#637488;
+ --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-2:0 6px 22px rgba(0,0,0,.5); --sh-3:0 16px 46px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+ background:var(--frame);color:var(--ink);line-height:1.45;
+ padding:18px 10px 40px;-webkit-text-size-adjust:100%;
+ font-feature-settings:"tnum" 1,"cv01" 1}
+.phone{max-width:448px;margin:0 auto;background:var(--paper);
+ border:1px solid var(--line-2);border-radius:26px;padding:0 0 86px;
+ box-shadow:var(--sh-3);overflow:hidden;position:relative;min-height:560px}
+
+/* ---- top chrome ---- */
+.chrome{position:sticky;top:0;z-index:40;background:var(--surface);
+ border-bottom:1px solid var(--line);padding:14px 16px 11px}
+.crow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.2px}
+.brand .arch{width:24px;height:24px;border-radius:7px;background:var(--mc-gold);
+ color:#3a2a00;display:grid;place-items:center;font-size:15px;font-weight:900;box-shadow:var(--sh-1)}
+.vstamp{font-size:9.5px;color:var(--ink-muted);font-weight:700;letter-spacing:.3px;
+ background:var(--surface-2);border:1px solid var(--line);padding:3px 7px;border-radius:999px;white-space:nowrap}
+.vstamp.mismatch{color:var(--bad);border-color:var(--bad);background:var(--bad-bg)}
+.tabline{font-size:10.5px;color:var(--ink-muted);font-weight:700;letter-spacing:1.4px;
+ text-transform:uppercase;margin-top:7px}
+.tabline b{color:var(--accent)}
+
+.scroll{padding:14px 14px 0;min-height:300px}
+
+/* ---- card kit (the only components) ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-tile);
+ padding:14px 14px 15px;margin:0 0 13px;box-shadow:var(--sh-2);
+ animation:rise .42s cubic-bezier(.2,.7,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.card,.skel,.countup{animation:none!important}}
+.chead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.ctitle{font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+ color:var(--accent);display:flex;align-items:center;gap:6px}
+.ct{font-size:9.5px;color:var(--ink-muted);font-weight:700;letter-spacing:.2px;text-align:right;white-space:nowrap}
+.newbadge{font-size:8px;font-weight:800;letter-spacing:.6px;color:#0369a1;background:#e0f2fe;
+ border:1px solid #bae6fd;border-radius:999px;padding:1px 6px;margin-left:5px}
+body[data-theme="arches"] .newbadge{color:#7dd3fc;background:#0c2733;border-color:#155e75}
+.cbody{font-size:12.5px;color:var(--ink-2)}
+
+/* empty / coming-soon state (scaffold placeholder module) */
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;
+ padding:18px 8px 10px;color:var(--ink-muted)}
+.empty .eic{font-size:30px;line-height:1}
+.empty .eh{font-size:13px;font-weight:800;color:var(--ink-2)}
+.empty .es{font-size:11px;font-weight:600;max-width:280px}
+
+/* drill cue (plan §10 — every module is a door, wired later) */
+.tapcue{font-size:9px;font-weight:800;letter-spacing:.4px;color:var(--ink-muted);
+ text-transform:uppercase;display:flex;align-items:center;gap:5px;margin-top:10px;
+ border-top:1px dashed var(--line);padding-top:8px}
+.tapcue .chev{color:var(--accent)}
+
+/* verdict (BLUF) zone — top of TODAY */
+.verdict{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-tile);
+ padding:16px 15px;margin:0 0 13px;box-shadow:var(--sh-2);
+ background:linear-gradient(180deg,var(--good-bg),var(--surface) 80%)}
+.verdict .vk{font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--ink-muted)}
+.verdict .vhero{display:flex;align-items:flex-end;gap:10px;margin:5px 0 4px}
+.verdict .vnum{font-size:clamp(28px,8.5vw,38px);font-weight:900;line-height:.98;letter-spacing:-.5px}
+.verdict .vsub{font-size:12.5px;color:var(--ink-2);font-weight:600}
+.verdict .vsub b{color:var(--ink)}
+
+/* glance trio */
+.trio{display:flex;gap:8px}
+.gtile{flex:1;min-width:0;text-align:center;background:var(--surface-2);border:1px solid var(--line);
+ border-radius:13px;padding:9px 4px 8px}
+.gtile .gl{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-muted)}
+.gtile .gv{font-size:20px;font-weight:900;line-height:1.1;margin-top:2px}
+.gtile .gs{font-size:10px;color:var(--ink-muted);font-weight:700}
+.fav{color:var(--good)} .unfav{color:var(--bad)} .neu{color:var(--ink-muted)}
+
+.svgwrap{width:100%;overflow:visible;display:block}
+.cap{font-size:9.5px;color:var(--ink-muted);font-weight:600;margin-top:7px;line-height:1.35}
+
+/* error panel (the .errbox the smoke test watches for) */
+.errbox{margin:18px 6px;padding:16px;border-radius:14px;background:var(--bad-bg);
+ border:1px solid var(--bad);color:var(--bad);font-size:13px;font-weight:600;line-height:1.5}
+.loading{text-align:center;color:var(--ink-muted);font-size:13px;padding:60px 0;font-weight:600}
+
+/* skeleton tiles (sized to final layout — no CLS) */
+.skel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-tile);
+ padding:14px;margin:0 0 13px;box-shadow:var(--sh-1)}
+.skel .sl{height:11px;border-radius:6px;background:linear-gradient(90deg,var(--surface-2),var(--surface-3),var(--surface-2));
+ background-size:200% 100%;animation:shim 1.3s linear infinite;margin:0 0 9px}
+.skel .sl.w40{width:40%} .skel .sl.w70{width:70%} .skel .sl.w90{width:90%} .skel .sl.tall{height:46px;margin-top:12px}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.skel .sl{animation:none}}
+
+/* ============ TODAY LANE (Phase 1 — GM Today: priorities + tasks hub + pinned contests) ============
+   Appended additively; no existing rule changed. Uses only semantic tokens so
+   both themes flip for free. (plan §3.1 check/act/done · §4 component kit) */
+
+/* EXCEPTION ROW — verdict→why→action, severity left-border (plan §4) */
+.exwrap{display:flex;flex-direction:column;gap:9px}
+.exrow{position:relative;background:var(--surface-2);border:1px solid var(--line);
+ border-left:4px solid var(--svg-prior);border-radius:13px;padding:10px 11px 11px}
+.exrow.sev-bad{border-left-color:var(--bad);background:linear-gradient(90deg,var(--bad-bg),var(--surface-2) 42%)}
+.exrow.sev-warn{border-left-color:var(--warn);background:linear-gradient(90deg,var(--warn-bg),var(--surface-2) 46%)}
+.exrow.sev-info{border-left-color:var(--accent)}
+.exhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.extitle{font-size:13px;font-weight:800;color:var(--ink);line-height:1.25}
+.exsev{flex:none;font-size:8px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;
+ padding:2px 6px;border-radius:999px;white-space:nowrap}
+.exsev.sev-bad{color:var(--bad);background:var(--bad-bg);border:1px solid var(--bad)}
+.exsev.sev-warn{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn)}
+.exsev.sev-info{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid var(--line-2)}
+.exwhy{font-size:11px;color:var(--ink-2);font-weight:600;margin-top:4px;line-height:1.4}
+.exwhy b{color:var(--ink)}
+.exmeta{font-size:9px;color:var(--ink-muted);font-weight:700;letter-spacing:.2px;margin-top:5px}
+
+/* ACTION-HUB task / complaint rows + buttons (one-handed, ≥44px targets) */
+.actrow{display:flex;align-items:flex-start;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line)}
+.actrow:last-child{border-bottom:0}
+.actrow.busy{opacity:.5;pointer-events:none}
+.actmain{flex:1;min-width:0}
+.acttitle{font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.3}
+.actsub{font-size:9.5px;color:var(--ink-muted);font-weight:700;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.pchip{font-size:8.5px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.pchip.urgent{color:var(--bad);background:var(--bad-bg)}
+.pchip.high{color:var(--warn);background:var(--warn-bg)}
+.pchip.normal{color:var(--ink-muted);background:var(--surface-3)}
+.pchip.low{color:var(--ink-muted);background:var(--surface-3)}
+.duechip{font-size:8.5px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap;
+ color:var(--ink-2);background:var(--surface-3)}
+.duechip.over{color:var(--bad);background:var(--bad-bg)} .duechip.today{color:var(--warn);background:var(--warn-bg)}
+.actbtn{flex:none;min-height:40px;min-width:64px;padding:0 11px;border-radius:11px;border:1px solid var(--line-2);
+ background:var(--surface);color:var(--ink);font-size:11px;font-weight:800;cursor:pointer;box-shadow:var(--sh-1)}
+.actbtn:active{transform:translateY(1px)}
+.actbtn.go{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.empline{font-size:11.5px;color:var(--ink-muted);font-weight:600;padding:8px 2px}
+
+/* PINNED CONTEST cards (cleanliness race / OSAT incentive) */
+.contest{display:flex;align-items:center;gap:12px}
+.medal{flex:none;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;
+ font-size:13px;font-weight:900;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);line-height:1}
+.medal.win{background:var(--good-bg);border-color:var(--good);color:var(--good)}
+.medal.miss{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.contestmain{flex:1;min-width:0}
+.contesthd{font-size:12.5px;font-weight:800;color:var(--ink)}
+.contestsub{font-size:10.5px;color:var(--ink-2);font-weight:600;margin-top:2px}
+.contestsub b{color:var(--ink)}
+.prizepill{font-size:9px;font-weight:900;letter-spacing:.4px;color:var(--mc-green);background:var(--good-bg);
+ border:1px solid var(--good);border-radius:999px;padding:1px 7px}
+body[data-theme="arches"] .prizepill{color:var(--good)}
+.gapbar{height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:7px}
+.gapbar>i{display:block;height:100%;border-radius:999px;background:var(--accent)}
+
+/* ============ NUMBERS LANE (Phase 2 — the P&L / money tab) ============
+   Appended additively from mockups/redesign/financials.html; no existing rule
+   changed. Semantic tokens only → both themes flip free. (plan §4 lab grammar,
+   §9 MTD·YTD·Projection ledger + lock, §10 clickable detail, §11 DoorDash) */
+
+/* glance trio data-row footer (YoY) */
+.gtile .gd{border-top:1px solid var(--line);margin-top:6px;padding-top:5px;font-size:10px;font-weight:700}
+
+/* verdict flags (preliminary / closed-YTD honesty stamps) */
+.vflags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.flag{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
+.flag.prelim{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+.flag.recon{background:var(--surface-2);color:var(--ink-muted);border:1px solid var(--line-2)}
+.flag.good{background:var(--good-bg);color:var(--good);border:1px solid color-mix(in srgb,var(--good) 35%,transparent)}
+.flag.open{background:var(--proj-bg);color:var(--proj);border:1px solid var(--proj-line)}
+
+/* sup/portfolio rollup rows (tap to drill) */
+.prow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+ padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:var(--surface);
+ margin-bottom:8px;cursor:pointer;transition:.14s;box-shadow:var(--sh-1)}
+.prow:active{transform:translateY(1px)} .prow:hover{border-color:var(--accent)}
+.prow .pn{font-weight:800;font-size:13px} .prow .pmeta{font-size:10.5px;color:var(--ink-muted);font-weight:600;margin-top:1px}
+.prow .ppac{text-align:right;font-weight:900;font-size:16px;font-variant-numeric:tabular-nums}
+.prow .pds{font-size:9.5px;color:var(--ink-muted);font-weight:700;text-align:right}
+.miniwf{height:5px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:6px;grid-column:1/-1;border:1px solid var(--line)}
+.miniwf>i{display:block;height:100%}
+.rank{font-size:10px;font-weight:800;color:var(--ink-muted);margin-right:6px}
+
+/* up-to-PAC ledger — MTD · YTD · Projection */
+.ledger{margin-top:2px;font-size:12px}
+.lhdr{display:grid;grid-template-columns:1.35fr .9fr .9fr 1.05fr;gap:6px;font-size:8.5px;font-weight:800;
+ letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted);padding-bottom:6px;border-bottom:1px solid var(--line-2)}
+.lhdr span:not(:first-child){text-align:right} .lhdr .hproj{color:var(--proj)}
+.lrow{display:grid;grid-template-columns:1.35fr .9fr .9fr 1.05fr;gap:6px;padding:7px 0;border-bottom:1px solid var(--line);align-items:center}
+.lrow:last-child{border-bottom:0}
+.lrow .lname{font-weight:600;color:var(--ink-2);font-size:11.5px}
+.lrow .lcell{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;font-size:11.5px}
+.lrow .lcell .lcsub{display:block;font-size:8.5px;font-weight:700;color:var(--ink-muted)}
+.lrow.sub{background:var(--surface-2);margin:0 -14px;padding-left:14px;padding-right:14px}
+.lrow.sub .lname{font-weight:800;color:var(--ink);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
+.lrow.pac{background:linear-gradient(90deg,var(--good-bg),transparent);margin:0 -14px;padding:11px 14px;border-bottom:0;border-top:2px solid var(--line-2)}
+.lrow.pac .lname{font-weight:900;color:var(--ink);text-transform:uppercase;letter-spacing:.5px;font-size:12px}
+.lrow.pac .lcell{font-size:13px;font-weight:900}
+.pcell{text-align:right}
+.pcell .pproj{display:inline-flex;align-items:center;gap:4px;justify-content:flex-end;font-variant-numeric:tabular-nums;
+ font-weight:800;font-size:11.5px;color:var(--proj);background:var(--proj-bg);border:1px solid var(--proj-line);border-radius:8px;padding:3px 7px}
+.pcell.pending .pproj{color:var(--ink-muted);font-style:italic;font-weight:700;background:var(--surface-2);border:1px dashed var(--line-2)}
+.pcell.locked .pproj{color:var(--ink);background:var(--surface-2);border:1px solid var(--line-2)}
+.pcell .psub{display:block;font-size:8px;font-weight:700;color:var(--ink-muted);margin-top:2px}
+.lockbar{display:flex;align-items:center;gap:9px;margin:0 -14px 11px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700}
+.lockbar.open{background:var(--proj-bg);color:var(--proj)} .lockbar.locked{background:var(--surface-2);color:var(--ink-2)}
+.lockbar .lkic{font-size:15px} .lockbar .lkmeta{flex:1;line-height:1.35}
+.lockbar .lkmeta small{display:block;font-weight:600;color:var(--ink-muted);font-size:9.5px;margin-top:1px}
+
+/* cost-% bullet rows */
+.bset{display:flex;flex-direction:column;gap:11px;margin-top:3px}
+.brow .blab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;font-weight:700;margin-bottom:4px}
+.brow .blab .bname{color:var(--ink-2)} .brow .blab .bval{font-weight:900}
+.brow .bnote{font-size:9px;color:var(--ink-muted);font-weight:600;margin-top:3px}
+
+/* invoice tracker */
+.inv-top{display:flex;gap:8px;margin-bottom:11px}
+.inv-tile{flex:1;border-radius:13px;padding:10px 11px;border:1px solid var(--line)}
+.inv-tile.posted{background:var(--good-bg);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.inv-tile.flight{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.inv-tile .il{font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+.inv-tile.posted .il{color:var(--good)} .inv-tile.flight .il{color:var(--warn)}
+.inv-tile .iv{font-size:20px;font-weight:900;margin-top:2px} .inv-tile .is{font-size:10px;color:var(--ink-muted);font-weight:700}
+.invbar{height:11px;border-radius:999px;overflow:hidden;display:flex;background:var(--surface-3);border:1px solid var(--line)}
+.invbar .seg-posted{background:var(--good)}
+.invbar .seg-flight{background:var(--warn);opacity:.85;background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.35) 4px,rgba(255,255,255,.35) 8px)}
+.invbar-leg{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-muted);font-weight:700;margin-top:5px}
+.lndots{display:flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:3px;display:inline-block} .dot.posted{background:var(--good)} .dot.flight{background:var(--warn)}
+
+/* doordash commission rates */
+.dd-qoq{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:11px 8px;margin-bottom:9px}
+.dd-qoq .qval{font-size:15px;font-weight:900;font-variant-numeric:tabular-nums} .dd-qoq .qarrow{font-size:18px;font-weight:900} .dd-qoq .qmuted{color:var(--ink-muted)}
+.qup{color:var(--bad)} .qdown{color:var(--good)} .qflat{color:var(--ink-muted)}
+.dd-cur{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+.dd-tile{min-width:0;text-align:center;background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:9px 6px 8px}
+.dd-tile.const{background:var(--surface);border-style:dashed}
+.dd-tile .ddl{font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-muted)}
+.dd-tile .ddv{font-size:19px;font-weight:900;line-height:1.1;margin-top:2px;font-variant-numeric:tabular-nums}
+.dd-tile .dds{font-size:8.5px;color:var(--ink-muted);font-weight:700;margin-top:1px}
+.ddhdr{display:grid;grid-template-columns:1fr auto auto;gap:9px;font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted);padding:0 4px 6px;border-bottom:1px solid var(--line-2)}
+.ddhdr span:nth-child(2){text-align:right} .ddhdr span:nth-child(3){text-align:center}
+.ddrow{display:grid;grid-template-columns:1fr auto auto;gap:9px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:11.5px}
+.ddrow:last-child{border-bottom:0}
+.ddrow .ddn{font-weight:700;color:var(--ink-2)} .ddrow .ddn small{display:block;font-size:8.5px;color:var(--ink-muted);font-weight:700}
+.ddrow .ddmkt{text-align:right;font-weight:900;font-variant-numeric:tabular-nums;min-width:64px}
+.ddrow .ddtr{font-size:13px;font-weight:900;text-align:center;width:18px}
+.ddrow.miss{opacity:.72} .ddrow.miss .ddmkt{color:var(--warn)}
+.dd-misswarn{font-size:9.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);
+ border-radius:9px;padding:7px 9px;margin-top:9px;display:flex;align-items:center;gap:6px}
+
+/* LTO leaderboard rows */
+.ltorow{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);font-size:11.5px}
+.ltorow:last-child{border-bottom:0}
+.ltorow.mine{background:color-mix(in srgb,var(--accent) 8%,transparent);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:9px}
+.ltorow .lmedal{font-size:13px;font-weight:900;width:22px;text-align:center;color:var(--ink-muted)}
+.ltorow .lname2{font-weight:700;color:var(--ink-2)} .ltorow .lname2 small{display:block;font-size:8.5px;color:var(--ink-muted);font-weight:700}
+.ltorow .lval{text-align:right;font-weight:900;font-variant-numeric:tabular-nums}
+.ltorow .lval small{display:block;font-size:8.5px;color:var(--ink-muted);font-weight:700}
+.ltoseg{font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);margin:11px 0 5px}
+.ltoseg:first-child{margin-top:2px}
+
+/* drill sheet (clickable-detail-everywhere, plan §10) */
+.veil{position:absolute;inset:0;background:rgba(8,12,10,.42);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s}
+.veil.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:60;background:var(--surface);border-radius:22px 22px 0 0;
+ box-shadow:var(--sh-3);transform:translateY(102%);transition:transform .3s cubic-bezier(.3,.7,.3,1);max-height:88%;display:flex;flex-direction:column}
+.sheet.show{transform:translateY(0)}
+.sheet-grab{width:38px;height:4px;border-radius:999px;background:var(--line-2);margin:9px auto 4px}
+.sheet-hd{display:flex;align-items:center;gap:9px;padding:6px 16px 12px;border-bottom:1px solid var(--line)}
+.sheet-hd .st{font-size:13px;font-weight:900;letter-spacing:.2px}
+.sheet-hd .sx{margin-left:auto;appearance:none;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font-weight:800;border-radius:999px;padding:6px 12px;font-size:11px;cursor:pointer}
+.sheet-bd{overflow-y:auto;padding:13px 16px 26px} .sheet-bd::-webkit-scrollbar{width:0}
+.crumb{font-size:9.5px;color:var(--ink-muted);font-weight:700;letter-spacing:.3px;margin-bottom:9px} .crumb b{color:var(--ink)}
+.drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.drow:last-child{border-bottom:0} .drow .dk{color:var(--ink-muted);font-weight:600} .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
+.dsub{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:12px 0 4px}
+.drillcard{cursor:pointer} .drillcard:active{transform:translateY(1px)}
+
+/* foot */
+.foot{padding:6px 16px 0;font-size:9px;color:var(--ink-muted);line-height:1.5;text-align:center}
+
+/* ---- bottom tab bar (5 fixed lanes, thumb zone, 48px targets) ---- */
+.tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;
+ background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);
+ border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom));z-index:45}
+.tab{flex:1;text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.4px;
+ color:var(--ink-muted);padding:6px 2px;border-radius:11px;cursor:pointer;
+ border:0;background:transparent;min-height:48px}
+.tab .ti{font-size:17px;display:block;line-height:1.25}
+.tab.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.tab:active{transform:translateY(1px)}
+
+/* theme toggle */
+.themebtn{position:fixed;right:14px;bottom:14px;z-index:60;width:42px;height:42px;border-radius:50%;
+ border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-size:18px;cursor:pointer;
+ box-shadow:var(--sh-2)}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+
+<button class="themebtn" id="themebtn" title="Toggle theme">◐</button>
+
+<div class="phone">
+
+  <!-- ============ CHROME ============ -->
+  <div class="chrome" id="chrome">
+    <div class="crow">
+      <div class="brand"><span class="arch">M</span><span id="brandName">Schmitt Ops</span></div>
+      <span class="vstamp" id="vstamp">v2</span>
+    </div>
+    <div class="tabline" id="tabline">Today · <b id="scopeLabel">…</b></div>
+  </div>
+
+  <!-- ============ BOARD (manifest walker paints here) ============ -->
+  <div id="app"><div class="loading">Loading…</div></div>
+
+  <div class="foot" id="foot"></div>
+
+  <!-- ============ bottom tab bar — the five fixed lanes ============ -->
+  <div class="tabbar" id="tabbar"></div>
+
+  <!-- ============ DRILL SHEET (clickable-detail-everywhere, plan §10) ============ -->
+  <div class="veil" id="veil" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheet-grab"></div>
+    <div class="sheet-hd"><span class="st" id="sheetTitle">Detail</span>
+      <button class="sx" onclick="closeSheet()">Close ✕</button></div>
+    <div class="sheet-bd" id="sheetBody"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   manager-page-v2 shell — Field-First scaffold
+   ========================================================================= */
+const SHELL_VERSION = "v2-0.1";
+const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
+
+const QS = new URLSearchParams(location.search);
+const TOKEN = QS.get("t") || "";
+
+/* global app state */
+let STATE = null;             // the full {result, data} payload
+let ACTIVE_LANE = "TODAY";    // current bottom tab
+
+/* ---- the five fixed lanes (plan §2) — order = tab order ---- */
+const LANES = [
+  { id:"TODAY",   label:"Today",   icon:"⚡" },
+  { id:"NUMBERS", label:"Numbers", icon:"📊" },
+  { id:"GUESTS",  label:"Guests",  icon:"💬" },
+  { id:"TEAM",    label:"Team",    icon:"👥" },
+  { id:"MORE",    label:"More",    icon:"⋯" },
+];
+
+/* =========================================================================
+   sect() — per-module isolation. One slice throwing can't blank the board.
+   (must-keep resilience, plan §4)
+   ========================================================================= */
+function sect(fn){
+  try { return fn(); }
+  catch(e){
+    console.error("module render error:", e && (e.stack||e.message||e));
+    return card("Module unavailable", '<div class="cbody">This card hit an error and was skipped. The rest of the board is unaffected.</div>', {});
+  }
+}
+
+/* =========================================================================
+   COMPONENT KIT — the only components anywhere. Return HTML strings.
+   ========================================================================= */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// MODULE TILE / generic card. opts: {through, newBadge, drill, icon}
+//   drill: true            -> static "tap for detail" cue (scaffold placeholders)
+//   drill: {kind, ...arg}  -> the WHOLE card is clickable and opens the NUMBERS
+//                             detail sheet via openNumbersSheet(kind, arg) (§10).
+function card(title, bodyHtml, opts={}){
+  const through = opts.through ? '<span class="ct">data thru '+esc(opts.through)+'</span>' : "";
+  const nb = opts.newBadge ? '<span class="newbadge">NEW</span>' : "";
+  const isObjDrill = opts.drill && typeof opts.drill === "object";
+  const drillCue = opts.drill ? '<div class="tapcue"><span>tap for detail</span><span class="chev">›</span></div>' : "";
+  // Object drill = a live door (plan §10). Stash kind+arg on data attrs; a single
+  // delegated #app handler dispatches to openNumbersSheet so action controls
+  // inside the card (which call stopPropagation) still fire their own behavior.
+  const drillAttrs = isObjDrill
+    ? ' class="card drillcard" data-card-drill="'+esc(opts.drill.kind)+'"'
+      + (opts.drill.store_id!=null ? ' data-card-id="'+esc(opts.drill.store_id)+'"' : '')
+    : ' class="card"';
+  return '<div'+drillAttrs+'>'
+    + '<div class="chead"><div class="ctitle">'+(opts.icon?esc(opts.icon)+" ":"")+esc(title)+nb+'</div>'+through+'</div>'
+    + bodyHtml + drillCue + '</div>';
+}
+
+// honest empty / coming-soon state (used by the scaffold placeholder modules)
+function emptyState(icon, head, sub){
+  return '<div class="empty"><div class="eic">'+esc(icon)+'</div>'
+    + '<div class="eh">'+esc(head)+'</div>'
+    + '<div class="es">'+esc(sub)+'</div></div>';
+}
+
+// VERDICT pill / BLUF block. {kind:'good'|'warn'|'bad'}
+function verdict(num, unit, subHtml, kind="good"){
+  const bg = kind==="bad" ? "var(--bad-bg)" : kind==="warn" ? "var(--warn-bg)" : "var(--good-bg)";
+  return '<div class="verdict" style="background:linear-gradient(180deg,'+bg+',var(--surface) 80%)">'
+    + '<div class="vk">Verdict</div>'
+    + '<div class="vhero"><span class="vnum countup">'+esc(num)+'</span>'
+    + (unit?'<span class="vsub" style="padding-bottom:5px">'+esc(unit)+'</span>':'')+'</div>'
+    + '<div class="vsub">'+subHtml+'</div></div>';
+}
+
+// GLANCE TILE trio
+function glanceTrio(tiles){
+  return '<div class="trio">'+tiles.map(t=>
+    '<div class="gtile"><div class="gl">'+esc(t.label)+'</div>'
+    +'<div class="gv '+(t.cls||"")+'">'+esc(t.value)+'</div>'
+    +(t.sub?'<div class="gs">'+esc(t.sub)+'</div>':'')+'</div>').join("")+'</div>';
+}
+
+/* =========================================================================
+   INLINE-SVG HELPERS — token-themed, zero KB (plan §4). Available to every
+   module render fn from phase 1 onward; the scaffold ships them ready.
+   ========================================================================= */
+
+// sparkline(values) — bare trend line, freshest point dotted.
+function sparkline(values, opts={}){
+  const v = (values||[]).filter(x=>typeof x==="number" && !isNaN(x));
+  if(v.length < 2) return "";
+  const w = opts.w||120, h = opts.h||26, pad=2;
+  const mn=Math.min(...v), mx=Math.max(...v), rng=(mx-mn)||1;
+  const x=i=>pad+(i/(v.length-1))*(w-2*pad);
+  const y=val=>h-pad-((val-mn)/rng)*(h-2*pad);
+  const d = v.map((val,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(val).toFixed(1)).join(" ");
+  const lx=x(v.length-1).toFixed(1), ly=y(v[v.length-1]).toFixed(1);
+  return '<svg class="svgwrap" viewBox="0 0 '+w+' '+h+'" height="'+h+'" role="img" aria-label="trend">'
+    + '<path d="'+d+'" fill="none" stroke="var(--svg-this)" stroke-width="2" '
+    + 'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '<circle cx="'+lx+'" cy="'+ly+'" r="2.6" fill="var(--svg-this)"/></svg>';
+}
+
+// trend(values, ly) — this-year solid + last-year dashed gray on shared axes.
+function trend(values, ly, opts={}){
+  const v=(values||[]).filter(x=>typeof x==="number");
+  if(v.length<2) return "";
+  const l=(ly||[]).filter(x=>typeof x==="number");
+  const w=opts.w||300, h=opts.h||72, pad=4;
+  const all=v.concat(l.length?l:[]);
+  const mn=Math.min(...all), mx=Math.max(...all), rng=(mx-mn)||1;
+  const x=(i,n)=>pad+(i/((n||v.length)-1))*(w-2*pad);
+  const y=val=>h-pad-((val-mn)/rng)*(h-2*pad);
+  const path=(arr)=>arr.map((val,i)=>(i?"L":"M")+x(i,arr.length).toFixed(1)+" "+y(val).toFixed(1)).join(" ");
+  let lyPath="";
+  if(l.length>=2) lyPath='<path d="'+path(l)+'" fill="none" stroke="var(--svg-prior)" stroke-width="1.6" '
+    +'stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>';
+  return '<svg class="svgwrap" viewBox="0 0 '+w+' '+h+'" height="'+h+'" role="img" aria-label="year-over-year trend">'
+    + '<line x1="0" x2="'+w+'" y1="'+y(mn).toFixed(1)+'" y2="'+y(mn).toFixed(1)+'" stroke="var(--svg-grid)" stroke-width="1"/>'
+    + lyPath
+    + '<path d="'+path(v)+'" fill="none" stroke="var(--svg-this)" stroke-width="2" '
+    + 'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+// bullet(value, target, max) — Stephen-Few cost-% bar; color by favorability
+// (lower=better). When target is null, render the LEVEL only (no target mark,
+// no fabricated band) — honest for the no-pac_target case (§6.4).
+function bullet(name, val, target, max, unit="%", note){
+  const w=320,h=26,pad=2;
+  const M=max||(target?target*1.6:(val*1.4||1));
+  const sx=x=>pad+(Math.max(0,Math.min(x,M))/M)*(w-2*pad);
+  const hasT = (target!=null && !isNaN(target));
+  const over = hasT && val>target;
+  const col = !hasT ? "var(--svg-this)" : over ? "var(--bad)" : "var(--good)";
+  let bands="";
+  if(hasT){
+    const b1=target*0.92;
+    bands = '<rect x="0" y="6" width="'+sx(b1)+'" height="14" rx="7" fill="var(--good-bg)"/>'
+      + '<rect x="'+sx(b1)+'" y="6" width="'+(sx(target)-sx(b1))+'" height="14" fill="var(--warn-bg)"/>'
+      + '<rect x="'+sx(target)+'" y="6" width="'+(w-sx(target))+'" height="14" fill="var(--bad-bg)"/>';
+  }
+  const tmark = hasT ? '<line x1="'+sx(target)+'" x2="'+sx(target)+'" y1="3" y2="23" stroke="var(--svg-frame)" stroke-width="2.4"/>' : "";
+  const valTxt = (typeof val==="number"?val.toFixed(2):"—")+unit;
+  const noteTxt = note || (hasT
+    ? ("Target &le; "+target+unit+(over?" · over by "+(val-target).toFixed(2)+unit:" · within band"))
+    : "Level shown — target pending source (§6.4)");
+  return '<div class="brow" style="margin-bottom:11px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;font-weight:700;margin-bottom:4px">'
+    + '<span style="color:var(--ink-2)">'+esc(name)+'</span><span style="font-weight:900;color:'+col+'">'+valTxt+'</span></div>'
+    + '<svg class="svgwrap" viewBox="0 0 '+w+' '+h+'" height="'+h+'" role="img" aria-label="'+esc(name)+'">'
+    + '<rect x="0" y="6" width="'+w+'" height="14" rx="7" fill="var(--surface-3)"/>'
+    + bands
+    + '<rect x="0" y="9" width="'+sx(val)+'" height="8" rx="4" fill="'+col+'"/>'
+    + tmark + '</svg>'
+    + '<div style="font-size:9px;color:var(--ink-muted);font-weight:600;margin-top:3px">'+noteTxt+'</div></div>';
+}
+
+// moneyK formatter for the waterfall
+function moneyK(n){
+  if(n==null||isNaN(n)) return "—";
+  const a=Math.abs(n);
+  if(a>=1e6) return (n/1e6).toFixed(2)+"M";
+  if(a>=1e3) return Math.round(n/1e3)+"K";
+  return Math.round(n).toString();
+}
+
+// waterfall(steps) — Sales->PAC. steps: [{label,val,type:'start'|'down'|'end'}]
+function waterfall(steps){
+  steps=(steps||[]).filter(s=>s && typeof s.val==="number");
+  if(steps.length<2) return "";
+  const W=400,H=190,padL=4,padR=4, top=14, bottom=H-40, plot=bottom-top;
+  const maxV=Math.max(...steps.map(s=>Math.abs(s.val)))||1;
+  const y=v=>bottom-(v/maxV)*plot;
+  let cum=0, bw=Math.min(46,(W-padL-padR)/steps.length*0.7);
+  const gap=(W-padL-padR-steps.length*bw)/Math.max(1,steps.length-1);
+  let x=padL, bars="", labels="";
+  steps.forEach((s,i)=>{
+    let y0,y1,fill,val;
+    if(s.type==="start"){y0=y(0);y1=y(s.val);cum=s.val;fill="var(--accent)";val=s.val;}
+    else if(s.type==="end"){y0=y(0);y1=y(Math.max(0,s.val));cum=s.val;fill=s.val>=0?"var(--good)":"var(--bad)";val=s.val;}
+    else{const start=cum;cum+=s.val;y0=y(start);y1=y(cum);fill="var(--svg-prior)";val=s.val;}
+    const yt=Math.min(y0,y1), hh=Math.max(2,Math.abs(y1-y0));
+    bars+='<rect x="'+x+'" y="'+yt+'" width="'+bw+'" height="'+hh+'" rx="2" fill="'+fill+'"/>';
+    if(i<steps.length-1 && s.type!=="end"){const cy=y(cum);
+      bars+='<line x1="'+x+'" x2="'+(x+bw+gap)+'" y1="'+cy+'" y2="'+cy+'" stroke="var(--line-2)" stroke-dasharray="2 2" stroke-width="1"/>';}
+    labels+='<text x="'+(x+bw/2)+'" y="'+(bottom+13)+'" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink-muted)">'+esc(s.label)+'</text>';
+    labels+='<text x="'+(x+bw/2)+'" y="'+(bottom+25)+'" text-anchor="middle" font-size="9" font-weight="800" fill="'+(s.type==="end"?(s.val<0?"var(--bad)":"var(--good)"):"var(--ink-2)")+'">'+moneyK(val)+'</text>';
+    x+=bw+gap;
+  });
+  return '<svg class="svgwrap" viewBox="0 0 '+W+' '+H+'" height="'+H+'" role="img" aria-label="Sales to PAC waterfall">'
+    + '<line x1="0" x2="'+W+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="var(--svg-grid)" stroke-width="1"/>'
+    + bars + labels + '</svg>';
+}
+
+/* =========================================================================
+   MANIFEST — the single registry. Every module is ONE row here.
+   { id, lane, title, icon?, render(data, opts) -> HTML, dataThrough? }
+   The walker (renderBoard) filters by ACTIVE_LANE and calls render() in order.
+
+   >>> ADDING A MODULE = append a render fn (below) + one row here. <<<
+   Phase 0 ships ONE placeholder module per lane (honest "coming soon" cards)
+   so the render path is proven with NO real lane content. Later phases replace
+   these rows with real modules — never editing each other's code.
+   ========================================================================= */
+
+// --- scaffold placeholder render fns (the other lanes; TODAY + NUMBERS built) ---
+function renderGuestsPlaceholder(){
+  return card("Guests — feedback & voice", emptyState("💬",
+    "Customer feedback lands here",
+    "Unified feedback, complaints SLA + Resolve, and the polarity-aware voice trend render in a later phase."),
+    { icon:"💬", drill:true });
+}
+function renderTeamPlaceholder(){
+  return card("Team — people & labor", emptyState("👥",
+    "Scorecards & labor land here",
+    "Manager scorecards, new-hire training, DataPass labor/deploy, service times, turnover and bonus render in a later phase."),
+    { icon:"👥", drill:true });
+}
+function renderMorePlaceholder(){
+  return card("More — Owner Hub", emptyState("⋯",
+    "Owner-Hub tools land here",
+    "Campaigns, RGR, check-in, contacts, advisor, deck editor and ticketing render in a later phase."),
+    { icon:"⋯", drill:true });
+}
+
+/* =========================================================================
+   TODAY LANE (Phase 1 — the GM "Today / priorities" home, plan §3.1)
+   ADDED ADDITIVELY: render fns below + MANIFEST rows + POST action wiring at
+   the bottom of the script. No other module's code is touched.
+
+   The lane is the zero-training check / act / done loop:
+     • PRIORITIES — an ADVISORY exception feed synthesized from open complaints,
+       overdue/high tasks, and visibly off-target voice/cleanliness vs the 12-store
+       median. Severity-ranked verdict→why→action rows. No fabricated reds: every
+       row is justified by a real trigger and states its data-through date.
+     • TASKS HUB — the GM's top open tasks with an inline "Done" action, written
+       through the audited POST spine (action:"close") which re-fetches + recounts.
+     • COMPLAINTS — the SLA-sorted resolve list with an inline "Resolve" action
+       (action:"resolve_complaint", confirm-gated; closes the linked task too).
+     • PINNED CONTESTS — the June Cleanliness Race + $100 OSAT Incentive cards,
+       pinned to the top of TODAY (plan §2) with this store's rank + honest gap.
+   ========================================================================= */
+
+// Central-time "today at 00:00" for due/SLA math (data-through honesty).
+function _now(){ return Date.now(); }
+
+// Severity ranks for sorting the exception feed (lower = more urgent).
+const SEV_RANK = { bad:0, warn:1, info:2 };
+
+// --- the advisory priorities-scoring engine (client-side synthesis, §7.5) -----
+// Returns a severity-ranked array of {sev, title, why, meta} exception items
+// from the data already in the payload — purely advisory in Phase 1 (no writes).
+function computeTodayPriorities(data){
+  const items = [];
+  const stores = data.stores || [];
+  const nameById = new Map(stores.map(s=>[s.id, s.name]));
+  const now = _now();
+
+  // (1) Open complaints — SLA-keyed off the linked task's 72h due_at.
+  for(const c of (data.complaints||[])){
+    const due = c.due_at ? new Date(c.due_at).getTime() : null;
+    const overdue = due!=null && due < now;
+    const dueToday = due!=null && !overdue && (due - now) < 24*3600000;
+    if(!overdue && !dueToday && !c.recovery_needed) continue;  // only surface the pressured ones
+    const issue = c.issue_subcode || c.issue_reason || c.issue_category || "Guest complaint";
+    const sev = overdue ? "bad" : (dueToday || c.recovery_needed) ? "warn" : "info";
+    const st = c.store_name || (c.store_id!=null ? (nameById.get(c.store_id)||"") : "");
+    items.push({
+      sev,
+      title: "Complaint: "+esc(issue),
+      why: overdue ? "Past the 72-hour SLA — respond now."
+         : dueToday ? "SLA clock runs out today."
+         : "Guest recovery requested — reach out.",
+      meta: (st? esc(st)+" · ":"") + "case #"+esc(c.case_number||c.id) + " · received "+ageSince(c.received_at),
+    });
+  }
+
+  // (2) Overdue or high/urgent open tasks assigned to this manager.
+  for(const t of (data.tasks||[])){
+    const due = t.due_at ? new Date(t.due_at).getTime() : null;
+    const overdue = due!=null && due < now;
+    const hot = t.priority==="urgent" || t.priority==="high";
+    if(!overdue && !hot) continue;
+    const sev = overdue ? "bad" : (t.priority==="urgent" ? "warn" : "info");
+    const st = t.store_id!=null ? (nameById.get(t.store_id)||"") : "Cross-store";
+    items.push({
+      sev,
+      title: "Task: "+esc(t.title||("#"+t.id)),
+      why: overdue ? "Past its due date — close it out or re-date."
+         : (t.priority==="urgent" ? "Urgent priority — needs attention today."
+            : "High priority — keep it moving."),
+      meta: esc(st) + " · " + esc(String(t.priority||"normal")) + (t.due_at? " · due "+fmtDate(t.due_at):" · no due date"),
+    });
+  }
+
+  // (3) Visibly off-target VOICE vs the 12-store median (advisory, honest).
+  //     Cleanliness (race) + OSAT (incentive). Only flags THIS store(s) when it
+  //     sits below the org median or below the 72% OSAT money line.
+  const myIds = new Set((data.scope_all? [] : stores.map(s=>s.id)));  // GM/sup scope = the returned stores
+  const flagVoice = (race, label, thresh) => {
+    if(!race || !Array.isArray(race.standings) || !race.standings.length) return;
+    const scores = race.standings.map(s=>s.score).filter(x=>typeof x==="number");
+    if(scores.length < 2) return;
+    const sorted = [...scores].sort((a,b)=>a-b);
+    const median = sorted[Math.floor(sorted.length/2)];
+    for(const s of race.standings){
+      if(!myIds.has(s.store_id)) continue;
+      const belowThresh = thresh!=null && s.score < thresh;
+      const belowMedian = s.score < median;
+      if(!belowThresh && !belowMedian) continue;
+      const sev = belowThresh ? "warn" : "info";
+      const gapTxt = thresh!=null && belowThresh
+        ? ("<b>"+(thresh - s.score).toFixed(1)+" pts</b> below the "+thresh+"% line")
+        : ("<b>"+(median - s.score).toFixed(1)+" pts</b> below the 12-store median ("+median.toFixed(1)+"%)");
+      items.push({
+        sev,
+        title: label+": "+s.score.toFixed(1)+"% (rank "+s.rank+"/"+race.standings.length+")",
+        why: gapTxt + ".",
+        meta: "VOICE"+(s.n!=null?" · n="+s.n:"") + (race.data_through? " · data thru "+esc(race.data_through):""),
+      });
+    }
+  };
+  flagVoice(data.cleanliness_race, "Cleanliness", null);
+  flagVoice(data.osat_incentive, "OSAT", (data.osat_incentive && data.osat_incentive.threshold) || null);
+
+  items.sort((a,b)=>(SEV_RANK[a.sev]??9)-(SEV_RANK[b.sev]??9));
+  return items;
+}
+
+// shared TODAY data-through (financials MTD/YTD as the freshest hard date).
+function todayThru(data){
+  const fin = data.financials || {};
+  return (fin.mtd && fin.mtd.data_through) || (fin.ytd && fin.ytd.data_through) || null;
+}
+
+// MODULE — the priority / exception feed (verdict→why→action, advisory).
+function renderTodayPriorities(data){
+  const items = computeTodayPriorities(data);
+  let body;
+  if(!items.length){
+    body = emptyState("✅", "Nothing flagged right now",
+      "No overdue complaints, hot tasks, or below-median voice scores in your scope. "
+      + "This feed is advisory — it surfaces what the live data says needs you, with its data-through date.");
+  } else {
+    const top = items.slice(0, 7);  // 3–7 cards (plan §3.1 Zone 2)
+    body = '<div class="exwrap">' + top.map(it =>
+      '<div class="exrow sev-'+it.sev+'">'
+      + '<div class="exhead"><div class="extitle">'+it.title+'</div>'
+      + '<span class="exsev sev-'+it.sev+'">'+(it.sev==="bad"?"Now":it.sev==="warn"?"Soon":"Watch")+'</span></div>'
+      + '<div class="exwhy">'+it.why+'</div>'
+      + '<div class="exmeta">'+it.meta+'</div></div>').join("")
+      + '</div>';
+    if(items.length > top.length)
+      body += '<div class="empline">+'+(items.length-top.length)+' more lower-severity item'+((items.length-top.length)===1?"":"s")+'.</div>';
+  }
+  return card("What needs you", body, { icon:"⚡", through: todayThru(data) });
+}
+
+// MODULE — tasks action hub (top open tasks + inline Done; +Add later phase).
+function renderTodayTasks(data){
+  const tasks = (data.tasks||[]).slice();
+  const PR = { urgent:0, high:1, normal:2, low:3 };
+  tasks.sort((a,b)=>{
+    const pa=PR[a.priority]??2, pb=PR[b.priority]??2;
+    if(pa!==pb) return pa-pb;
+    const ad=a.due_at?new Date(a.due_at).getTime():Infinity;
+    const bd=b.due_at?new Date(b.due_at).getTime():Infinity;
+    return ad-bd;
+  });
+  const top = tasks.slice(0, 6);
+  let body;
+  if(!top.length){
+    body = '<div class="empline">No open tasks assigned to you. Clean slate.</div>';
+  } else {
+    body = top.map(t => {
+      const pr = String(t.priority||"normal");
+      const dt = dueChip(t.due_at);
+      const co = t.cohorts ? '<span class="actsub">with '+esc(t.cohorts)+'</span>' : '';
+      return '<div class="actrow t-row" data-id="'+t.id+'">'
+        + '<div class="actmain"><div class="acttitle">'+esc(t.title||("Task #"+t.id))+'</div>'
+        + '<div class="actsub"><span class="pchip '+pr+'">'+esc(pr)+'</span>'+dt
+        + (t.category?'<span class="duechip">'+esc(t.category)+'</span>':'')+co+'</div></div>'
+        + '<button class="actbtn go" onclick="v2CloseTask(event,this)">Done</button>'
+        + '</div>';
+    }).join("");
+    if(tasks.length > top.length)
+      body += '<div class="empline">+'+(tasks.length-top.length)+' more on your list.</div>';
+  }
+  return card("Your tasks", body, { icon:"🗂️", through: todayThru(data) });
+}
+
+// MODULE — complaints resolve list (SLA-sorted + inline Resolve).
+function renderTodayComplaints(data){
+  const rows = (data.complaints||[]).slice();
+  if(!rows.length){
+    return card("Open complaints", '<div class="empline">No open complaints in your scope. ✅</div>',
+      { icon:"📮" });
+  }
+  const order = { over:0, today:1, tom:2, ok:3 };
+  const enriched = rows.map(c => ({ ...c, _sla: v2Sla(c.due_at) }));
+  enriched.sort((a,b)=>{
+    const oa=order[a._sla.key]??9, ob=order[b._sla.key]??9;
+    if(oa!==ob) return oa-ob;
+    const ad=a.due_at?new Date(a.due_at).getTime():Infinity;
+    const bd=b.due_at?new Date(b.due_at).getTime():Infinity;
+    return ad-bd;
+  });
+  const body = enriched.map(c => {
+    const issue = c.issue_subcode || c.issue_reason || c.issue_category || "Guest complaint";
+    const sla = c._sla;
+    const dchip = '<span class="duechip '+(sla.key==="over"?"over":sla.key==="today"?"today":"")+'">'+esc(sla.label)+'</span>';
+    const rec = c.recovery_needed ? '<span class="pchip urgent">Recovery</span>' : '';
+    const st = c.store_name ? '<span class="actsub">'+esc(c.store_name)+'</span>' : '';
+    return '<div class="actrow c-row" data-id="'+c.id+'">'
+      + '<div class="actmain"><div class="acttitle">'+esc(issue)+'</div>'
+      + '<div class="actsub">'+dchip+rec+'<span>#'+esc(c.case_number||c.id)+'</span>'
+      + '<span>received '+esc(ageSince(c.received_at))+'</span>'+st+'</div></div>'
+      + '<button class="actbtn" onclick="v2ResolveComplaint(event,this)">Resolve</button>'
+      + '</div>';
+  }).join("");
+  return card("Open complaints", body,
+    { icon:"📮", through: enriched.length+" open · McD Care · 72h SLA" });
+}
+
+// MODULE — pinned June Cleanliness Race (this store's rank + gap to podium).
+function renderPinnedRace(data){
+  const race = data.cleanliness_race;
+  if(!race || !Array.isArray(race.standings) || !race.standings.length){
+    return card("June Cleanliness Race", '<div class="empline">No cleanliness scores posted yet this month.</div>', { icon:"🧽" });
+  }
+  return card(esc(race.title||"June Cleanliness Race"),
+    contestBody(race, data, { kind:"race", metricLabel:"Overall Cleanliness (VOICE)",
+      prizes: race.prizes||["$150","$100","$50"] }),
+    { icon:"🧽", through: race.data_through ? ("VOICE · data thru "+esc(race.data_through)) : "VOICE" });
+}
+
+// MODULE — pinned $100 June OSAT Incentive (in-money status + gap to threshold).
+function renderPinnedOsat(data){
+  const oi = data.osat_incentive;
+  if(!oi || !Array.isArray(oi.standings) || !oi.standings.length){
+    return card("$100 June OSAT Incentive", '<div class="empline">No OSAT scores posted yet this month.</div>', { icon:"💯" });
+  }
+  return card(esc(oi.title||"$100 June OSAT Incentive"),
+    contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
+      threshold: oi.threshold, amount: oi.amount||"$100" }),
+    { icon:"💯", through: oi.data_through ? ("VOICE · data thru "+esc(oi.data_through)) : "VOICE" });
+}
+
+// shared contest body — finds the viewer's store(s) in the standings and shows
+// rank + an honest gap (to the podium for the race / to the 72% line for OSAT).
+function contestBody(c, data, opts){
+  const stores = data.stores || [];
+  const myIds = new Set(data.scope_all ? [] : stores.map(s=>s.id));
+  const standings = c.standings;
+  const mine = standings.filter(s=>myIds.has(s.store_id));
+  const note = c.note ? '<div class="contestsub" style="margin-top:9px">'+esc(c.note)+'</div>' : '';
+
+  if(!mine.length){
+    // Owner/portfolio scope — show the leader + qualifying summary instead.
+    const leader = standings[0];
+    const lead = leader ? '<div class="contestsub">Leading: <b>'+esc(leader.store_name)+'</b> at '+leader.score.toFixed(1)+'%</div>' : '';
+    const sum = opts.kind==="osat"
+      ? '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores ≥ '+opts.threshold+'% '+opts.amount+'</div>'
+      : '<div class="contestsub">Top 3 win '+(opts.prizes||[]).join(" / ")+'</div>';
+    return '<div>'+lead+sum+'</div>'+note;
+  }
+
+  return mine.map(s => {
+    let medalCls = "", medalTxt = "#"+s.rank, line = "", barPct = 0, barCol = "var(--accent)";
+    if(opts.kind==="osat"){
+      const inMoney = opts.threshold!=null ? s.score >= opts.threshold : !!s.in_money;
+      medalCls = inMoney ? "win" : "miss"; medalTxt = inMoney ? "✓" : "✗";
+      barCol = inMoney ? "var(--good)" : "var(--bad)";
+      barPct = opts.threshold ? Math.max(4, Math.min(100, (s.score/opts.threshold)*100)) : 0;
+      line = inMoney
+        ? '<div class="contestsub">At <b>'+s.score.toFixed(1)+'%</b> — earning the <span class="prizepill">'+esc(opts.amount)+'</span> if June holds.</div>'
+        : '<div class="contestsub"><b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'% now). Close it to earn '+esc(opts.amount)+'.</div>';
+    } else {
+      const podium = s.rank <= 3;
+      medalCls = podium ? "win" : ""; medalTxt = podium ? (s.rank===1?"🥇":s.rank===2?"🥈":"🥉") : "#"+s.rank;
+      const leadScore = standings[0] ? standings[0].score : s.score;
+      barPct = leadScore>0 ? Math.max(4, Math.min(100, (s.score/leadScore)*100)) : 0;
+      barCol = podium ? "var(--good)" : "var(--accent)";
+      if(podium){
+        line = '<div class="contestsub">In the money at <b>'+s.score.toFixed(1)+'%</b> — '
+          + '<span class="prizepill">'+esc((opts.prizes||[])[s.rank-1]||"prize")+'</span> spot.</div>';
+      } else {
+        const third = standings[2];
+        const gap = third ? (third.score - s.score) : null;
+        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — rank '+s.rank+'/'+standings.length
+          + (gap!=null && gap>0 ? '. <b>'+gap.toFixed(1)+' pts</b> to crack the top 3.' : '.')+'</div>';
+      }
+    }
+    return '<div class="contest">'
+      + '<div class="medal '+medalCls+'">'+medalTxt+'</div>'
+      + '<div class="contestmain"><div class="contesthd">'+esc(s.store_name)+'</div>'+line
+      + '<div class="gapbar"><i style="width:'+barPct.toFixed(0)+'%;background:'+barCol+'"></i></div></div>'
+      + '</div>';
+  }).join('<div style="height:10px"></div>') + note;
+}
+
+/* ---- small TODAY-lane formatters (local; no global helper touched) ---- */
+function fmtDate(ts){
+  if(!ts) return "";
+  try{ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+  catch(_e){ return String(ts).slice(0,10); }
+}
+function ageSince(ts){
+  if(!ts) return "";
+  const ms=_now()-new Date(ts).getTime();
+  const h=Math.floor(ms/3600000);
+  if(h < 1) return "just now";
+  if(h < 24) return h+"h ago";
+  return Math.floor(h/24)+"d ago";
+}
+function dueChip(due_at){
+  if(!due_at) return "";
+  const d=new Date(due_at).getTime(), now=_now();
+  const h=(d-now)/3600000;
+  if(h < 0) return '<span class="duechip over">overdue</span>';
+  if(h < 24) return '<span class="duechip today">due today</span>';
+  return '<span class="duechip">due '+esc(fmtDate(due_at))+'</span>';
+}
+function v2Sla(due_at){
+  if(!due_at) return { key:"ok", label:"Within SLA" };
+  const h=(new Date(due_at).getTime()-_now())/3600000;
+  if(h < 0) return { key:"over", label:"Overdue" };
+  if(h < 24) return { key:"today", label:"Due today" };
+  if(h < 48) return { key:"tom", label:"Due tomorrow" };
+  return { key:"ok", label:"Within SLA" };
+}
+
+/* =========================================================================
+   NUMBERS LANE (Phase 2 — the P&L / money tab, plan §3 / §5 / §9 / §10 / §11)
+   ADDED ADDITIVELY: render fns below + MANIFEST rows. No other module's code is
+   touched. Consumes data.financials EXACTLY as gatherFinancials() returns it
+   (mtd / ytd / per_store / aggregate / lines / invoices / doordash / lto), so
+   no Edge Fn change is needed and SHELL_VERSION stays matched.
+
+   Honesty rules wired in (plan §4 / docs/conventions.md):
+     • Every card states its data-through date (June is PRELIMINARY — surfaced).
+     • PAC% / cost-% read ONLY from the precomputed _pct fields the slice carries
+       — never recomputed from dollars (§6.1 hard rule).
+     • Projections render "pending" (the pnl_projection table is empty until the
+       monthly meeting, §9) + reflect the per-line owner-LOCK state when present.
+     • Bullet bars show the LEVEL only with "target pending source" — no fabricated
+       target (no pac_target column yet, §6.4).
+     • DoorDash: a rate RISE is UNfavorable (red), drop favorable (green); a store
+       missing its latest quarter falls back to prior + an amber warning (§11.5).
+   Role-scope comes straight from the slice (GM = 1 store, Sup = patch, Owner =
+   all); the shell never re-scopes — gatherFinancials already filtered.
+   ========================================================================= */
+
+// --- money / pct formatters (NUMBERS-local; no global helper touched) ---------
+function moneyFull(n){ if(n==null||isNaN(n)) return "—"; return (n<0?"-$":"$")+Math.abs(Math.round(n)).toLocaleString(); }
+// dollar-prefixed compact money for NUMBERS card figures (the shell's shared
+// moneyK is bare for in-SVG chart labels; card cells want the explicit "$").
+function moneyKD(n){ if(n==null||isNaN(n)) return "—"; const s=n<0?"-":""; return s+"$"+moneyK(Math.abs(n)); }
+function pctSigned(p){ return (p==null||isNaN(p)) ? "—" : (p>=0?"+":"")+Number(p).toFixed(2)+"%"; }
+function pct1(p){ return (p==null||isNaN(p)) ? "—" : Number(p).toFixed(1)+"%"; }
+function pct2(p){ return (p==null||isNaN(p)) ? "—" : Number(p).toFixed(2)+"%"; }
+
+// resolve the focal store the single-store cards (ledger/waterfall/bullets) draw:
+// the only in-scope store for a GM, else the largest by net sales (best signal).
+function finFocus(fin){
+  const ps = fin.per_store || [];
+  if(!ps.length) return null;
+  if(ps.length === 1) return ps[0];
+  return ps.slice().sort((a,b)=>((b.ytd&&b.ytd.net_sales)||0)-((a.ytd&&a.ytd.net_sales)||0))[0];
+}
+// the data-through line shared across NUMBERS cards (YTD roll is the hard date).
+function finThru(fin){
+  const y = fin.ytd && fin.ytd.data_through, m = fin.mtd && fin.mtd.data_through;
+  return y || m || null;
+}
+function finPrelim(fin){
+  return (fin.ytd && fin.ytd.is_preliminary_any) || (fin.mtd && fin.mtd.is_preliminary) || false;
+}
+
+// MODULE — VERDICT/glance: the money BLUF. Owner/sup lead with the portfolio PAC
+// + the genuine spread insight (§6.3); GM leads with their store's PAC level.
+function renderNumbersVerdict(data){
+  const fin = data.financials || {};
+  if(fin.error) return card("Numbers — financials", '<div class="empline">Financials are temporarily unavailable. The rest of the board is unaffected.</div>', { icon:"📊" });
+  const thru = finThru(fin), prelim = finPrelim(fin);
+  const agg = fin.aggregate, ps = fin.per_store || [];
+  const flags = (prelim ? '<span class="flag prelim">⚠ June preliminary</span>' : '')
+    + '<span class="flag recon">YTD roll · pre-Withum</span>';
+
+  if(data.scope_all || ps.length > 1){
+    // Owner/Supervisor — portfolio/patch verdict + spread.
+    if(!agg) return card("Numbers — financials", '<div class="empline">No in-scope financials yet.</div>', { icon:"📊", through: thru });
+    const pos = ps.filter(s=>s.ytd && s.ytd.pac_pct!=null && s.ytd.pac_pct>=0).length;
+    const pacs = ps.map(s=>s.ytd&&s.ytd.pac_pct).filter(x=>x!=null);
+    const lo = pacs.length?Math.min(...pacs):null, hi = pacs.length?Math.max(...pacs):null;
+    const who = data.scope_all ? "Portfolio" : ((data.stores&&data.stores.length)+" stores");
+    const sub = '<b>'+esc(who)+' · '+pos+' of '+ps.length+' PAC-positive'
+      + (lo!=null?' ('+lo.toFixed(0)+'–'+hi.toFixed(0)+'%)':'')+'.</b> '
+      + (agg.pac_spread_pp!=null?'The story is the <b>'+agg.pac_spread_pp.toFixed(1)+'pp spread</b> — labor is the swing factor. ':'')
+      + 'data thru <b>'+esc(thru||"—")+'</b>';
+    const body = '<div class="verdict" style="background:linear-gradient(180deg,var(--good-bg),var(--surface) 80%);margin:0;box-shadow:none;border:0;padding:0">'
+      + '<div class="vk">'+(data.scope_all?"Portfolio verdict":"Patch verdict")+' · YTD '+(prelim?"(June preliminary)":"")+'</div>'
+      + '<div class="vhero"><span class="vnum countup fav">'+pct2(agg.pac_pct)+'</span><span class="vsub" style="padding-bottom:6px;font-weight:800">PAC</span></div>'
+      + '<div class="vsub">'+sub+'</div>'
+      + '<div class="vflags"><span class="flag good">✓ '+pos+'/'+ps.length+' above water</span>'+flags+'</div></div>';
+    return card("Numbers — financials", body, { icon:"📊", through: thru, newBadge:true, drill:{kind:"agg"} });
+  }
+
+  // GM — single store verdict (level + how it sits vs the book leaders).
+  const f = finFocus(fin);
+  if(!f || !f.ytd) return card("Numbers — financials", '<div class="empline">No P&L posted for your store yet.</div>', { icon:"📊", through: thru });
+  const y = f.ytd;
+  const sub = '<b class="fav">Solidly profitable.</b> Labor at <b>'+pct1(y.labor_pct)+'</b> of sales · food <b>'+pct1(y.food_pct)+'</b> · data thru <b>'+esc(thru||"—")+'</b>';
+  const body = '<div class="verdict" style="background:linear-gradient(180deg,var(--good-bg),var(--surface) 80%);margin:0;box-shadow:none;border:0;padding:0">'
+    + '<div class="vk">'+esc(f.store_name)+' · YTD '+(prelim?"(June preliminary)":"")+'</div>'
+    + '<div class="vhero"><span class="vnum countup '+(y.pac_pct>=0?"fav":"unfav")+'">'+pct2(y.pac_pct)+'</span><span class="vsub" style="padding-bottom:6px;font-weight:800">PAC</span></div>'
+    + '<div class="vsub">'+sub+'</div>'
+    + '<div class="vflags">'+flags+'</div></div>';
+  return card("Numbers — financials", body, { icon:"📊", through: thru, newBadge:true, drill:{kind:"store", store_id:f.store_id} });
+}
+
+// MODULE — owner/sup per-store rollup rows (worst-PAC-first; each drills).
+function renderNumbersRollup(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const ps = (fin.per_store||[]).filter(s=>s.ytd);
+  if(data.scope_all===false && ps.length<=1) return "";   // GM: no rollup
+  if(ps.length<=1) return "";
+  const thru = finThru(fin);
+  const rows = ps.slice().sort((a,b)=>(a.ytd.pac_pct??0)-(b.ytd.pac_pct??0)).map((s,i)=>{
+    const pac = s.ytd.pac_pct;
+    const fill = Math.max(4, Math.min(100, ((pac??0)/40)*100));
+    return '<div class="prow" data-drill="store" data-id="'+s.store_id+'" onclick="numbersDrill(this,event)">'
+      + '<div><span class="rank">#'+(i+1)+'</span><span class="pn">'+esc(s.store_name)+'</span>'
+      + '<div class="pmeta">'+moneyKD(s.ytd.net_sales)+' net · labor '+pct1(s.ytd.labor_pct)+'</div></div>'
+      + '<div><div class="ppac '+(pac>=0?"fav":"unfav")+'">'+pct2(pac)+'</div><div class="pds">'+moneyKD(s.ytd.pac_dollars)+' PAC · tap ›</div></div>'
+      + '<div class="miniwf"><i style="width:'+fill.toFixed(0)+'%;background:'+(pac>=0?"var(--good)":"var(--bad)")+'"></i></div></div>';
+  }).join("");
+  return card(data.scope_all?"By store":"Stores in patch",
+    rows + '<div class="cap">Worst-PAC-first. All read the precomputed pac_pct level (never recomputed). Tap a store for its line detail.</div>',
+    { icon:"🏪", through: thru ? ("YTD · thru "+thru) : "YTD" });
+}
+
+// MODULE — the up-to-PAC ledger: MTD actual · YTD actual · monthly projection.
+// Projection cells reflect pnl_projection (pending until the meeting; lock state
+// when present). %s come from the precomputed _pct fields, never recomputed.
+function renderPacLedger(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const f = finFocus(fin);
+  if(!f) return card("Up-to-PAC P&L", '<div class="empline">No P&L lines for the in-scope store(s) yet.</div>', { icon:"📐", newBadge:true });
+  const lines = f.lines || [];
+  const lineById = new Map(lines.map(l=>[l.line, l]));
+  const thru = finThru(fin), prelim = finPrelim(fin);
+
+  // lock state: any locked projection row drives the card-level lock banner.
+  let lockedRow = null, openRow = null;
+  for(const l of lines){
+    if(l.projection && l.projection.locked) lockedRow = l.projection;
+    else if(l.projection) openRow = l.projection;
+  }
+  const allPending = lines.every(l=>l.projection_pending);
+  const lockBar = lockedRow
+    ? '<div class="lockbar locked"><span class="lkic">🔒</span><span class="lkmeta">Projection LOCKED for this month — uneditable'
+        + (lockedRow.locked_by?'<small>Locked by '+esc(lockedRow.locked_by)+(lockedRow.locked_at?' · '+esc(String(lockedRow.locked_at).slice(0,10)):'')+'</small>':'')+'</span></div>'
+    : allPending
+      ? '<div class="lockbar open"><span class="lkic">✏️</span><span class="lkmeta">Projection PENDING — set at the monthly projection meeting, then owner-locked (~the 20th)<small>The pnl_projection table is empty for this month until the meeting (§9).</small></span></div>'
+      : '<div class="lockbar open"><span class="lkic">✏️</span><span class="lkmeta">Projection OPEN — penciled by GM/sup until the owner locks (~the 20th)'
+        + (openRow&&openRow.entered_by?'<small>Penciled by '+esc(openRow.entered_by)+' · awaiting owner lock</small>':'')+'</span></div>';
+
+  // one projection cell, honoring value_type + pending/locked state.
+  const projCell = (l) => {
+    if(l.projection_pending || !l.projection){
+      return '<span class="pcell pending"><span class="pproj">pending</span><span class="psub">set at meeting</span></span>';
+    }
+    const p = l.projection;
+    const isDollar = p.value_type === "dollars";
+    const shown = isDollar ? moneyKD(p.value) : (p.value!=null?Number(p.value).toFixed(1)+"%":"—");
+    const unit = isDollar ? "$ dollars" : "% of sales";
+    return '<span class="pcell'+(p.locked?" locked":"")+'"><span class="pproj">'+(p.locked?"🔒 ":"")+esc(shown)+'</span><span class="psub">'+unit+'</span></span>';
+  };
+
+  // ledger line: name + MTD$ + YTD$ (with %) + projection.
+  const lr = (l, cls) => {
+    const mtdTxt = l.mtd_dollars==null ? "—" : moneyKD(l.mtd_dollars);
+    const ytdTxt = l.ytd_dollars==null ? "—" : moneyKD(l.ytd_dollars);
+    const ytdPct = l.ytd_pct!=null ? '<span class="lcsub '+(l.line==="net_sales"?"":"unfav")+'">'+pct1(l.ytd_pct)+'</span>' : "";
+    return '<div class="lrow'+(cls?" "+cls:"")+'">'
+      + '<span class="lname">'+esc(l.label)+'</span>'
+      + '<span class="lcell">'+mtdTxt+'</span>'
+      + '<span class="lcell">'+ytdTxt+ytdPct+'</span>'
+      + projCell(l) + '</div>';
+  };
+  // derived subtotal row (no projection — derived, not penciled, §9.2).
+  const sub = (label, mtd, ytd, base) => {
+    const ytdPct = (ytd!=null && base) ? '<span class="lcsub">'+pct1(ytd/base*100)+'</span>' : "";
+    return '<div class="lrow sub"><span class="lname">'+esc(label)+'</span>'
+      + '<span class="lcell">'+(mtd==null?"—":moneyKD(mtd))+'</span>'
+      + '<span class="lcell">'+(ytd==null?"—":moneyKD(ytd))+ytdPct+'</span>'
+      + '<span class="lcell" style="color:var(--ink-muted)">—</span></div>';
+  };
+  const get = (id) => lineById.get(id) || { line:id, label:id, mtd_dollars:null, ytd_dollars:null, ytd_pct:null, projection_pending:true };
+  const sumD = (ids, field) => { let any=false,t=0; for(const id of ids){ const v=(lineById.get(id)||{})[field]; if(v!=null){any=true;t+=v;} } return any?t:null; };
+  const cogsIds=["food","paper","waste"], laborIds=["crew_labor","mgmt_labor","payroll_burden"], ctrlIds=["advertising","delivery_fees","other_controllable"];
+  const nsLine = get("net_sales");
+  const base = nsLine.ytd_dollars;
+  const mtdCogs=sumD(cogsIds,"mtd_dollars"), ytdCogs=sumD(cogsIds,"ytd_dollars");
+  const mtdLabor=sumD(laborIds,"mtd_dollars"), ytdLabor=sumD(laborIds,"ytd_dollars");
+  const mtdCtrl=sumD(ctrlIds,"mtd_dollars"), ytdCtrl=sumD(ctrlIds,"ytd_dollars");
+  const gp = (base!=null && ytdCogs!=null) ? base-ytdCogs : null;
+  const gpM = (nsLine.mtd_dollars!=null && mtdCogs!=null) ? nsLine.mtd_dollars-mtdCogs : null;
+  const pacLine = get("pac");
+
+  const ledger =
+      lr(nsLine, "sub")
+    + cogsIds.map(id=>lr(get(id))).join("")
+    + sub("COGS", mtdCogs, ytdCogs, base)
+    + '<div class="lrow"><span class="lname" style="font-weight:800;color:var(--ink)">Gross Profit</span>'
+      + '<span class="lcell fav">'+(gpM==null?"—":moneyKD(gpM))+'</span>'
+      + '<span class="lcell fav">'+(gp==null?"—":moneyKD(gp))+(gp!=null&&base?'<span class="lcsub fav">'+pct1(gp/base*100)+'</span>':"")+'</span>'
+      + '<span class="lcell" style="color:var(--ink-muted)">—</span></div>'
+    + laborIds.map(id=>lr(get(id))).join("")
+    + sub("Total Labor", mtdLabor, ytdLabor, base)
+    + ctrlIds.map(id=>lr(get(id))).join("")
+    + sub("Other Controllable", mtdCtrl, ytdCtrl, base)
+    + '<div class="lrow pac"><span class="lname">P.A.C.</span>'
+      + '<span class="lcell fav">'+(pacLine.mtd_dollars==null?"—":moneyKD(pacLine.mtd_dollars))+'</span>'
+      + '<span class="lcell fav">'+(pacLine.ytd_dollars==null?"—":moneyKD(pacLine.ytd_dollars))+(pacLine.ytd_pct!=null?'<span class="lcsub fav">'+pct2(pacLine.ytd_pct)+'</span>':"")+'</span>'
+      + projCell(pacLine) + '</div>';
+
+  const body = lockBar
+    + '<div class="lhdr"><span>Line (Withum)</span><span>MTD</span><span>YTD actual</span><span class="hproj">Projection</span></div>'
+    + '<div class="ledger">'+ledger+'</div>'
+    + '<div class="cap"><b>MTD</b> = month-to-date actual'+(prelim?" (June, preliminary — R365 re-keys open periods)":"")+' · <b>YTD actual</b> from v_r365_pnl_ytd_store · '
+      + '<b>Projection</b> from pnl_projection ('+(allPending?"pending — set at the monthly meeting":"$ for revenue/PAC, % of sales for cost lines")+'). %s vs net sales; cost lines colored by favorability (lower = better).</div>';
+  return card("Up-to-PAC P&L", body, { icon:"📐", through: f.store_name+" · YTD"+(thru?" thru "+thru:""), newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
+}
+
+// MODULE — Sales→PAC waterfall (precomputed columns; never recompute PAC).
+function renderNumbersWaterfall(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const f = finFocus(fin);
+  const wf = f && f.waterfall;
+  if(!wf || wf.net_sales==null) return card("Sales → PAC", '<div class="empline">No current-month P&L to bridge yet.</div>', { icon:"💧" });
+  const steps = [
+    { label:"Net Sales", val: wf.net_sales, type:"start" },
+    { label:"COGS",      val: -(wf.cogs||0), type:"down" },
+    { label:"Labor",     val: -(wf.labor||0), type:"down" },
+    { label:"Other Ctrl",val: -(wf.other_controllable||0), type:"down" },
+    { label:"PAC",       val: wf.pac, type:"end" },
+  ];
+  const laborPct = (wf.net_sales && wf.labor!=null) ? (wf.labor/wf.net_sales*100).toFixed(1)+"%" : "—";
+  const body = waterfall(steps)
+    + '<div class="cap">Where every sales dollar goes ('+(wf.basis==="mtd"?"MTD current month":"YTD")+'). Labor is the dominant controllable ('+laborPct+' of sales). '
+    + 'Green/red reserved for the PAC outcome only (IBCS). PAC read from the precomputed column.</div>';
+  return card("Sales → PAC", body, { icon:"💧", through: f.store_name+" · "+(wf.basis==="mtd"?"MTD":"YTD")+(finThru(fin)?" thru "+finThru(fin):""), drill:{kind:"waterfall", store_id:f.store_id} });
+}
+
+// MODULE — cost-% bullet bars (LEVEL only; no target source yet, §6.4).
+function renderNumbersBullets(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const f = finFocus(fin);
+  const cl = f && f.cost_lines;
+  if(!cl || !cl.length) return card("Cost discipline", '<div class="empline">No cost-% lines for the in-scope store yet.</div>', { icon:"📏" });
+  const body = '<div class="bset">'
+    + cl.map(c=>bullet(c.label, c.pct, c.target, null, "%")).join("")
+    + '</div><div class="cap">Bars show the <b>YTD level</b>. The vertical target mark is <b>pending source</b> — no sourced cost/PAC target column exists yet (plan §6.4). Colored by favorability (lower = better).</div>';
+  return card("Cost discipline", body, { icon:"📏", through: f.store_name+" · YTD"+(finThru(fin)?" thru "+finThru(fin):""), drill:{kind:"bullets", store_id:f.store_id} });
+}
+
+// MODULE — MTD invoice tracker (posted vs in-flight).
+function renderNumbersInvoices(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const inv = fin.invoices;
+  if(!inv || !inv.lines || !inv.lines.length) return card("MTD Invoice Tracker", '<div class="empline">No invoices tracked this month yet.</div>', { icon:"🧾", newBadge:true });
+  const pSum = inv.totals.posted||0, fSum = inv.totals.in_flight||0, tot = pSum+fSum;
+  const pCnt = inv.lines.reduce((a,l)=>a+(l.posted_count||0),0);
+  const fCnt = inv.lines.reduce((a,l)=>a+(l.in_flight_count||0),0);
+  const pPct = tot? (pSum/tot*100) : 0, fPct = tot? (fSum/tot*100) : 0;
+  const body =
+      '<div class="inv-top">'
+    + '<div class="inv-tile posted"><div class="il">● Posted</div><div class="iv">'+moneyKD(pSum)+'</div><div class="is">'+pCnt+' invoices in R365</div></div>'
+    + '<div class="inv-tile flight"><div class="il">◍ In-flight</div><div class="iv">'+moneyKD(fSum)+'</div><div class="is">'+fCnt+' detected, not yet posted</div></div></div>'
+    + '<div class="invbar"><i class="seg-posted" style="width:'+pPct+'%"></i><i class="seg-flight" style="width:'+fPct+'%"></i></div>'
+    + '<div class="invbar-leg"><span class="lndots"><span class="dot posted"></span>Posted '+pPct.toFixed(0)+'%</span>'
+    + '<span>Total tracked '+moneyKD(tot)+'</span>'
+    + '<span class="lndots"><span class="dot flight"></span>In-flight '+fPct.toFixed(0)+'%</span></div>'
+    + '<div class="cap">"In-flight" = invoices detected in email/triage but not yet posted in R365 — true MTD spend runs higher than posted. '
+    + (data.scope_all||((fin.per_store||[]).length>1) ? "Summed across your in-scope stores. " : "")
+    + esc(inv.data_through)+'.</div>';
+  return card("MTD Invoice Tracker", body, { icon:"🧾", through: inv.data_through, newBadge:true, drill:{kind:"invoice"} });
+}
+
+// MODULE — DoorDash commission rates. Single store = focused q-o-q card; many =
+// one row per store. A rate RISE is UNfavorable (red), drop favorable (green).
+function renderNumbersDoorDash(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const dd = fin.doordash;
+  if(!dd || !dd.stores || !dd.stores.length) return card("DoorDash rates", '<div class="empline">No commission rates on file for the in-scope store(s).</div>', { icon:"🛵", newBadge:true });
+  const single = !(data.scope_all) && dd.stores.length === 1;
+  const arrow = (delta, missing) => missing ? {sym:"—",cls:"qflat",word:"no latest qtr"}
+    : delta==null ? {sym:"→",cls:"qflat",word:"flat"}
+    : delta>0 ? {sym:"↑",cls:"qup",word:"up"}
+    : delta<0 ? {sym:"↓",cls:"qdown",word:"down"} : {sym:"→",cls:"qflat",word:"flat"};
+
+  if(single){
+    const s = dd.stores[0];
+    const cur = s.current, prior = s.prior;
+    const a = arrow(s.marketplace_delta_pp, s.latest_on_file_only);
+    if(!cur) return card("DoorDash rates", '<div class="empline">No commission rates on file for '+esc(s.store_name)+'.</div>', { icon:"🛵", newBadge:true });
+    const body =
+        '<div class="dd-qoq">'
+      + '<span class="qval qmuted">'+(prior?pct2(prior.marketplace_pct):"—")+'</span>'
+      + '<span class="qarrow '+a.cls+'">'+a.sym+'</span>'
+      + '<span class="qval '+a.cls+'">'+pct2(cur.marketplace_pct)+'</span>'
+      + '<span style="font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted)">Marketplace · q-o-q</span></div>'
+      + '<div class="dd-cur">'
+      + '<div class="dd-tile"><div class="ddl">Marketplace</div><div class="ddv">'+pct2(cur.marketplace_pct)+'</div><div class="dds">of order subtotal</div></div>'
+      + '<div class="dd-tile const"><div class="ddl">DashPass</div><div class="ddv">'+pct2(cur.dashpass_pct)+'</div><div class="dds">flat org-wide</div></div>'
+      + '<div class="dd-tile"><div class="ddl">ADWT</div><div class="ddv">'+(cur.adwt_min!=null?Number(cur.adwt_min).toFixed(2):"—")+'</div><div class="dds">drives the rate</div></div>'
+      + '<div class="dd-tile const"><div class="ddl">Drive base</div><div class="ddv">$'+(cur.drive_base_fee!=null?Number(cur.drive_base_fee).toFixed(2):"—")+'</div><div class="dds">flat / order</div></div></div>'
+      + (s.latest_on_file_only?'<div class="dd-misswarn">⚠ Latest-quarter DoorDash email not yet received for '+esc(s.store_name)+' — showing '+esc(String(cur.quarter||"prior quarter"))+'.</div>':"")
+      + '<div class="cap">Marketplace % keys off <b>ADWT</b> (avg delivery weight/time, ≈ ≥3.0 → higher tier). DashPass &amp; Drive base are constant across all 12 stores. From <b>doordash_commission_rates</b> ('+esc(String(cur.quarter||""))+').</div>';
+    return card("DoorDash rates", body, { icon:"🛵", through: (cur.quarter?esc(String(cur.quarter)):"")+(cur.effective_date?" · eff "+String(cur.effective_date):""), newBadge:true, drill:{kind:"dd", store_id:s.store_id} });
+  }
+
+  // owner / sup — one row per store, q-o-q marketplace + trend.
+  const rows = dd.stores.filter(s=>s.current).map(s=>{
+    const a = arrow(s.marketplace_delta_pp, s.latest_on_file_only);
+    const sub = s.latest_on_file_only ? "latest qtr missing"
+      : (s.current.adwt_min!=null ? "ADWT "+Number(s.current.adwt_min).toFixed(2) : "");
+    return '<div class="ddrow'+(s.latest_on_file_only?" miss":"")+'" data-drill="dd" data-id="'+s.store_id+'" onclick="numbersDrill(this,event)">'
+      + '<span class="ddn">'+esc(s.store_name)+'<small>#'+esc(s.nsn)+(sub?" · "+sub:"")+'</small></span>'
+      + '<span class="ddmkt"><span class="qmuted" style="font-weight:700">'+(s.prior?pct2(s.prior.marketplace_pct):"—")+'</span> → '+pct2(s.current.marketplace_pct)+'</span>'
+      + '<span class="ddtr '+a.cls+'">'+a.sym+'</span></div>';
+  }).join("");
+  const nUp = dd.stores.filter(s=>s.marketplace_delta_pp!=null && s.marketplace_delta_pp>0).length;
+  const nDown = dd.stores.filter(s=>s.marketplace_delta_pp!=null && s.marketplace_delta_pp<0).length;
+  const body = '<div class="ddhdr"><span>Store</span><span>prior → current</span><span>±</span></div>'+rows
+    + '<div class="cap"><b>'+nDown+'</b> down <span class="qdown">↓</span> · <b>'+nUp+'</b> up <span class="qup">↑</span> · rest flat. Rate keys off <b>ADWT</b>. DashPass &amp; Drive base constant across all 12. From <b>doordash_commission_rates</b>.</div>'
+    + (dd.missing_latest_quarter ? '<div class="dd-misswarn">⚠ '+dd.missing_latest_quarter+' store'+(dd.missing_latest_quarter>1?"s":"")+' missing the latest-quarter DoorDash email — those rows show the prior quarter.</div>':"");
+  return card("DoorDash rates", body, { icon:"🛵", through: "current vs prior quarter on file", newBadge:true, drill:{kind:"dd"} });
+}
+
+// MODULE — LTO leaderboard (org-wide units per 1,000 guests; viewer's stores hi-lit).
+function renderNumbersLto(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const lto = fin.lto;
+  if(!lto || !lto.promos || !lto.promos.length) return card("LTO leaderboard", '<div class="empline">No LTO promo rankings posted yet.</div>', { icon:"🏆" });
+  const medal = (rnk) => rnk===1?"🥇":rnk===2?"🥈":rnk===3?"🥉":"#"+rnk;
+  const body = lto.promos.map(p=>{
+    const sorted = (p.standings||[]).slice().sort((a,b)=>(a.rnk||99)-(b.rnk||99));
+    const rows = sorted.map(s=>{
+      const upk = s.units_per_1k_guests;
+      return '<div class="ltorow'+(s.in_scope?" mine":"")+'">'
+        + '<span class="lmedal">'+medal(s.rnk)+'</span>'
+        + '<span class="lname2">'+esc(s.location_name||("#"+s.nsn))+'<small>#'+esc(s.nsn)+' · '+Number(s.units||0).toLocaleString()+' units</small></span>'
+        + '<span class="lval">'+(upk!=null?Number(upk).toFixed(1):"—")+'<small>per 1k guests</small></span></div>';
+    }).join("");
+    return '<div class="ltoseg">'+esc(p.label)+'</div>'+rows;
+  }).join("");
+  return card("LTO leaderboard", body + '<div class="cap">Units per 1,000 guests by promo, org-wide. Your store(s) highlighted. From v_datapass_lto_rank.</div>',
+    { icon:"🏆", through: lto.data_through ? ("data thru "+lto.data_through) : null, drill:{kind:"lto"} });
+}
+
+/* ---- NUMBERS drill: every card opens a detail sheet (plan §10) ---------------
+   The card() drill cue calls openNumbersSheet(kind, arg); rollup/dd rows wire
+   their own onclick→numbersDrill(el). Detail restates the data-through date and
+   never fabricates a number the headline withheld (honesty carries into drills). */
+function numbersDrill(el, ev){
+  if(ev) ev.stopPropagation();   // a row drill overrides the parent card's drill
+  openNumbersSheet(el.getAttribute("data-drill"), { store_id: Number(el.getAttribute("data-id")) });
+}
+function finStoreById(fin, id){ return (fin.per_store||[]).find(s=>s.store_id===id) || finFocus(fin); }
+
+function openNumbersSheet(kind, arg){
+  const data = (STATE && STATE.data) || {};
+  const fin = data.financials || {};
+  const thru = finThru(fin) || "—";
+  let title="Detail", body="", crumb="Numbers";
+  const dr = (k,v) => '<div class="drow"><span class="dk">'+k+'</span><span class="dv">'+v+'</span></div>';
+
+  if(kind==="agg"){
+    const agg = fin.aggregate, ps = (fin.per_store||[]).filter(s=>s.ytd).sort((a,b)=>(a.ytd.pac_pct??0)-(b.ytd.pac_pct??0));
+    title = data.scope_all ? "Portfolio P&L" : "Patch P&L";
+    crumb = "Numbers › <b>"+(data.scope_all?"Portfolio":"Patch")+"</b>";
+    body = '<div class="crumb">'+crumb+'</div>'
+      + (agg? dr("PAC %", '<span class="fav">'+pct2(agg.pac_pct)+'</span>')+dr("PAC $ (YTD)", moneyFull(agg.pac_dollars))+dr("Net sales (YTD)", moneyFull(agg.net_sales))
+            + dr("Food %", pct2(agg.food_pct))+dr("Labor %", pct2(agg.labor_pct))+(agg.pac_spread_pp!=null?dr("PAC spread", agg.pac_spread_pp.toFixed(1)+"pp"):"") : "")
+      + '<div class="dsub">Stores · worst-PAC-first</div>'
+      + ps.map(s=>dr(esc(s.store_name), pct2(s.ytd.pac_pct)+" · "+moneyKD(s.ytd.net_sales))).join("")
+      + '<div class="cap">YTD roll thru '+esc(thru)+'. PAC% read from the precomputed column; aggregate %s from summed dollars.</div>';
+  } else if(kind==="store"){
+    const s = finStoreById(fin, arg&&arg.store_id);
+    if(s && s.ytd){
+      title = s.store_name+" · P&L"; crumb = "Numbers › <b>"+esc(s.store_name)+"</b>";
+      body = '<div class="crumb">'+crumb+'</div>'
+        + dr("PAC %", '<span class="'+(s.ytd.pac_pct>=0?"fav":"unfav")+'">'+pct2(s.ytd.pac_pct)+'</span>')
+        + dr("PAC $ (YTD)", moneyFull(s.ytd.pac_dollars)) + dr("Net sales (YTD)", moneyFull(s.ytd.net_sales))
+        + dr("Food %", pct2(s.ytd.food_pct)) + dr("Labor %", pct2(s.ytd.labor_pct))
+        + (s.mtd? '<div class="dsub">Current month (MTD'+(s.mtd.is_preliminary?" · preliminary":"")+')</div>'
+            + dr("MTD net sales", moneyFull(s.mtd.net_sales)) + dr("MTD PAC", moneyFull(s.mtd.pac_dollars)+" · "+pct2(s.mtd.pac_pct)) : "")
+        + '<div class="cap">YTD roll thru '+esc(thru)+'. June MTD is preliminary (R365 re-keys open periods).</div>';
+    } else { title="P&L"; body='<div class="crumb">Numbers</div><div class="cap">No P&L for this store yet.</div>'; }
+  } else if(kind==="pac"){
+    const s = finStoreById(fin, arg&&arg.store_id);
+    title = (s?s.store_name+" · ":"")+"P&L line detail";
+    crumb = "Numbers › "+(s?esc(s.store_name)+" › ":"")+"<b>P&L line detail</b>";
+    const rows = (s&&s.lines||[]).map(l=>{
+      const proj = l.projection_pending||!l.projection ? "pending"
+        : (l.projection.value_type==="dollars"?moneyKD(l.projection.value):Number(l.projection.value).toFixed(1)+"% of sales");
+      return dr(esc(l.label), (l.ytd_dollars==null?"—":moneyKD(l.ytd_dollars))+" YTD"+(l.ytd_pct!=null?" · "+pct1(l.ytd_pct):"")+' · <span style="color:var(--proj)">'+proj+' proj</span>');
+    }).join("");
+    body = '<div class="crumb">'+crumb+'</div><div class="dsub">Each line: YTD actual · projection</div>'+rows
+      + '<div class="dsub">Projection workflow (§9)</div>'
+      + dr("Status", (s&&s.lines||[]).some(l=>l.projection&&l.projection.locked)?"🔒 Locked":"✏️ Pending / open")
+      + '<div class="cap">Revenue &amp; PAC projected in dollars; cost lines in % of sales (pnl_projection.value_type). Owner lock makes them immutable. Data thru '+esc(thru)+'.</div>';
+  } else if(kind==="waterfall"){
+    const s = finStoreById(fin, arg&&arg.store_id); const wf = s&&s.waterfall;
+    title = (s?s.store_name+" · ":"")+"Sales → PAC bridge";
+    crumb = "Numbers › "+(s?esc(s.store_name)+" › ":"")+"<b>Sales → PAC bridge</b>";
+    body = '<div class="crumb">'+crumb+'</div>'+(wf?waterfall([
+        {label:"Net Sales",val:wf.net_sales,type:"start"},{label:"COGS",val:-(wf.cogs||0),type:"down"},
+        {label:"Labor",val:-(wf.labor||0),type:"down"},{label:"Other Ctrl",val:-(wf.other_controllable||0),type:"down"},
+        {label:"PAC",val:wf.pac,type:"end"}]):"")
+      + '<div class="dsub">Step-by-step</div>'
+      + (wf? dr("Net sales", moneyFull(wf.net_sales)+" · 100%")
+           + dr("− COGS", moneyFull(wf.cogs)+(wf.net_sales?" · "+pct1(wf.cogs/wf.net_sales*100):""))
+           + dr("− Labor", moneyFull(wf.labor)+(wf.net_sales?" · "+pct1(wf.labor/wf.net_sales*100):""))
+           + dr("− Other controllable", moneyFull(wf.other_controllable)+(wf.net_sales?" · "+pct1(wf.other_controllable/wf.net_sales*100):""))
+           + dr("= P.A.C.", '<span class="fav">'+moneyFull(wf.pac)+" · "+pct2(wf.pac_pct)+'</span>') : "")
+      + '<div class="cap">'+(wf&&wf.basis==="mtd"?"MTD current month":"YTD")+'. PAC from the precomputed column. Data thru '+esc(thru)+'.</div>';
+  } else if(kind==="bullets"){
+    const s = finStoreById(fin, arg&&arg.store_id); const cl = s&&s.cost_lines||[];
+    title = (s?s.store_name+" · ":"")+"Cost discipline";
+    crumb = "Numbers › "+(s?esc(s.store_name)+" › ":"")+"<b>Cost lines</b>";
+    body = '<div class="crumb">'+crumb+'</div><div class="dsub">YTD level (target pending source)</div>'
+      + cl.map(c=>dr(esc(c.label), pct2(c.pct)+" · target pending")).join("")
+      + '<div class="cap">No sourced cost/PAC target column yet (plan §6.4) — the level is shown honestly. Data thru '+esc(thru)+'.</div>';
+  } else if(kind==="invoice"){
+    const inv = fin.invoices; title = "MTD invoices · line breakdown"; crumb = "Numbers › <b>Invoice detail</b>";
+    const rows = (inv&&inv.lines||[]).slice().sort((a,b)=>((b.posted+b.in_flight)-(a.posted+a.in_flight))).map(l=>{
+      const parts=[];
+      if(l.posted) parts.push('<span style="color:var(--good)">'+moneyKD(l.posted)+" posted ("+l.posted_count+")</span>");
+      if(l.in_flight) parts.push('<span style="color:var(--warn)">'+moneyKD(l.in_flight)+" in-flight ("+l.in_flight_count+")</span>");
+      return dr(esc(l.pnl_line)+(l.pnl_section?" · "+esc(l.pnl_section):""), parts.join(" · ")||"—");
+    }).join("");
+    body = '<div class="crumb">'+crumb+'</div><div class="dsub">Every line · posted vs in-flight</div>'+rows
+      + '<div class="cap">In-flight = detected in email/triage, not yet posted to R365. From v_invoice_tracker_mtd. '+esc(inv?inv.data_through:"")+'.</div>';
+  } else if(kind==="dd"){
+    const dd = fin.doordash;
+    if(arg && arg.store_id){
+      const s = (dd.stores||[]).find(x=>x.store_id===arg.store_id);
+      title = (s?s.store_name+" · ":"")+"DoorDash rate history"; crumb = "Numbers › "+(s?esc(s.store_name)+" › ":"")+"<b>DoorDash history</b>";
+      const hist = (s&&s.history||[]).map(h=>dr(esc(String(h.quarter))+(h.adwt_min!=null?" · ADWT "+Number(h.adwt_min).toFixed(2):"")+(h.effective_date?" · eff "+String(h.effective_date):""),
+        "Mkt <b>"+pct2(h.marketplace_pct)+"</b> · DashPass "+pct2(h.dashpass_pct)+" · $"+(h.drive_base_fee!=null?Number(h.drive_base_fee).toFixed(2):"—"))).join("");
+      body = '<div class="crumb">'+crumb+'</div><div class="dsub">Quarter-by-quarter (doordash_commission_rates)</div>'+hist
+        + (s&&s.marketplace_delta_pp!=null?'<div class="dsub">Quarter-over-quarter</div>'+dr("Marketplace Δ", (s.marketplace_delta_pp>0?'<span class="qup">+'+s.marketplace_delta_pp.toFixed(2)+"pp (up, unfavorable)</span>":s.marketplace_delta_pp<0?'<span class="qdown">'+s.marketplace_delta_pp.toFixed(2)+"pp (down, favorable)</span>":"flat")):"")
+        + '<div class="cap">Marketplace % keys off ADWT. DashPass &amp; Drive base are constant.'+(s&&s.latest_on_file_only?' <b style="color:var(--warn)">Latest-quarter email still missing for this store.</b>':"")+'</div>';
+    } else {
+      title = "DoorDash rates · all stores"; crumb = "Numbers › <b>DoorDash rates</b>";
+      const rows = (dd.stores||[]).filter(s=>s.current).map(s=>{
+        const d=s.marketplace_delta_pp; const sym=s.latest_on_file_only?"—":d>0?'<span class="qup">↑</span>':d<0?'<span class="qdown">↓</span>':"→";
+        return dr(esc(s.store_name)+" #"+esc(s.nsn), (s.prior?pct2(s.prior.marketplace_pct):"—")+" "+sym+" "+pct2(s.current.marketplace_pct));
+      }).join("");
+      body = '<div class="crumb">'+crumb+'</div><div class="dsub">Marketplace % · prior → current</div>'+rows
+        + '<div class="cap">DashPass &amp; Drive base constant across all 12. From doordash_commission_rates.'+(dd.missing_latest_quarter?" "+dd.missing_latest_quarter+" store(s) missing the latest quarter.":"")+'</div>';
+    }
+  } else if(kind==="lto"){
+    const lto = fin.lto; title = "LTO leaderboard"; crumb = "Numbers › <b>LTO leaderboard</b>";
+    body = '<div class="crumb">'+crumb+'</div>'
+      + (lto.promos||[]).map(p=>'<div class="dsub">'+esc(p.label)+'</div>'
+        + (p.standings||[]).slice().sort((a,b)=>(a.rnk||99)-(b.rnk||99)).map(s=>dr("#"+s.rnk+" "+esc(s.location_name||("#"+s.nsn))+(s.in_scope?" ◄ you":""), (s.units_per_1k_guests!=null?Number(s.units_per_1k_guests).toFixed(1):"—")+" /1k")).join("")).join("")
+      + '<div class="cap">Units per 1,000 guests by promo. From v_datapass_lto_rank. '+(lto.data_through?"Data thru "+esc(lto.data_through):"")+'.</div>';
+  }
+  document.getElementById("sheetTitle").textContent = title;
+  document.getElementById("sheetBody").innerHTML = body;
+  document.getElementById("veil").classList.add("show");
+  document.getElementById("sheet").classList.add("show");
+}
+function closeSheet(){
+  const v=document.getElementById("veil"), s=document.getElementById("sheet");
+  if(v) v.classList.remove("show"); if(s) s.classList.remove("show");
+}
+window.closeSheet = closeSheet;
+
+const MANIFEST = [
+  // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
+  // what-needs-you first (act/dismiss loop), then the action hubs, then the
+  // pinned contest motivators (plan §2 "pinned to the top of TODAY").
+  { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
+  { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
+  { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
+  { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
+  { id:"today_osat",       lane:"TODAY", title:"$100 June OSAT Incentive",render: renderPinnedOsat      },
+  // NUMBERS — the P&L / money tab (plan §5 NUMBERS lane, §9 ledger, §10 drill,
+  // §11 DoorDash). Order: money BLUF → owner/sup store rollup → up-to-PAC ledger
+  // → Sales→PAC waterfall → cost-% bullets → MTD invoice tracker → DoorDash
+  // rates → LTO leaderboard. Every card drills (§10). All read data.financials.
+  { id:"numbers_verdict",  lane:"NUMBERS", title:"Numbers — financials", render: renderNumbersVerdict,  newBadge:true },
+  { id:"numbers_rollup",   lane:"NUMBERS", title:"By store",             render: renderNumbersRollup   },
+  { id:"numbers_ledger",   lane:"NUMBERS", title:"Up-to-PAC P&L",        render: renderPacLedger,       newBadge:true },
+  { id:"numbers_waterfall",lane:"NUMBERS", title:"Sales → PAC",          render: renderNumbersWaterfall },
+  { id:"numbers_bullets",  lane:"NUMBERS", title:"Cost discipline",      render: renderNumbersBullets  },
+  { id:"numbers_invoices", lane:"NUMBERS", title:"MTD Invoice Tracker",  render: renderNumbersInvoices, newBadge:true },
+  { id:"numbers_doordash", lane:"NUMBERS", title:"DoorDash rates",       render: renderNumbersDoorDash, newBadge:true },
+  { id:"numbers_lto",      lane:"NUMBERS", title:"LTO leaderboard",      render: renderNumbersLto      },
+  { id:"guests_placeholder",  lane:"GUESTS",  title:"Guests",  render: renderGuestsPlaceholder  },
+  { id:"team_placeholder",    lane:"TEAM",    title:"Team",    render: renderTeamPlaceholder    },
+  { id:"more_placeholder",    lane:"MORE",    title:"More",    render: renderMorePlaceholder    },
+];
+
+/* =========================================================================
+   renderBoard(payload) — the generic manifest walker. Filters the manifest by
+   ACTIVE_LANE, calls each module's render() (sect-isolated), paints #app.
+   Exposed on window for the smoke test + future drill code.
+   ========================================================================= */
+function renderBoard(payload){
+  STATE = payload || STATE;
+  const data = (STATE && STATE.data) || {};
+  const app = document.getElementById("app");
+  const mods = MANIFEST.filter(m => m.lane === ACTIVE_LANE);
+  let html = "";
+  // TODAY leads with the verdict zone (BLUF, plan §3.1 Zone 1): store name +
+  // data-through + one honest sentence. Calm-green when nothing is flagged,
+  // amber when the priorities feed has items. The big number is the real count.
+  if(ACTIVE_LANE === "TODAY"){
+    const thru = todayThru(data) || "—";
+    const who = data.scope_all ? "Portfolio" : ((data.stores && data.stores[0] && data.stores[0].name) || "Your store");
+    let n = 0; try { n = computeTodayPriorities(data).length; } catch(_e){ n = 0; }
+    const sub = n
+      ? '<b>'+esc(who)+'</b> · '+n+' thing'+(n===1?"":"s")+' need'+(n===1?"s":"")+' you · data thru <b>'+esc(thru)+'</b>'
+      : '<b>'+esc(who)+'</b> · all clear right now · data thru <b>'+esc(thru)+'</b>';
+    html += verdict(String(n), n===1?"thing needs you":"things need you", sub, n? "warn":"good");
+  }
+  for(const m of mods){ html += sect(()=>m.render(data, {})); }
+  if(!html) html = card("Nothing here yet", '<div class="cbody">No modules registered for this lane.</div>', {});
+  app.innerHTML = html;
+  // Delegated card-drill handler (plan §10) — bound ONCE on #app. A card with
+  // data-card-drill opens its detail sheet; rows/buttons inside that stop
+  // propagation (numbersDrill / the action buttons) fire their own behavior.
+  if(!app.dataset.drillBound){
+    app.dataset.drillBound = "1";
+    app.addEventListener("click", (e)=>{
+      const c = e.target.closest("[data-card-drill]");
+      if(!c) return;
+      const id = c.getAttribute("data-card-id");
+      try{ openNumbersSheet(c.getAttribute("data-card-drill"), id!=null ? { store_id: Number(id) } : {}); }
+      catch(err){ console.error("drill failed:", err); }
+    });
+  }
+  paintChrome();
+}
+window.renderBoard = renderBoard;
+
+/* =========================================================================
+   TODAY-lane POST ACTION WIRING (Phase 1) — the audited write spine.
+   v2CallApi POSTs {action,...} to the SAME v2 Edge Fn + token, which returns
+   the re-gathered {result, data} envelope; we repaint via renderBoard so the
+   verdict recounts and the closed row drops out (plan §3.1 act→done loop).
+   RO/view-as tokens are rejected server-side before dispatch (plan §7) — the
+   Edge Fn returns the error in result, surfaced here. No new endpoint.
+   ========================================================================= */
+async function v2CallApi(body){
+  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if(r.status === 401) throw new Error("link expired");
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+function v2FindRow(el, cls){ while(el && !el.classList.contains(cls)) el=el.parentElement; return el; }
+
+// Mark a task done (action:"close"). Confirm-gated; re-fetches + repaints.
+async function v2CloseTask(ev, btn){
+  ev.stopPropagation();
+  const row = v2FindRow(btn, "t-row"); if(!row) return;
+  const id = Number(row.dataset.id);
+  if(!confirm("Mark task #"+id+" done?")) return;
+  row.classList.add("busy"); btn.disabled = true;
+  try{
+    const payload = await v2CallApi({ action:"close", id, to_status:"done" });
+    if(payload && payload.result && payload.result.ok === false){
+      row.classList.remove("busy"); btn.disabled = false;
+      alert(payload.result.msg || "Could not close that task."); return;
+    }
+    renderBoard(payload);
+  }catch(e){
+    row.classList.remove("busy"); btn.disabled = false;
+    alert("Mark done failed: " + (e && e.message));
+  }
+}
+
+// Resolve a complaint (action:"resolve_complaint"). Closes the linked task too.
+async function v2ResolveComplaint(ev, btn){
+  ev.stopPropagation();
+  const row = v2FindRow(btn, "c-row"); if(!row) return;
+  const id = Number(row.dataset.id);
+  if(!confirm("Mark this complaint resolved?\n\nThis closes the linked task and stamps it handled. You can't undo this from the page.")) return;
+  row.classList.add("busy"); btn.disabled = true;
+  try{
+    const payload = await v2CallApi({ action:"resolve_complaint", id });
+    if(payload && payload.result && payload.result.ok === false){
+      row.classList.remove("busy"); btn.disabled = false;
+      alert(payload.result.msg || "Could not resolve that complaint."); return;
+    }
+    renderBoard(payload);
+  }catch(e){
+    row.classList.remove("busy"); btn.disabled = false;
+    alert("Resolve failed: " + (e && e.message));
+  }
+}
+
+/* paint the chrome: version stamp, scope label, tabline */
+function paintChrome(){
+  const data = (STATE && STATE.data) || {};
+  const fnv = data.fn_version || "?";
+  const vs = document.getElementById("vstamp");
+  vs.textContent = "api "+fnv+" · shell "+SHELL_VERSION;
+  vs.classList.toggle("mismatch", fnv !== SHELL_VERSION);
+  const scope = data.scope_all ? "Portfolio — all stores"
+    : ((data.stores && data.stores.length===1) ? data.stores[0].name
+      : ((data.stores ? data.stores.length : 0)+" stores"));
+  document.getElementById("scopeLabel").textContent = scope;
+  const lane = LANES.find(l=>l.id===ACTIVE_LANE);
+  document.getElementById("tabline").innerHTML = esc(lane?lane.label:ACTIVE_LANE)+' · <b id="scopeLabel">'+esc(scope)+'</b>';
+  const foot = document.getElementById("foot");
+  foot.textContent = "manager-page-v2 · Field-First redesign scaffold · "+(data.scope_all?"portfolio":"single-store")+" scope.";
+}
+
+/* =========================================================================
+   tab bar — render the five fixed lanes; tap switches ACTIVE_LANE + repaints.
+   ========================================================================= */
+function buildTabBar(){
+  const bar = document.getElementById("tabbar");
+  bar.innerHTML = LANES.map(l =>
+    '<button class="tab'+(l.id===ACTIVE_LANE?" on":"")+'" data-lane="'+l.id+'">'
+    + '<span class="ti">'+l.icon+'</span>'+esc(l.label)+'</button>').join("");
+  bar.querySelectorAll(".tab").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      ACTIVE_LANE = b.getAttribute("data-lane");
+      bar.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===b));
+      renderBoard();
+      document.getElementById("app").scrollIntoView({block:"start"});
+    });
+  });
+}
+
+/* skeleton paint (sized to final layout, no spinner) */
+function paintSkeleton(){
+  const app = document.getElementById("app");
+  let s = "";
+  for(let i=0;i<3;i++){
+    s += '<div class="skel"><div class="sl w40"></div><div class="sl w90"></div><div class="sl w70"></div><div class="sl tall"></div></div>';
+  }
+  app.innerHTML = s;
+}
+
+/* error panel */
+function showError(msg){
+  document.getElementById("app").innerHTML = '<div class="errbox">'+esc(msg)+'</div>';
+  const foot = document.getElementById("foot"); if(foot) foot.textContent="";
+}
+
+/* theme: persisted toggle + auto arches after Chicago sunset is a later refinement */
+function initTheme(){
+  const saved = localStorage.getItem("mp2-theme");
+  if(saved) document.body.dataset.theme = saved;
+  document.getElementById("themebtn").addEventListener("click", ()=>{
+    const next = document.body.dataset.theme==="arches" ? "" : "arches";
+    document.body.dataset.theme = next;
+    localStorage.setItem("mp2-theme", next);
+  });
+}
+
+/* =========================================================================
+   init() — token auth + fetch the deployed v2 Edge Fn + skeleton->data paint.
+   ========================================================================= */
+async function init(){
+  initTheme();
+  buildTabBar();
+  if(!TOKEN){
+    showError("Missing token. This link should include ?t=<token>.");
+    return;
+  }
+  paintSkeleton();
+  try{
+    const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN));
+    if(r.status === 401){ showError("This link has expired or is invalid. Text Eddie for a fresh one."); return; }
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const payload = await r.json();
+    renderBoard(payload);
+  }catch(e){
+    showError("Could not load board: " + (e && e.message));
+  }
+}
+init();
+</script>
+</body>
+</html>
