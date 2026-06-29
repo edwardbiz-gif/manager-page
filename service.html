@@ -1,9 +1,16 @@
 <!doctype html>
-<!-- service.html v4 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v5 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store; default below is also 3444)
      Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
      full-screen cards. Crew-facing: store-level only, no names/pay. Every number states its data-through date.
+     v5 (2026-06-29): MTD-ONLY + AUTO WINNER ANNOUNCEMENT. The screen now reflects the CURRENT month only —
+     the live MTD drive-thru figures lead, and the cross-store Board is the live MTD OEPE speed race (mtdRace,
+     all 12, current month). The old last-full-month cards (guest-experience headline race, OEPE-by-peak,
+     R2P/KVS/parked quality) are dropped (no current-month cross-store source). For the first
+     d.winnerWindowDays (5) days of each new month, the rotation LEADS with a celebratory "last month's
+     Guest Experience Champion" card (d.lastMonthWinner); after day 5 it reverts to MTD-only automatically
+     (server decides via d.showWinner — pure date logic). Append &today=YYYY-MM-DD to the URL to test it.
      v4 (2026-06-24): (1) BENCHMARK EVERY STAT VS ORG — every metric card shows the all-12-store org average,
      this store's rank ("Nth of 12", direction-aware), and a +/- delta vs org (the benchLine/benchPill
      helpers read each metric's `bench` block from the payload). (2) FOUR DAILY PRODUCT RANKER cards —
@@ -29,6 +36,11 @@
   .card.blue{background:radial-gradient(circle at 50% 28%,#103a6e,#0a1424 75%)}
   .card.teal{background:radial-gradient(circle at 50% 28%,#0c4f4a,#0a1424 75%)}
   .card.gold{background:radial-gradient(circle at 50% 28%,#5a4500,#0a1424 75%)}
+  /* winner-announcement card: celebratory deep-gold spotlight (month-rollover only) */
+  .card.win{background:radial-gradient(circle at 50% 26%,#7a5a00,#2a1a00 60%,#0a1424 92%)}
+  .card.win .trophy{font-size:16vh;line-height:1;filter:drop-shadow(0 0 2vh rgba(255,199,44,.6))}
+  .card.win .winname{font-size:9vh;font-weight:900;color:#FFC72C;line-height:1}
+  .card.win .winsub{font-size:4.6vh;font-weight:800}
   .kicker{color:#37C2FF;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
   .title{font-size:7vh;font-weight:900;line-height:1}
   .title2{font-size:5.2vh;font-weight:900;color:#37C2FF}
@@ -137,6 +149,26 @@ function buildCards(d){
   const lm = d.liveMtd||null;           // current-month (June MTD) live drive-thru
   const ytd = d.ytd||null;              // 2026 calendar YTD
 
+  // 0) AUTO WINNER ANNOUNCEMENT — for the first d.winnerWindowDays of each new month, LEAD with a
+  // celebratory "last month's contest winner" card (the guest-experience champion of the just-ended
+  // month). Pure date logic on the server (d.showWinner); after the window it disappears automatically
+  // and the rotation is MTD-only. This is the ONLY last-month content on the screen.
+  if(d.showWinner && d.lastMonthWinner && d.lastMonthWinner.winner_name){
+    const w=d.lastMonthWinner;
+    const headline = w.is_me
+      ? '<div class="winsub">🎉 That\'s US — '+esc(d.loc)+' took the crown!</div>'
+      : (w.my_rank!=null
+          ? '<div class="winsub">'+esc(d.loc)+' finished '+ord(w.my_rank)+' of '+w.total+(w.my_blend!=null?' ('+fmt(w.my_blend,1)+')':"")+' — let\'s win '+esc(d.currentMonth||"this month")+'!</div>'
+          : '<div class="winsub">Let\'s win '+esc(d.currentMonth||"this month")+'!</div>');
+    cards.push({a:"win",h:
+      '<div class="kicker">🏆 '+esc(w.month)+' Guest Experience Champion · all '+w.total+' stores</div>'+
+      '<div class="trophy">🏆</div>'+
+      '<div class="winname">'+esc(w.winner_name)+'</div>'+
+      (w.winner_blend!=null?'<div class="sub">Champion score <b>'+fmt(w.winner_blend,1)+'</b> · OSAT '+fmt(w.sat,1)+'% · Accuracy '+fmt(w.accuracy,1)+'% · Friendly '+fmt(w.friendliness,1)+'%</div>':"")+
+      headline+
+      '<div class="fine">guest-experience contest (OSAT + Accuracy + Friendliness) · '+esc(w.month)+' final standings · higher is better</div>'});
+  }
+
   // 1) JUNE MTD LIVE — current-month drive-thru speed (the freshest source), leads the rotation.
   // Framed prominently as MONTH-TO-DATE; the actual coverage (days / through-date) is fine print below.
   if(lm){
@@ -166,41 +198,25 @@ function buildCards(d){
       '</div>'});
   }
 
-  // 2) GUEST-EXPERIENCE RACE — cross-store blend of VOICE OSAT + Accuracy + Friendliness (HIGHER = better).
-  // Replaces the old DT-speed race. Latest month where all three metrics are present; data-through stated.
-  const gx = d.gxRace||{standings:[]};
-  if(gx.rank!=null){
-    const gbig = gx.rank===1
-      ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' is the best guest experience of '+gx.total+'. Hold the lead!</div>'
-      : '<div class="huge">'+ord(gx.rank)+'<span class="of"> of '+gx.total+'</span></div><div class="sub">'+
-        (gx.gap!=null?fmt(gx.gap,1)+' points behind #1 — let\'s close the gap.':"Let's climb the board.")+'</div>';
-    cards.push({a:"blue",h:'<div class="kicker">Guest Experience Race · '+esc(gx.month)+' · OSAT + Accuracy + Friendliness</div><div class="title">'+esc(d.loc)+'</div>'+gbig+
-      (gx.blend!=null?'<div class="score">Our score: <b>'+fmt(gx.blend,1)+'</b> &nbsp;·&nbsp; OSAT '+fmt(gx.sat,1)+'% · Accuracy '+fmt(gx.accuracy,1)+'% · Friendly '+fmt(gx.friendliness,1)+'% · higher is better</div>':"")+
-      '<div class="fine">equal-weight blend · data through '+esc(gx.month)+'</div>'});
+  // 2) THE BOARD — live MTD cross-store race (current-month OEPE speed, all 12, faster = better).
+  // This is the headline race DURING the month. It replaces the old guest-experience blend race, which
+  // lagged ~a month (Friendliness) and would otherwise show last month as if current. The blend now
+  // appears ONLY in the month-rollover winner card above.
+  const mr = d.mtdRace||{standings:[]};
+  if(mr.rank!=null){
+    const rbig = mr.rank===1
+      ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' is the fastest drive-thru of '+mr.total+' this month. Hold the lead!</div>'
+      : '<div class="huge">'+ord(mr.rank)+'<span class="of"> of '+mr.total+'</span></div><div class="sub">'+
+        (mr.gap!=null?'+'+fmt(mr.gap)+'s behind #1 — let\'s close the gap.':"Let's climb the board.")+'</div>';
+    cards.push({a:"blue",h:'<div class="kicker">Drive-Thru Speed Race · '+esc(mr.month)+' MTD · OEPE seconds (faster = better)</div><div class="title">'+esc(d.loc)+'</div>'+rbig+
+      (mr.oepe_s!=null?'<div class="score">Our MTD OEPE: <b>'+fmt(mr.oepe_s)+'s</b> · faster is better</div>':"")+
+      '<div class="fine">current-month live drive-thru · data through '+esc(mr.through||"")+'</div>'});
 
-    // 3) THE BOARD — all 12 ranked by guest-experience blend, best first
-    cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(gx.month)+' · guest-experience score (higher = better)</div>'+
-      '<div class="title2">Guest experience — all '+gx.total+'</div><div class="board">'+
-      gx.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.blend,1)+'</span></div>').join("")+'</div>'});
+    // The Board — all 12 ranked by current-month OEPE, fastest first
+    cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(mr.month)+' MTD · drive-thru OEPE (lower = faster)</div>'+
+      '<div class="title2">Drive-thru speed — all '+mr.total+'</div><div class="board">'+
+      mr.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.oepe)+'<span class="un">s</span></span></div>').join("")+'</div>'});
   }
-
-  // 4) OEPE BY PEAK (monthly, last-complete month)
-  if(d.byPeak&&d.byPeak.length){
-    cards.push({a:"blue",h:'<div class="kicker">OEPE by peak · '+esc(through)+' (last full month) · goal '+g.oepe_o+'/'+g.oepe_e+'/'+g.oepe_g+'s</div>'+
-      '<div class="title2">Drive-thru speed by peak</div><div class="peaks">'+
-      d.byPeak.map(p=>'<div class="peak"><div class="pn">'+esc(p.peak)+'</div><div class="pv" style="color:'+(oepeTone(p.oepe,g)==="good"?"#46e07a":oepeTone(p.oepe,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(p.oepe)+'</div><div class="pu">seconds</div>'+
-        (p.bench?'<div class="tbench" style="text-align:center">org '+fmt(p.bench.org_avg,0)+'s · <span class="rk'+(p.bench.rank===1?" top":"")+'">'+ord(p.bench.rank)+'/'+p.bench.total+'</span></div>':"")+
-      '</div>').join("")+'</div>'});
-  }
-
-  // 5) R2P + KVS + PARKED tiles (monthly 3-peak, last-complete month)
-  {const mb=(d.mtd&&d.mtd.bench)||{};
-  cards.push({a:"teal",h:'<div class="kicker">Service quality · '+esc(through)+' (last full month) · org avg = all 12 stores</div><div class="title2">R2P · KVS · Parked</div>'+
-    '<div class="tiles">'+
-    '<div class="tile '+r2pTone(d.mtd.r2p,g)+'"><div class="tlab">R2P</div><div class="tval">'+fmt(d.mtd.r2p)+'<span class="u">s</span></div><div class="tgoal">goal '+g.r2p_g+'/'+g.r2p_s+'/'+g.r2p_p+'s · lower is faster</div>'+benchPill(mb.r2p,"s",0)+'</div>'+
-    '<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(d.mtd.kvs)+'<span class="u">s</span></div><div class="tgoal">kitchen→serve</div>'+benchPill(mb.kvs,"s",0)+'</div>'+
-    '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(d.mtd.parked_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div>'+benchPill(mb.parked_pct,"%",1)+'</div>'+
-    '</div>'});}
 
   // 5) LIVE TODAY (DataPass daily feed)
   if(d.live&&d.live.day){
@@ -283,7 +299,7 @@ function buildCards(d){
 function render(d){
   const cards=buildCards(d), stage=document.getElementById("stage");
   stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
-  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · Service Area"+(d.liveMtd?" · "+esc(d.liveMtd.month)+" MTD through "+esc(d.liveMtd.through||""):"")+(d.live&&d.live.date?" · live drive-thru through "+esc(d.live.date):"")+(d.gxRace&&d.gxRace.month?" · guest-experience board "+esc(d.gxRace.month):"");
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · Service Area"+(d.liveMtd?" · "+esc(d.liveMtd.month)+" MTD through "+esc(d.liveMtd.through||""):"")+(d.live&&d.live.date?" · live drive-thru through "+esc(d.live.date):"")+(d.mtdRace&&d.mtdRace.through?" · speed board "+esc(d.mtdRace.month)+" MTD":"")+(d.showWinner&&d.lastMonthWinner&&d.lastMonthWinner.winner_name?" · 🏆 "+esc(d.lastMonthWinner.month)+" champion: "+esc(d.lastMonthWinner.winner_name):"");
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
   setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
 }
