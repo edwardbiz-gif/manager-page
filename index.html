@@ -539,11 +539,11 @@ body{padding-bottom:74px}
 <script>
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page";
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
-const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda; "hazel" = showcase view; "lab" = owner lab; "contacts" = Owner/Sup directory
+const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeting" = focused owner agenda; "hazel" = showcase view; "lab" = owner lab; "contacts" = Owner/Sup directory; "people" = People Experience (Petra): staffing + turnover + training + new-hire + crew-readouts across all 12
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v87";
+const SHELL_VERSION = "v89";
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -1134,6 +1134,54 @@ function nhtBadge(st){
   return '<span style="font-size:10px;font-weight:700;border:1px solid '+x[1]+';color:'+x[1]+
          ';border-radius:10px;padding:1px 7px;white-space:nowrap">'+esc(x[0])+'</span>';
 }
+// nhtCourseGrid (v89) — the CLICKABLE per-course done/not-done detail (all users,
+// every view). courses = the 14 tracked mandatory course {course_id,title,group};
+// each crew row's missing_course_ids = the course_ids NOT yet completed, so
+// done = NOT in missing. A numbered legend (1..14 -> title) + one row per crew
+// member with a green check / red dot under each course number. Names follow the
+// same PII gating as the rest of the card (already applied server-side: guest
+// links show "GEID ..." instead of a name).
+function nhtCourseGrid(rows, courses, ms){
+  if(!Array.isArray(courses) || !courses.length) return "";
+  const legend = courses.map((c,i)=>
+    '<div style="display:flex;gap:6px;align-items:baseline;font-size:11px;padding:2px 0">'+
+      '<span style="flex:0 0 auto;width:18px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+(i+1)+'.</span>'+
+      '<span style="color:var(--ink2)">'+esc(c.title)+
+        (c.group?' <span style="color:var(--muted)">('+esc(c.group)+')</span>':'')+'</span>'+
+    '</div>').join("");
+  // Column header = course numbers 1..N.
+  const headCells = courses.map((c,i)=>
+    '<th title="'+esc(c.title)+'" style="padding:3px 2px;font-weight:600;color:var(--muted);font-size:10px;text-align:center;min-width:16px">'+(i+1)+'</th>').join("");
+  const bodyRows = rows.map(r=>{
+    const miss = Array.isArray(r.missing_course_ids) ? r.missing_course_ids.map(String) : [];
+    const cells = courses.map(c=>{
+      const done = miss.indexOf(String(c.course_id)) === -1;
+      return '<td style="padding:3px 2px;text-align:center;font-size:12px;color:'+
+        (done?'var(--ok)':'var(--urgent)')+'" title="'+esc(c.title)+': '+(done?'done':'not done')+'">'+
+        (done?'&#10003;':'&#9679;')+'</td>';
+    }).join("");
+    return '<tr style="border-top:1px solid var(--line)">'+
+      '<td style="padding:4px 6px 4px 0;font-size:12px;white-space:nowrap;position:sticky;left:0;background:var(--card,#fff)">'+
+        esc(r.name)+(ms?' <span style="color:var(--muted);font-size:10px">'+esc(String(r.store||"").split(/[-/]/)[0].trim())+'</span>':'')+'</td>'+
+      cells+'</tr>';
+  }).join("");
+  return '<button class="seeall" onclick="toggleDetail(this)" style="margin-top:8px">'+
+      '<span class="more">See every course, per crew member &#9662;</span>'+
+      '<span class="less" style="display:none">Hide course detail &#9652;</span></button>'+
+    '<div class="task-detail">'+
+      '<div class="sub2" style="margin-top:8px">Mandatory courses</div>'+
+      '<div style="margin:4px 0 8px">'+legend+'</div>'+
+      '<div class="sub2">Who has done what</div>'+
+      '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:4px">'+
+        '<table style="border-collapse:collapse;font-size:12px;width:100%">'+
+          '<thead><tr><th style="text-align:left"></th>'+headCells+'</tr></thead>'+
+          '<tbody>'+bodyRows+'</tbody></table></div>'+
+      '<div style="font-size:10.5px;color:var(--muted);margin-top:6px">'+
+        '<span style="color:var(--ok)">&#10003;</span> done &middot; '+
+        '<span style="color:var(--urgent)">&#9679;</span> not done. '+
+        'Column numbers map to the course list above.</div>'+
+    '</div>';
+}
 function renderNewHireTraining(s){
   if(!s || !(s.rows||[]).length) return "";
   const rows=s.rows, total=s.total_tracked||0, ms=!!s.multi_store, sm=s.summary||{};
@@ -1178,6 +1226,8 @@ function renderNewHireTraining(s){
       h+='<div class="dp-note">No crew hired in the last 30 days.</div>';
     }
   }
+  // Clickable per-course done/not-done detail (v89) — every user, every view.
+  h+=nhtCourseGrid(rows, s.courses, ms);
   h+='<div class="dp-note">Completion of <b>'+total+' of 20</b> mandatory new-hire courses (Petra&rsquo;s list); 6 are pending course-ID confirmation. Deadline = hire + <b>14 days</b> (US PBS RL-2b/RL-5b). Source: DataPass TrainingTrackingFull (GEID-level, no PII). &ldquo;Completed&rdquo; = recorded in the feed. Names hidden on guest links.</div>';
   return h+'</div>';
 }
@@ -1280,12 +1330,16 @@ function renderTurnover(rows){
          '<th style="padding:4px 6px;text-align:right">#</th>'+
          '<th style="padding:4px 6px;text-align:right">TTM%</th>'+
          '<th style="padding:4px 6px;text-align:right">This mo%</th>'+
+         '<th style="padding:4px 6px;text-align:right" title="Terminations this month">Terms</th>'+
+         '<th style="padding:4px 6px;text-align:right" title="% retained past 90 days">90d ret%</th>'+
          '<th style="padding:4px 0 4px 6px;text-align:right">6mo</th>'+
          '</tr></thead><tbody>';
     list.forEach(r => {
       const ttm = r.latest_ttm_pct == null ? '—' : Number(r.latest_ttm_pct).toFixed(0)+'%';
       const mo  = r.latest_monthly_pct == null ? '—' : Number(r.latest_monthly_pct).toFixed(0)+'%';
       const ros = r.latest_roster == null ? '—' : Number(r.latest_roster).toLocaleString();
+      const trm = r.latest_terms == null ? '—' : Number(r.latest_terms).toLocaleString();
+      const ret = r.latest_retained_pct == null ? '—' : Number(r.latest_retained_pct).toFixed(0)+'%';
       const isCombined = r.store_id == null;
       h += '<tr style="border-top:1px solid var(--line)">'+
            '<td style="padding:6px 6px 6px 0;'+(isCombined?'font-weight:700':'')+'">'+
@@ -1293,12 +1347,115 @@ function renderTurnover(rows){
            '<td style="padding:6px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+ros+'</td>'+
            '<td style="padding:6px;text-align:right;color:'+colorOf(r.latest_ttm_pct)+';font-weight:600">'+ttm+'</td>'+
            '<td style="padding:6px;text-align:right;color:var(--muted)">'+mo+'</td>'+
+           '<td style="padding:6px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+trm+'</td>'+
+           '<td style="padding:6px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+ret+'</td>'+
            '<td style="padding:6px 0 6px 6px;text-align:right">'+sparkline(r.trend)+'</td>'+
            '</tr>';
     });
     h += '</tbody></table>';
   }
   return h + '</div>';
+}
+
+// renderStaffing (v89) — People view module 2a: crew + shift-leader HEADCOUNT
+// per store (roster_size by role) with a 6-month headcount trend sparkline
+// (roster_trend). Same turnover[] rows as renderTurnover, but the staffing lens:
+// "how many people, trending which way" rather than turnover %. Owner/org-wide
+// gets the Combined row on top.
+function renderStaffing(rows){
+  if(!Array.isArray(rows) || !rows.length) return "";
+  const byRole = {crew: [], shift_leader: []};
+  rows.forEach(r => { (byRole[r.role] = byRole[r.role] || []).push(r); });
+  const labelOf = role => role === 'crew' ? 'Crew' : 'Shift Leader';
+  // Headcount sparkline (neutral accent line, no good/bad coloring — staffing
+  // level is context, not a score).
+  const spark = trend => {
+    const W=84, H=22, P=2;
+    const vals=(trend||[]).map(t=>Number(t.roster)).filter(v=>!isNaN(v));
+    if(vals.length<2) return '<span style="color:var(--muted);font-size:11px">—</span>';
+    const lo=Math.min(...vals), hi=Math.max(...vals), range=hi-lo||1;
+    const pts=vals.map((v,i)=>{ const x=P+(i*(W-2*P)/(vals.length-1));
+      const y=H-P-((v-lo)/range)*(H-2*P); return x.toFixed(1)+','+y.toFixed(1); }).join(' ');
+    const last=vals[vals.length-1];
+    const lastX=(W-P).toFixed(1), lastY=(H-P-((last-lo)/range)*(H-2*P)).toFixed(1);
+    return '<svg width="'+W+'" height="'+H+'" style="vertical-align:middle">'+
+      '<polyline fill="none" stroke="var(--accent)" stroke-width="1.5" points="'+pts+'"/>'+
+      '<circle cx="'+lastX+'" cy="'+lastY+'" r="2" fill="var(--accent)"/></svg>';
+  };
+  const months = rows.map(r=>r.latest_month).filter(Boolean).sort();
+  const maxMo = months.length ? months[months.length-1] : null;
+  let throughMo='';
+  if(maxMo){ const m=String(maxMo).match(/^(\d{4})-(\d{2})/);
+    if(m){ const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const mi=parseInt(m[2],10)-1; if(mi>=0&&mi<12) throughMo=MONTHS[mi]+' '+m[1]; } }
+  let h='<div class="card"><h3>Staffing Levels</h3>'+
+        '<div class="summary">'+(throughMo?'Through '+throughMo+' &middot; ':'')+
+        'Headcount on roster &middot; 6-mo trend</div>';
+  for(const role of ['crew','shift_leader']){
+    const list=byRole[role]||[];
+    if(!list.length) continue;
+    h+='<div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--muted);'+
+       'text-transform:uppercase;letter-spacing:.6px">'+labelOf(role)+'</div>';
+    h+='<table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-top:4px">'+
+       '<thead><tr style="text-align:left;color:var(--muted);font-weight:500">'+
+       '<th style="padding:4px 6px 4px 0">Store</th>'+
+       '<th style="padding:4px 6px;text-align:right">On roster</th>'+
+       '<th style="padding:4px 0 4px 6px;text-align:right">6mo trend</th>'+
+       '</tr></thead><tbody>';
+    list.forEach(r=>{
+      const ros=r.latest_roster==null?'—':Number(r.latest_roster).toLocaleString();
+      const isCombined=r.store_id==null;
+      h+='<tr style="border-top:1px solid var(--line)">'+
+         '<td style="padding:6px 6px 6px 0;'+(isCombined?'font-weight:700':'')+'">'+esc(r.store_name||'')+'</td>'+
+         '<td style="padding:6px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums">'+ros+'</td>'+
+         '<td style="padding:6px 0 6px 6px;text-align:right">'+spark(r.roster_trend)+'</td>'+
+         '</tr>';
+    });
+    h+='</tbody></table>';
+  }
+  return h+'</div>';
+}
+
+// renderPeopleView (v89) — Petra's curated People Experience board (?view=people).
+// All 12 stores (her token resolves to scope='all'); GMs hitting this view see
+// only their store (role-scoped server-side). Modules: staffing, turnover,
+// training (clickable per-course), new-hire, crew-listening readouts. Deliberately
+// NOT the full ops board — no sales/labor/service/complaints.
+function renderPeopleView(payload){
+  STATE = payload;
+  const data = payload.data || {};
+  const result = payload.result;
+  const mgr = data.manager || {};
+  const stores = data.stores || [];
+  const now = new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  const fnV = data.fn_version || "?";
+  const mism = (fnV !== "?" && fnV !== SHELL_VERSION);
+  let h='<div class="phone">';
+  h+='<div class="ver">Ed Ops &middot; <b>'+esc(SHELL_VERSION)+'</b>'+
+     ' <span'+(mism?' class="mism"':'')+'>api '+esc(fnV)+'</span></div>';
+  h+='<div class="brand"><div class="mark">M</div>'+
+     '<div class="hdr" style="margin:0"><h2>People Experience</h2>'+
+     '<div class="sub">Hi, '+esc(mgr.first_name||"")+' &middot; '+
+       (data.scope_all?'All 12 stores':esc(stores.map(s=>s.name).join(" · ")))+
+       ' &middot; '+esc(now)+'</div></div></div>';
+  h+=flashHtml(result);
+  h+='<div style="font-size:12px;color:var(--muted);margin:2px 4px 8px">'+
+     'Staffing, turnover, training compliance and crew listening across your stores.</div>';
+  // Crew Listening readouts banner (role-scoped signed links).
+  h+=sect(()=>renderCrewListeningBanner(mgr, data.scope_all, data.crew_readouts));
+  // Module 2a — staffing levels + trend.
+  h+=sect(()=>renderStaffing(data.turnover||[]));
+  // Module 2b — turnover (monthly/TTM %, terms, 90d retention, org line).
+  h+=sect(()=>renderTurnover(data.turnover||[]));
+  // Module 2c/2d — training (clickable per-course) + new-hire deadlines.
+  h+=sect(()=>renderNewHireTraining(data.newHireTraining));
+  if(!(data.turnover||[]).length && !data.newHireTraining){
+    h+='<div class="card"><div class="dp-note">No people data is in scope for this link yet. '+
+       'Turnover loads monthly; training completion loads on the daily HR sync.</div></div>';
+  }
+  h+='<div class="foot">Updated just now &middot; reload for fresh data.<br>Questions? Text Eddie.</div>';
+  h+='</div>';
+  return h;
 }
 
 // Product Sales card — MTD Product Sales + YoY, MTD GC + YoY, MTD Avg Check,
@@ -2937,6 +3094,7 @@ function setBoard(payload){
              : (VIEW==="meeting") ? renderMeetingFull(payload)
              : (VIEW==="lab") ? renderLabFull(payload)
              : (VIEW==="contacts") ? renderContactsFull(payload)
+             : (VIEW==="people") ? renderPeopleView(payload)
              : (payload.data && payload.data.dept) ? renderDept(payload)
              : renderBoard(payload); }
   catch(e){
