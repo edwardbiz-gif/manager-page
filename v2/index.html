@@ -557,7 +557,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.12";
+const SHELL_VERSION = "v2-0.13";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1422,7 +1422,7 @@ function renderPacLedger(data){
       + 'Each line shows <b>$ and % of sales</b>; the % is <b style="color:var(--good)">colored vs the '+orgN+'-store org average</b> '
       + '(<span style="color:var(--good)">green</span> = better, <span style="color:var(--bad)">red</span> = worse, ±0.3pp = in line; cost lines lower = better). Tap a % for the org avg. '
       + 'An <b style="color:var(--warn);font-style:italic">~amber italic "est"</b> MTD value is a <b>placeholder</b> until a reasonable number posts — the <b>trailing 3-month average</b> (or a fixed rate, e.g. advertising 3.58%); the <b>Total Control &amp; PAC totals include these estimates</b>. '
-      + 'Every <b>Withum line</b> is listed and <b>projectable</b>; a detailed line showing <b>"—"</b> means its actual still rolls into the group subtotal (itemized once the R365 GL detail is wired).</div>';
+      + 'Every <b>Withum line</b> is listed, <b>projectable</b>, and now <b>itemized from the R365 GL detail</b> (Utilities, Scavenger, Linens, Contract Services, etc. show real actuals); a <b>"—"</b> means no activity for that line this month.</div>';
   return card("Up-to-PAC P&L", body, { icon:"📐", through: f.store_name+" · YTD"+(thru?" thru "+thru:""), newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
 }
 
