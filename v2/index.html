@@ -266,6 +266,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .lrow .lcell .lcsub{display:block;font-size:8.5px;font-weight:700;color:var(--ink-muted)}
 /* conditional format of a % cell vs the 12-store org avg (out-specifies .lcsub) */
 .lrow .lcell .lcsub.fav{color:var(--good)} .lrow .lcell .lcsub.unfav{color:var(--bad)} .lrow .lcell .lcsub.neu{color:var(--ink-muted)}
+.lrow .lcell.ph{color:var(--warn);font-style:italic} .lrow .lcell.ph .lcsub.ph{color:var(--warn);opacity:.85;font-style:italic;font-weight:700}
 .lrow .lcell .lcsub .org{font-weight:600;opacity:.7;font-size:7.5px;color:var(--ink-muted)}
 .lrow.sub{background:var(--surface-2);margin:0 -14px;padding-left:14px;padding-right:14px}
 .lrow.sub .lname{font-weight:800;color:var(--ink);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
@@ -552,7 +553,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.9";
+const SHELL_VERSION = "v2-0.10";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1329,12 +1330,22 @@ function renderPacLedger(data){
 
   // ledger line: name + MTD ($+%) + YTD ($+%) + projection. Both %s colored vs org.
   const lr = (l, cls) => {
-    const mtdTxt = l.mtd_dollars==null ? "—" : moneyKD(l.mtd_dollars);
     const ytdTxt = l.ytd_dollars==null ? "—" : moneyKD(l.ytd_dollars);
     const hb = (l.line==="net_sales" || l.line==="pac");
+    // MTD cell: a placeholder (line not posted yet this month, est. from the prior
+    // 3 months) renders amber/italic with a "~ … est" tag and NO org coloring.
+    let mtdCell;
+    if(l.mtd_placeholder){
+      mtdCell = '<span class="lcell ph" title="Placeholder — 3-month average; this line hasn’t posted yet this month">~'
+        + (l.mtd_dollars==null?"—":moneyKD(l.mtd_dollars))
+        + (l.mtd_pct!=null?'<span class="lcsub ph">~'+pct1(l.mtd_pct)+' · est</span>':'')+'</span>';
+    } else {
+      const mtdTxt = l.mtd_dollars==null ? "—" : moneyKD(l.mtd_dollars);
+      mtdCell = '<span class="lcell">'+mtdTxt+pctCell(l.mtd_pct, l.org_mtd_pct, hb)+'</span>';
+    }
     return '<div class="lrow'+(cls?" "+cls:"")+'">'
       + '<span class="lname">'+esc(l.label)+'</span>'
-      + '<span class="lcell">'+mtdTxt+pctCell(l.mtd_pct, l.org_mtd_pct, hb)+'</span>'
+      + mtdCell
       + '<span class="lcell">'+ytdTxt+pctCell(l.ytd_pct, l.org_ytd_pct, hb)+'</span>'
       + projCell(l) + '</div>';
   };
@@ -1392,7 +1403,8 @@ function renderPacLedger(data){
     + '<div class="cap"><b>MTD</b> = month-to-date actual'+(prelim?" (June, preliminary — R365 re-keys open periods)":"")+' · <b>YTD actual</b> from v_r365_pnl_ytd_store · '
       + '<b>Projection</b> from pnl_projection ('+(allPending?"pending — set at the monthly meeting":"$ for revenue/PAC, % of sales for cost lines")+'). '
       + 'Each line shows <b>$ and % of sales</b>; the % is <b style="color:var(--good)">colored vs the '+orgN+'-store org average</b> '
-      + '(<span style="color:var(--good)">green</span> = better, <span style="color:var(--bad)">red</span> = worse, ±0.3pp = in line; cost lines lower = better). Tap a % for the org avg.</div>';
+      + '(<span style="color:var(--good)">green</span> = better, <span style="color:var(--bad)">red</span> = worse, ±0.3pp = in line; cost lines lower = better). Tap a % for the org avg. '
+      + 'An <b style="color:var(--warn);font-style:italic">~amber italic "est"</b> MTD value is a <b>placeholder</b> — that line hasn’t posted yet this month, so it shows the <b>trailing 3-month average</b> (not colored vs org).</div>';
   return card("Up-to-PAC P&L", body, { icon:"📐", through: f.store_name+" · YTD"+(thru?" thru "+thru:""), newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
 }
 
