@@ -278,6 +278,12 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .rkrow .rkv{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;font-size:10.5px}
 .rkrow .rkv.fav{color:var(--good)} .rkrow .rkv.unfav{color:var(--bad)}
 .rkrow .rkv .rks{display:block;font-size:7px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.3px}
+/* PAC% 6-month trend (top of NUMBERS) */
+.pactrend{margin:4px 0 2px} .pactrend .svgwrap{width:100%;height:48px}
+.pacx{display:flex;justify-content:space-between;gap:3px;margin-top:3px;font-size:7.5px;color:var(--ink-muted)}
+.pacx span{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.25} .pacx span b{font-size:9px;color:var(--ink-2);font-weight:800}
+.pacx span.cur b{color:var(--good)}
+.drillspark{display:inline-block;width:84px;height:18px;vertical-align:middle;margin-left:6px}
 /* conditional format of a % cell vs the 12-store org avg (out-specifies .lcsub) */
 .lrow .lcell .lcsub.fav{color:var(--good)} .lrow .lcell .lcsub.unfav{color:var(--bad)} .lrow .lcell .lcsub.neu{color:var(--ink-muted)}
 .lrow .lcell.ph{color:var(--warn);font-style:italic} .lrow .lcell.ph .lcsub.ph{color:var(--warn);opacity:.85;font-style:italic;font-weight:700}
@@ -571,7 +577,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.16";
+const SHELL_VERSION = "v2-0.17";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1645,9 +1651,11 @@ function openNumbersSheet(kind, arg){
       const hb=(l.line==="net_sales"||l.line==="pac");
       const proj = l.projection_pending||!l.projection ? "pending"
         : (l.projection.value_type==="dollars"?moneyKD(l.projection.value):Number(l.projection.value).toFixed(1)+"% of sales");
-      const val = '<div>MTD '+(l.mtd_dollars==null?"—":moneyKD(l.mtd_dollars))+cfp(l.mtd_pct,l.org_mtd_pct,hb)+'</div>'
-        + '<div>YTD '+(l.ytd_dollars==null?"—":moneyKD(l.ytd_dollars))+cfp(l.ytd_pct,l.org_ytd_pct,hb)+'</div>'
-        + '<div style="color:var(--proj)">'+proj+' proj</div>';
+      const tr6 = (l.trend6||[]).map(t=>t.pct).filter(x=>typeof x==="number");
+      const sp = tr6.length>=2 ? '<div style="color:var(--ink-muted);font-size:10px;margin-top:2px">6-mo % of sales <span class="drillspark">'+sparkline(tr6,{w:84,h:18})+'</span> '+pct2(tr6[0])+' → '+pct2(tr6[tr6.length-1])+'</div>' : '';
+      const val = '<div>MTD '+(l.mtd_dollars==null?"—":moneyFull(l.mtd_dollars))+cfp(l.mtd_pct,l.org_mtd_pct,hb)+'</div>'
+        + '<div>YTD '+(l.ytd_dollars==null?"—":moneyFull(l.ytd_dollars))+cfp(l.ytd_pct,l.org_ytd_pct,hb)+'</div>'
+        + '<div style="color:var(--proj)">'+proj+' proj</div>' + sp;
       return dr(esc(l.label), val);
     }).join("");
     body = '<div class="crumb">'+crumb+'</div><div class="dsub">Each line: MTD · YTD actual ($ and % of sales, colored vs the org avg) · projection</div>'+rows
@@ -2298,6 +2306,43 @@ function renderHomeSalesRanker(data){
     { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"ranked by sales YoY", newBadge:true });
 }
 
+// MODULE — PAC% 6-month trend (top of the NUMBERS / projection screen). Scope-aggregate
+// (org for owner, the store for a GM), last 6 months including the current MTD.
+function renderNumbersPacTrend(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const t = (fin.pac_trend6 || []).filter(p=>p.pac_pct!=null);
+  if(t.length < 2) return "";
+  const vals = t.map(p=>p.pac_pct);
+  const cur = vals[vals.length-1], first = vals[0];
+  const delta = (cur!=null && first!=null) ? cur-first : null;
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const moAbbr = (m)=>{ const d=new Date(m+"T00:00:00Z"); return d.toLocaleString("en-US",{month:"short",timeZone:"UTC"}); };
+  const spark = sparkline(vals, {w:300,h:48});
+  const ticks = '<div class="pacx">'+t.map((p,i)=>'<span class="'+(i===t.length-1?"cur":"")+'">'+moAbbr(p.month)+'<b>'+pct2(p.pac_pct)+'</b></span>').join("")+'</div>';
+  const sub = '<b>'+pct2(cur)+'</b> this month (MTD)'+(delta!=null?' · <span class="'+(delta>=0?"fav":"unfav")+'">'+(delta>0?"+":"")+delta.toFixed(2)+'pp vs '+moAbbr(t[0].month)+'</span>':'')+' · 6-mo range '+pct2(lo)+'–'+pct2(hi);
+  return card("PAC% trend — last 6 months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. The latest point is the current MTD (preliminary).</div>',
+    { icon:"📉", newBadge:true });
+}
+
+// MODULE — Voice top-line (Owner/GM home): headline VOICE stats (OSAT / Accuracy /
+// Cleanliness + Digital %EAD) for the Combined org (owner) or the store. From voice_view.
+function renderHomeVoice(data){
+  const vv = data.voice_view;
+  if(!vv || !vv.kpis || !vv.kpis.length) return "";
+  const k = vv.kpis[0];
+  if(k.osat==null && k.accuracy==null && k.cleanliness==null && k.digital_ead==null) return "";
+  const f1 = (x)=> x!=null ? Number(x).toFixed(1)+"%" : "—";
+  const tiles = glanceTrio([
+    {label:"OSAT", value:f1(k.osat)},
+    {label:"Accuracy", value:f1(k.accuracy)},
+    {label:"Cleanliness", value:f1(k.cleanliness)},
+  ]);
+  const dead = (k.digital_ead!=null) ? '<div class="cap">Digital %EAD (got everything asked for): <b>'+f1(k.digital_ead)+'</b>'+(k.n!=null?' · n='+k.n:'')+'</div>' : '';
+  return card("Voice — top line", tiles + dead,
+    { icon:"⭐", info: (vv.data_through?"VOICE thru "+fmtDate(vv.data_through):"VOICE")+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -2305,6 +2350,7 @@ const MANIFEST = [
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   { id:"home_roundup",     lane:"TODAY", title:"Portfolio roundup",       render: renderHomeRoundup     },
   { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
+  { id:"home_voice",       lane:"TODAY", title:"Voice top line",          render: renderHomeVoice       },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
   { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
@@ -2313,6 +2359,7 @@ const MANIFEST = [
   // §11 DoorDash). Order: money BLUF → owner/sup store rollup → up-to-PAC ledger
   // → Sales→PAC waterfall → cost-% bullets → MTD invoice tracker → DoorDash
   // rates → LTO leaderboard. Every card drills (§10). All read data.financials.
+  { id:"numbers_pactrend", lane:"NUMBERS", title:"PAC% trend",            render: renderNumbersPacTrend },
   { id:"numbers_verdict",  lane:"NUMBERS", title:"Numbers — financials", render: renderNumbersVerdict,  newBadge:true },
   { id:"numbers_rollup",   lane:"NUMBERS", title:"By store",             render: renderNumbersRollup   },
   { id:"numbers_ledger",   lane:"NUMBERS", title:"Up-to-PAC P&L",        render: renderPacLedger,       newBadge:true },
