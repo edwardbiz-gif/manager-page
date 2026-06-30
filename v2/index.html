@@ -107,7 +107,12 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-tile);
  padding:14px 14px 15px;margin:0 0 13px;box-shadow:var(--sh-2);
  animation:rise .42s cubic-bezier(.2,.7,.3,1) both}
-@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+/* Slide only — NOT opacity. iOS Safari can strand an innerHTML-inserted element
+   at an animation's `from` keyframe until a compositing change; if we faded
+   opacity, the top 1-2 freshly-mounted cards would stay BLANK until you opened/
+   closed a sheet ("top two modules cut off"). Animating transform only means a
+   stranded card sits 7px low (imperceptible), never invisible. */
+@keyframes rise{from{transform:translateY(7px)}to{transform:none}}
 @media(prefers-reduced-motion:reduce){.card,.skel,.countup{animation:none!important}}
 .chead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
 .ctitle{font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
@@ -590,7 +595,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.19";
+const SHELL_VERSION = "v2-0.20";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2381,25 +2386,31 @@ function renderNumbersPacTrend(data){
   const spark = sparkline(vals, {w:300,h:48});
   const ticks = '<div class="pacx">'+t.map((p,i)=>'<span class="'+(i===t.length-1?"cur":"")+'">'+moAbbr(p.month)+'<b>'+pct2(p.pac_pct)+'</b></span>').join("")+'</div>';
   const sub = '<b>'+pct2(cur)+'</b> this month (MTD)'+(delta!=null?' · <span class="'+(delta>=0?"fav":"unfav")+'">'+(delta>0?"+":"")+delta.toFixed(2)+'pp vs '+moAbbr(t[0].month)+'</span>':'')+' · 6-mo range '+pct2(lo)+'–'+pct2(hi);
-  return card("PAC% trend — last 6 months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. The latest point is the current MTD (preliminary).</div>',
+  return card("PAC% trend — last 6 months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. Latest point = current MTD actuals with not-yet-posted costs estimated in (preliminary).</div>',
     { icon:"📉", newBadge:true });
 }
 
-// MODULE — Voice top-line (Owner/GM home): headline VOICE stats (OSAT / Accuracy /
-// Cleanliness + Digital %EAD) for the Combined org (owner) or the store. From voice_view.
+// MODULE — Voice (Owner/GM home): the prod GM-view VOICE module, CURRENT-MONTH (MTD)
+// only. Four SMG KPIs — OSAT / Accuracy / Digital %EAD / Cleanliness — for the Combined
+// org (owner) or the store (GM). The edge fn gates KPIs to the current month, so this
+// never shows last month; an unreported metric shows "—". From voice_view.kpis[0].
 function renderHomeVoice(data){
   const vv = data.voice_view;
   if(!vv || !vv.kpis || !vv.kpis.length) return "";
   const k = vv.kpis[0];
   if(k.osat==null && k.accuracy==null && k.cleanliness==null && k.digital_ead==null) return "";
   const f1 = (x)=> x!=null ? Number(x).toFixed(1)+"%" : "—";
-  const tiles = glanceTrio([
-    {label:"OSAT", value:f1(k.osat)},
-    {label:"Accuracy", value:f1(k.accuracy)},
-    {label:"Cleanliness", value:f1(k.cleanliness)},
-  ]);
-  const dead = (k.digital_ead!=null) ? '<div class="cap">Digital %EAD (got everything asked for): <b>'+f1(k.digital_ead)+'</b>'+(k.n!=null?' · n='+k.n:'')+'</div>' : '';
-  return card("Voice — top line", tiles + dead,
+  // month label from the data-through period (e.g. 2026-06-01 -> "June")
+  const moName = vv.data_through ? new Date(vv.data_through+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"}) : "";
+  const tiles = '<div class="trio">'+[
+    {l:"OSAT", v:f1(k.osat)},
+    {l:"Accuracy", v:f1(k.accuracy)},
+    {l:"Digital %EAD", v:f1(k.digital_ead)},
+    {l:"Cleanliness", v:f1(k.cleanliness)},
+  ].map(t=>'<div class="gtile"><div class="gl">'+t.l+'</div><div class="gv">'+t.v+'</div></div>').join("")+'</div>';
+  const foot = '<div class="cap">'+(k.n!=null?'n='+k.n+' surveys · ':'')
+    +(vv.sources&&vv.sources.length?esc(vv.sources.join(' / ')):'SMG VOICE')+'</div>';
+  return card("Voice — "+(moName?esc(moName)+" ":"")+"MTD", tiles + foot,
     { icon:"⭐", info: (vv.data_through?"VOICE thru "+fmtDate(vv.data_through):"VOICE")+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
 }
 
