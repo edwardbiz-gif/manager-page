@@ -553,7 +553,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.10";
+const SHELL_VERSION = "v2-0.11";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1336,7 +1336,7 @@ function renderPacLedger(data){
     // 3 months) renders amber/italic with a "~ … est" tag and NO org coloring.
     let mtdCell;
     if(l.mtd_placeholder){
-      mtdCell = '<span class="lcell ph" title="Placeholder — 3-month average; this line hasn’t posted yet this month">~'
+      mtdCell = '<span class="lcell ph" title="Placeholder ('+esc(l.mtd_placeholder_basis||"estimate")+') — this line hasn’t posted yet this month">~'
         + (l.mtd_dollars==null?"—":moneyKD(l.mtd_dollars))
         + (l.mtd_pct!=null?'<span class="lcsub ph">~'+pct1(l.mtd_pct)+' · est</span>':'')+'</span>';
     } else {
