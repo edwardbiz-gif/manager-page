@@ -596,7 +596,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.21";
+const SHELL_VERSION = "v2-0.22";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1090,7 +1090,7 @@ function renderPinnedRace(data){
   return card(esc(race.title||"June Cleanliness Race"),
     contestBody(race, data, { kind:"race", metricLabel:"Overall Cleanliness (VOICE)",
       prizes: race.prizes||["$150","$100","$50"] }),
-    { icon:"🧽", through: race.data_through ? ("VOICE · data thru "+esc(race.data_through)) : "VOICE" });
+    { icon:"🧽", info: "VOICE · "+voiceMtdLabel(race.data_through) });
 }
 
 // MODULE — pinned $100 June OSAT Incentive (in-money status + gap to threshold).
@@ -1102,7 +1102,7 @@ function renderPinnedOsat(data){
   return card(esc(oi.title||"$100 June OSAT Incentive"),
     contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
       threshold: oi.threshold, amount: oi.amount||"$100" }),
-    { icon:"💯", through: oi.data_through ? ("VOICE · data thru "+esc(oi.data_through)) : "VOICE" });
+    { icon:"💯", info: "VOICE · "+voiceMtdLabel(oi.data_through) });
 }
 
 // shared contest body — finds the viewer's store(s) in the standings and shows
@@ -1163,6 +1163,16 @@ function fmtDate(ts){
   if(!ts) return "";
   try{ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
   catch(_e){ return String(ts).slice(0,10); }
+}
+// VOICE/SMG monthly feeds carry period_start = month-START (e.g. 2026-06-01) and
+// represent the WHOLE current month month-to-date. So the honest label is
+// "<Month> MTD", NOT "data thru 2026-06-01" (which reads as "only through Jun 1")
+// and NOT fmtDate's "May 31" (a UTC-parse-then-local-display off-by-one). Parse in
+// UTC so the month never shifts.
+function voiceMtdLabel(iso){
+  if(!iso) return "VOICE";
+  try{ return new Date(iso+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"})+" MTD"; }
+  catch(_e){ return "VOICE"; }
 }
 function ageSince(ts){
   if(!ts) return "";
@@ -2050,7 +2060,7 @@ function renderTeamBonus(data){
     + '<span class="dpn" style="text-align:right;font-size:9px">'+(r.rank!=null?"rank "+r.rank:"")+'</span></div>').join("");
   return card("Bonus", body
     + '<div class="cap">Quarterly metric awards'+(mine.length?" + your true-up":"")+'. Pay figures are bonus awards only. From bonus_rankings / bonus_adjustments.</div>',
-    { icon:"💵", through: top[0]?("Q · "+esc(top[0].quarter||"")):null });
+    { icon:"💵", info: top[0]&&top[0].quarter?("through "+esc(top[0].quarter)):null });
 }
 
 // MODULE — Operations (Jolt): pre-shift completion + grill temps + sensor health.
@@ -2426,7 +2436,7 @@ function renderHomeVoice(data){
   const foot = '<div class="cap">'+(k.n!=null?'n='+k.n+' surveys · ':'')+'green/red vs portfolio · '
     +(vv.sources&&vv.sources.length?esc(vv.sources.join(' / ')):'SMG VOICE')+'</div>';
   return card("Voice — "+(moName?esc(moName)+" ":"")+"MTD", tiles + foot,
-    { icon:"⭐", info: (vv.data_through?"VOICE thru "+fmtDate(vv.data_through):"VOICE")+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
+    { icon:"⭐", info: "VOICE · "+voiceMtdLabel(vv.data_through)+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
 }
 
 const MANIFEST = [
