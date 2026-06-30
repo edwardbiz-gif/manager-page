@@ -596,7 +596,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.22";
+const SHELL_VERSION = "v2-0.23";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2478,7 +2478,9 @@ const MANIFEST = [
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
   { id:"team_shiftleaders", lane:"TEAM", title:"Shift-leader leaderboard",render: renderTeamShiftLeaders },
-  { id:"team_bonus",        lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
+  // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
+  // noise; re-enable when the Q3 LIVE bonus engine launches. renderTeamBonus kept.
+  // { id:"team_bonus",     lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
   { id:"team_operations",   lane:"TEAM", title:"Operations (Jolt)",       render: renderTeamOperations,    newBadge:true },
   { id:"team_waste",        lane:"TEAM", title:"Waste compliance",        render: renderTeamWaste        },
   // MORE — Owner-Hub overflow (GM-relevant subset; owner/sup tools render dark).
