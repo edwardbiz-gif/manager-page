@@ -269,6 +269,15 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .finmonth{display:flex;align-items:center;gap:8px;margin:0 0 11px}
 .finmonth label{text-transform:uppercase;font-size:8.5px;letter-spacing:.5px;font-weight:800;color:var(--ink-muted)}
 .finmonth select{font:inherit;font-size:12px;font-weight:800;padding:6px 10px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);min-height:34px;cursor:pointer}
+/* owner-home rankers (portfolio roundup + sales ranker) */
+.rkwrap{margin-top:11px}
+.rkrow{display:grid;grid-template-columns:16px .92fr .9fr .6fr .72fr;gap:5px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.rkrow:last-child{border-bottom:0}
+.rkrow .rkn{font-weight:900;color:var(--ink-muted);font-size:10px;text-align:center}
+.rkrow .rknm{font-weight:700;color:var(--ink-2);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rkrow .rkv{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;font-size:10.5px}
+.rkrow .rkv.fav{color:var(--good)} .rkrow .rkv.unfav{color:var(--bad)}
+.rkrow .rkv .rks{display:block;font-size:7px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.3px}
 /* conditional format of a % cell vs the 12-store org avg (out-specifies .lcsub) */
 .lrow .lcell .lcsub.fav{color:var(--good)} .lrow .lcell .lcsub.unfav{color:var(--bad)} .lrow .lcell .lcsub.neu{color:var(--ink-muted)}
 .lrow .lcell.ph{color:var(--warn);font-style:italic} .lrow .lcell.ph .lcsub.ph{color:var(--warn);opacity:.85;font-style:italic;font-weight:700}
@@ -562,7 +571,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.15";
+const SHELL_VERSION = "v2-0.16";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2238,11 +2247,64 @@ function openLaneSheet(kind, arg){
 }
 window.openLaneSheet = openLaneSheet;
 
+// ===== OWNER HOME modules (TODAY): portfolio roundup + sales ranker =====
+function yoySign(v){ return (v==null||isNaN(v)) ? "—" : (v>0?"+":"")+Number(v).toFixed(1)+"%"; }
+function avgChk(w){ return (w && w.gc) ? w.sales/w.gc : null; }
+
+// MODULE — Portfolio P&L roundup (Owner home): org MTD/YTD net sales + PAC, then the
+// 12 stores ranked by MTD PAC%. Owner/portfolio scope only; "" otherwise.
+function renderHomeRoundup(data){
+  const fin = data.financials || {};
+  const ps = (fin.per_store || []).filter(s=>s.mtd);
+  if(!data.scope_all || fin.error || ps.length < 2) return "";
+  let mNs=0,mPac=0,yNs=0,yPac=0;
+  for(const s of ps){ mNs+=(s.mtd.net_sales||0); mPac+=(s.mtd.pac_dollars||0); if(s.ytd){ yNs+=(s.ytd.net_sales||0); yPac+=(s.ytd.pac_dollars||0); } }
+  const mPacPct = mNs? mPac/mNs*100 : null, yPacPct = yNs? yPac/yNs*100 : null;
+  const ranked = ps.slice().sort((a,b)=>((b.mtd.pac_pct??-999)-(a.mtd.pac_pct??-999)));
+  const rows = ranked.map((s,i)=>
+    '<div class="rkrow"><span class="rkn">'+(i+1)+'</span>'
+    + '<span class="rknm">'+esc(s.store_name)+'</span>'
+    + '<span class="rkv">'+moneyFull(s.mtd.net_sales)+'<span class="rks">MTD sales</span></span>'
+    + '<span class="rkv '+(s.mtd.pac_pct!=null&&mPacPct!=null?(s.mtd.pac_pct>=mPacPct?"fav":"unfav"):"")+'">'+pct2(s.mtd.pac_pct)+'<span class="rks">PAC</span></span>'
+    + '<span class="rkv">'+pct2(s.ytd&&s.ytd.pac_pct)+'<span class="rks">YTD PAC</span></span></div>').join("");
+  const head = glanceTrio([
+    {label:"MTD net sales", value:moneyFull(mNs)},
+    {label:"MTD PAC", value:pct2(mPacPct)},
+    {label:"YTD PAC", value:pct2(yPacPct)},
+  ]);
+  return card("Portfolio roundup — MTD · YTD", head + '<div class="rkwrap">'+rows+'</div>',
+    { icon:"📊", info: ps.length+" stores · ranked by MTD PAC", newBadge:true });
+}
+
+// MODULE — Sales ranker (Owner home, from the Lab sales feed): 12 stores ranked by MTD
+// sales YoY%, with MTD GC YoY% + average check. Owner-only; "" otherwise.
+function renderHomeSalesRanker(data){
+  const sl = data.lab && data.lab.sales;
+  if(!sl || !sl.by_store || !sl.by_store.length) return "";
+  const ranked = sl.by_store.slice().sort((a,b)=>(((b.mtd&&b.mtd.yoy)??-999)-((a.mtd&&a.mtd.yoy)??-999)));
+  const rows = ranked.map((s,i)=>{ const m=s.mtd||{}; const ac=avgChk(m);
+    return '<div class="rkrow"><span class="rkn">'+(i+1)+'</span>'
+      + '<span class="rknm">'+esc(s.store_name)+'</span>'
+      + '<span class="rkv '+(m.yoy!=null?(m.yoy>=0?"fav":"unfav"):"")+'">'+yoySign(m.yoy)+'<span class="rks">sales YoY</span></span>'
+      + '<span class="rkv '+(m.gc_yoy!=null?(m.gc_yoy>=0?"fav":"unfav")+"":"")+'">'+yoySign(m.gc_yoy)+'<span class="rks">GC YoY</span></span>'
+      + '<span class="rkv">'+(ac!=null?"$"+ac.toFixed(2):"—")+'<span class="rks">avg check</span></span></div>'; }).join("");
+  const om = sl.mtd||{}; const oac=avgChk(om);
+  const head = glanceTrio([
+    {label:"MTD sales YoY", value:yoySign(om.yoy), cls:(om.yoy!=null?(om.yoy>=0?"fav":"unfav"):"")},
+    {label:"MTD GC YoY", value:yoySign(om.gc_yoy), cls:(om.gc_yoy!=null?(om.gc_yoy>=0?"fav":"unfav"):"")},
+    {label:"Avg check", value:(oac!=null?"$"+oac.toFixed(2):"—")},
+  ]);
+  return card("Sales ranker — 12 stores (MTD)", head + '<div class="rkwrap">'+rows+'</div>',
+    { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"ranked by sales YoY", newBadge:true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
   // pinned contest motivators (plan §2 "pinned to the top of TODAY").
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
+  { id:"home_roundup",     lane:"TODAY", title:"Portfolio roundup",       render: renderHomeRoundup     },
+  { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
   { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
