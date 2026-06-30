@@ -590,7 +590,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.18";
+const SHELL_VERSION = "v2-0.19";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2329,26 +2329,41 @@ function renderHomeRoundup(data){
     { icon:"📊", info: ps.length+" stores · ranked by MTD PAC", newBadge:true });
 }
 
-// MODULE — Sales ranker (Owner home, from the Lab sales feed): 12 stores ranked by MTD
-// sales YoY%, with MTD GC YoY% + average check. Owner-only; "" otherwise.
+// MODULE — Lab sales view (home). OWNER: 12 stores ranked by MTD sales YoY% (+ GC YoY +
+// avg check). GM (single store in scope): the same Lab sales view scoped to THEIR store —
+// three windows (Yesterday / MTD / YTD), each with sales YoY%, GC YoY% + average check.
 function renderHomeSalesRanker(data){
   const sl = data.lab && data.lab.sales;
   if(!sl || !sl.by_store || !sl.by_store.length) return "";
-  const ranked = sl.by_store.slice().sort((a,b)=>(((b.mtd&&b.mtd.yoy)??-999)-((a.mtd&&a.mtd.yoy)??-999)));
-  const rows = ranked.map((s,i)=>{ const m=s.mtd||{}; const ac=avgChk(m);
-    return '<div class="rkrow"><span class="rkn">'+(i+1)+'</span>'
-      + '<span class="rknm">'+esc(s.store_name)+'</span>'
-      + '<span class="rkv '+(m.yoy!=null?(m.yoy>=0?"fav":"unfav"):"")+'">'+yoySign(m.yoy)+'<span class="rks">sales YoY</span></span>'
-      + '<span class="rkv '+(m.gc_yoy!=null?(m.gc_yoy>=0?"fav":"unfav")+"":"")+'">'+yoySign(m.gc_yoy)+'<span class="rks">GC YoY</span></span>'
-      + '<span class="rkv">'+(ac!=null?"$"+ac.toFixed(2):"—")+'<span class="rks">avg check</span></span></div>'; }).join("");
   const om = sl.mtd||{}; const oac=avgChk(om);
   const head = glanceTrio([
     {label:"MTD sales YoY", value:yoySign(om.yoy), cls:(om.yoy!=null?(om.yoy>=0?"fav":"unfav"):"")},
     {label:"MTD GC YoY", value:yoySign(om.gc_yoy), cls:(om.gc_yoy!=null?(om.gc_yoy>=0?"fav":"unfav"):"")},
     {label:"Avg check", value:(oac!=null?"$"+oac.toFixed(2):"—")},
   ]);
-  return card("Sales ranker — 12 stores (MTD)", head + '<div class="rkwrap">'+rows+'</div>',
-    { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"ranked by sales YoY", newBadge:true });
+  // OWNER — 12-store ranker
+  if(sl.by_store.length >= 2){
+    const ranked = sl.by_store.slice().sort((a,b)=>(((b.mtd&&b.mtd.yoy)??-999)-((a.mtd&&a.mtd.yoy)??-999)));
+    const rows = ranked.map((s,i)=>{ const m=s.mtd||{}; const ac=avgChk(m);
+      return '<div class="rkrow"><span class="rkn">'+(i+1)+'</span>'
+        + '<span class="rknm">'+esc(s.store_name)+'</span>'
+        + '<span class="rkv '+(m.yoy!=null?(m.yoy>=0?"fav":"unfav"):"")+'">'+yoySign(m.yoy)+'<span class="rks">sales YoY</span></span>'
+        + '<span class="rkv '+(m.gc_yoy!=null?(m.gc_yoy>=0?"fav":"unfav")+"":"")+'">'+yoySign(m.gc_yoy)+'<span class="rks">GC YoY</span></span>'
+        + '<span class="rkv">'+(ac!=null?"$"+ac.toFixed(2):"—")+'<span class="rks">avg check</span></span></div>'; }).join("");
+    return card("Sales ranker — 12 stores (MTD)", head + '<div class="rkwrap">'+rows+'</div>',
+      { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"ranked by sales YoY", newBadge:true });
+  }
+  // GM — single-store Lab sales view: three windows
+  const stName = (sl.by_store[0]&&sl.by_store[0].store_name) || "your store";
+  const wins = [{lab:"Yesterday", w:sl.yesterday||{}},{lab:"This month", w:sl.mtd||{}},{lab:"Year to date", w:sl.ytd||{}}];
+  const rows = wins.map(({lab,w})=>{ const ac=avgChk(w);
+    return '<div class="rkrow"><span class="rkn"></span>'
+      + '<span class="rknm">'+lab+'</span>'
+      + '<span class="rkv '+(w.yoy!=null?(w.yoy>=0?"fav":"unfav"):"")+'">'+yoySign(w.yoy)+'<span class="rks">sales YoY</span></span>'
+      + '<span class="rkv '+(w.gc_yoy!=null?(w.gc_yoy>=0?"fav":"unfav"):"")+'">'+yoySign(w.gc_yoy)+'<span class="rks">GC YoY</span></span>'
+      + '<span class="rkv">'+(ac!=null?"$"+ac.toFixed(2):"—")+'<span class="rks">avg check</span></span></div>'; }).join("");
+  return card("Sales — "+esc(stName)+" (vs last year)", head + '<div class="rkwrap">'+rows+'</div>',
+    { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"Yesterday · MTD · YTD", newBadge:true });
 }
 
 // MODULE — PAC% 6-month trend (top of the NUMBERS / projection screen). Scope-aggregate
