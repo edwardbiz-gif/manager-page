@@ -284,6 +284,19 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .pacx span{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.25} .pacx span b{font-size:9px;color:var(--ink-2);font-weight:800}
 .pacx span.cur b{color:var(--good)}
 .drillspark{display:inline-block;width:84px;height:18px;vertical-align:middle;margin-left:6px}
+/* expandable complaint detail (Today lane) — matches the prod GM view */
+.cxrow{display:block;padding:0;border-bottom:1px solid var(--line)} .cxrow:last-child{border-bottom:0}
+.cxhead{padding:8px 0;cursor:pointer}
+.cxchev{display:inline-block;transition:transform .15s;color:var(--ink-muted);font-weight:900}
+.cxrow.open .cxchev{transform:rotate(90deg)}
+.cxbody{display:none;padding:0 0 11px} .cxrow.open .cxbody{display:block}
+.cxsec{margin-top:10px}
+.cxlab{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-muted);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cxquote{font-size:12px;line-height:1.45;color:var(--ink-2);background:var(--surface-2);border-radius:9px;padding:9px 11px;white-space:pre-wrap}
+.cxquote.draft{font-family:var(--font-mono,monospace);font-size:11px}
+.cxcontact{font-size:12px;color:var(--ink-2);line-height:1.8} .cxcontact .ck{display:inline-block;width:46px;font-size:8.5px;font-weight:800;text-transform:uppercase;color:var(--ink-muted)}
+.cxcopy{appearance:none;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-size:9px;font-weight:800;text-transform:uppercase;border-radius:7px;padding:3px 8px;cursor:pointer}
+.cxact{margin-top:12px}
 /* conditional format of a % cell vs the 12-store org avg (out-specifies .lcsub) */
 .lrow .lcell .lcsub.fav{color:var(--good)} .lrow .lcell .lcsub.unfav{color:var(--bad)} .lrow .lcell .lcsub.neu{color:var(--ink-muted)}
 .lrow .lcell.ph{color:var(--warn);font-style:italic} .lrow .lcell.ph .lcsub.ph{color:var(--warn);opacity:.85;font-style:italic;font-weight:700}
@@ -577,7 +590,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.17";
+const SHELL_VERSION = "v2-0.18";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1016,18 +1029,50 @@ function renderTodayComplaints(data){
   const body = enriched.map(c => {
     const issue = c.issue_subcode || c.issue_reason || c.issue_category || "Guest complaint";
     const sla = c._sla;
+    const cust = c.customer_name || "(unknown customer)";
+    const comment = (c.comment && String(c.comment).trim()) || "(no comment captured)";
+    const draft = extractDraft(c.task_description);
     const dchip = '<span class="duechip '+(sla.key==="over"?"over":sla.key==="today"?"today":"")+'">'+esc(sla.label)+'</span>';
     const rec = c.recovery_needed ? '<span class="pchip urgent">Recovery</span>' : '';
     const st = c.store_name ? '<span class="actsub">'+esc(c.store_name)+'</span>' : '';
-    return '<div class="actrow c-row" data-id="'+c.id+'">'
-      + '<div class="actmain"><div class="acttitle">'+esc(issue)+'</div>'
-      + '<div class="actsub">'+dchip+rec+'<span>#'+esc(c.case_number||c.id)+'</span>'
-      + '<span>received '+esc(ageSince(c.received_at))+'</span>'+st+'</div></div>'
-      + '<button class="actbtn" onclick="v2ResolveComplaint(event,this)">Resolve</button>'
-      + '</div>';
+    // expandable detail (matches the prod GM view): customer's words, contact +
+    // McD-portal close link, copyable draft response, Mark resolved.
+    const phoneLine = c.customer_phone ? '<div><span class="ck">Phone</span>'+esc(c.customer_phone)+'</div>' : '';
+    const emailLine = c.customer_email ? '<div><span class="ck">Email</span><a href="mailto:'+esc(c.customer_email)+'">'+esc(c.customer_email)+'</a></div>' : '';
+    const closureLine = c.closure_url ? '<div style="margin-top:5px"><a href="'+esc(c.closure_url)+'" target="_blank" rel="noopener" style="color:var(--proj);font-weight:800">→ Close case in McD portal</a></div>' : '';
+    const draftBlock = draft ? '<div class="cxsec"><div class="cxlab">Draft response email<button class="cxcopy" data-copy-id="'+c.id+'" onclick="copyDraft(event,this)">Copy</button></div><div class="cxquote draft" id="draft-'+c.id+'">'+esc(draft)+'</div></div>' : '';
+    return '<div class="c-row cxrow sla-'+sla.key+'" data-id="'+c.id+'">'
+      + '<div class="cxhead" onclick="toggleComplaint(this)">'
+        + '<div class="actmain"><div class="acttitle">'+esc(issue)+' <span class="cxchev">›</span></div>'
+        + '<div class="actsub">'+dchip+rec+'<span>#'+esc(c.case_number||c.id)+'</span><span>'+esc(ageSince(c.received_at))+'</span>'+st+'</div></div>'
+      + '</div>'
+      + '<div class="cxbody">'
+        + '<div class="cxsec"><div class="cxlab">'+esc(cust)+' — customer’s words</div><div class="cxquote">'+esc(comment)+'</div></div>'
+        + (phoneLine||emailLine||closureLine ? '<div class="cxsec"><div class="cxlab">Contact</div><div class="cxcontact">'+phoneLine+emailLine+closureLine+'</div></div>' : '')
+        + draftBlock
+        + '<div class="cxact"><button class="actbtn go" onclick="v2ResolveComplaint(event,this)">Mark resolved</button></div>'
+      + '</div></div>';
   }).join("");
   return card("Open complaints", body,
-    { icon:"📮", info: enriched.length+" open · live · McD Care 72h SLA" });
+    { icon:"📮", info: enriched.length+" open · tap to expand · McD Care 72h SLA" });
+}
+// extract the "Draft response email" body out of a linked task's description.
+function extractDraft(desc){
+  if(!desc) return "";
+  const m = String(desc).match(/\*\*Draft response email\*\*[^\n]*\n+([\s\S]+)$/);
+  return m ? m[1].trim() : "";
+}
+// expand/collapse a complaint detail (the c-row toggles the .open class).
+function toggleComplaint(headEl){ headEl.parentElement.classList.toggle("open"); }
+// copy the draft response to the clipboard.
+function copyDraft(ev, btn){
+  ev.stopPropagation();
+  const pre = document.getElementById("draft-"+btn.dataset.copyId); if(!pre) return;
+  const txt = pre.innerText;
+  const done = ()=>{ btn.textContent="Copied!"; setTimeout(()=>{ btn.textContent="Copy"; }, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>done());
+  } else { try{ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); done(); }catch(_e){ alert("Copy failed — select the draft manually."); } }
 }
 
 // MODULE — pinned June Cleanliness Race (this store's rank + gap to podium).
