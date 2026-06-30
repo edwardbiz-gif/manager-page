@@ -267,6 +267,10 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* conditional format of a % cell vs the 12-store org avg (out-specifies .lcsub) */
 .lrow .lcell .lcsub.fav{color:var(--good)} .lrow .lcell .lcsub.unfav{color:var(--bad)} .lrow .lcell .lcsub.neu{color:var(--ink-muted)}
 .lrow .lcell.ph{color:var(--warn);font-style:italic} .lrow .lcell.ph .lcsub.ph{color:var(--warn);opacity:.85;font-style:italic;font-weight:700}
+/* detailed P&L: group headers + data_pending (actual lumped, projection editable) rows */
+.lgroup{font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-muted);padding:9px 0 3px;margin-top:2px}
+.lrow.dp .lname{color:var(--ink-2);font-weight:500} .lrow.dp .lcell.dpc{color:var(--ink-muted);font-weight:600}
+.lname .adjnote{font-size:8px;font-weight:800;color:var(--warn);letter-spacing:.3px;text-transform:uppercase;margin-left:4px}
 .lrow .lcell .lcsub .org{font-weight:600;opacity:.7;font-size:7.5px;color:var(--ink-muted)}
 .lrow.sub{background:var(--surface-2);margin:0 -14px;padding-left:14px;padding-right:14px}
 .lrow.sub .lname{font-weight:800;color:var(--ink);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
@@ -553,7 +557,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.11";
+const SHELL_VERSION = "v2-0.12";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1247,13 +1251,13 @@ function renderPacLedger(data){
   const canEdit = roleMayEdit && !fin.read_only && !monthLocked;
   // month projections write to: the latest actual month (projection_target_month).
   const projMonth = fin.projection_target_month || meta.period_month || fin.projection_month || "";
-  // projected net sales = the $/% derivation denominator. Prefer the penciled
-  // projection net sales; fall back to the net_sales projection line value; then
-  // YTD/MTD actual so the mirror can still hint a number pre-meeting.
+  // projected net sales = the $/% derivation denominator. Projections are MONTHLY, so
+  // fall back to the YTD AVERAGE-PER-MONTH run rate (ytd_avg_month_dollars), not the
+  // cumulative YTD, then MTD actual — so the penciled $/% mirror uses a monthly basis.
   const nsProjLine = lineById.get("net_sales");
   const projNetSales = (meta.proj_net_sales!=null) ? meta.proj_net_sales
     : (nsProjLine && nsProjLine.projection && nsProjLine.projection.value_type==="dollars" ? nsProjLine.projection.value
-      : (nsProjLine ? (nsProjLine.ytd_dollars ?? nsProjLine.mtd_dollars) : null));
+      : (nsProjLine ? (nsProjLine.ytd_avg_month_dollars ?? nsProjLine.mtd_dollars ?? nsProjLine.ytd_dollars) : null));
 
   // lock state: any locked projection row drives the card-level lock banner.
   let lockedRow = null, openRow = null;
@@ -1332,6 +1336,17 @@ function renderPacLedger(data){
   const lr = (l, cls) => {
     const ytdTxt = l.ytd_dollars==null ? "—" : moneyKD(l.ytd_dollars);
     const hb = (l.line==="net_sales" || l.line==="pac");
+    // data_pending: the R365 actual is still lumped into a group column, so this detailed
+    // line has no own actual yet (shows "—", rolls into the subtotal) — but its PROJECTION
+    // is fully editable, which is the whole point of listing every Withum line.
+    if(l.data_pending){
+      const tip = 'Actual rolls into '+esc(l.lump_into||"its group")+' — itemized once the R365 GL detail is wired. Projection is editable.';
+      return '<div class="lrow dp'+(cls?" "+cls:"")+'">'
+        + '<span class="lname" title="'+tip+'">'+esc(l.label)+'</span>'
+        + '<span class="lcell dpc" title="'+tip+'">—</span>'
+        + '<span class="lcell dpc" title="'+tip+'">—</span>'
+        + projCell(l) + '</div>';
+    }
     // MTD cell: a placeholder (line not posted yet this month, est. from the prior
     // 3 months) renders amber/italic with a "~ … est" tag and NO org coloring.
     let mtdCell;
@@ -1349,52 +1364,54 @@ function renderPacLedger(data){
       + '<span class="lcell">'+ytdTxt+pctCell(l.ytd_pct, l.org_ytd_pct, hb)+'</span>'
       + projCell(l) + '</div>';
   };
-  // derived subtotal row (no projection — derived, not penciled, §9.2). MTD + YTD %
-  // both colored vs the org subtotal (cost lines: lower = better).
-  const sub = (label, mtd, ytd, mtdBase, ytdBase, ids) => {
-    const mPct = (mtd!=null && mtdBase) ? mtd/mtdBase*100 : null;
-    const yPct = (ytd!=null && ytdBase) ? ytd/ytdBase*100 : null;
-    const orgM = ids ? sumOrgPct(ids,"org_mtd_pct") : null, orgY = ids ? sumOrgPct(ids,"org_ytd_pct") : null;
-    return '<div class="lrow sub"><span class="lname">'+esc(label)+'</span>'
-      + '<span class="lcell">'+(mtd==null?"—":moneyKD(mtd))+pctCell(mPct,orgM,false)+'</span>'
-      + '<span class="lcell">'+(ytd==null?"—":moneyKD(ytd))+pctCell(yPct,orgY,false)+'</span>'
+  // subtotal row from the PRECOMPUTED columns (ties to Withum even though the detailed
+  // controllables are still lumped). % vs the net-sales base, colored vs an org %.
+  // `adj` = the MTD figure is placeholder-adjusted (includes estimates for lines not yet
+  // posted) → render amber.
+  const subRow = (label, mtdV, ytdV, mB, yB, hb, orgM, orgY, adj) => {
+    const mPct = (mtdV!=null && mB) ? mtdV/mB*100 : null;
+    const yPct = (ytdV!=null && yB) ? ytdV/yB*100 : null;
+    const mCell = adj
+      ? '<span class="lcell ph" title="Includes ~placeholder estimates for lines not yet posted this month">~'+(mtdV==null?"—":moneyKD(mtdV))+(mPct!=null?'<span class="lcsub ph">~'+pct1(mPct)+'</span>':'')+'</span>'
+      : '<span class="lcell">'+(mtdV==null?"—":moneyKD(mtdV))+pctCell(mPct,orgM,hb)+'</span>';
+    return '<div class="lrow sub"><span class="lname">'+esc(label)+(adj?' <span class="adjnote">incl. est</span>':'')+'</span>'
+      + mCell
+      + '<span class="lcell">'+(ytdV==null?"—":moneyKD(ytdV))+pctCell(yPct,orgY,hb)+'</span>'
       + '<span class="lcell" style="color:var(--ink-muted)">—</span></div>';
   };
-  const get = (id) => lineById.get(id) || { line:id, label:id, mtd_dollars:null, ytd_dollars:null, ytd_pct:null, projection_pending:true };
-  const sumD = (ids, field) => { let any=false,t=0; for(const id of ids){ const v=(lineById.get(id)||{})[field]; if(v!=null){any=true;t+=v;} } return any?t:null; };
-  const cogsIds=["food","paper","waste"], laborIds=["crew_labor","mgmt_labor","payroll_burden"], ctrlIds=["advertising","delivery_fees","other_controllable"];
+  const get = (id) => lineById.get(id) || { line:id, label:id, mtd_dollars:null, ytd_dollars:null, projection_pending:true };
   const nsLine = get("net_sales");
-  const base = nsLine.ytd_dollars;
-  const mtdCogs=sumD(cogsIds,"mtd_dollars"), ytdCogs=sumD(cogsIds,"ytd_dollars");
-  const mtdLabor=sumD(laborIds,"mtd_dollars"), ytdLabor=sumD(laborIds,"ytd_dollars");
-  const mtdCtrl=sumD(ctrlIds,"mtd_dollars"), ytdCtrl=sumD(ctrlIds,"ytd_dollars");
-  const gp = (base!=null && ytdCogs!=null) ? base-ytdCogs : null;
-  const gpM = (nsLine.mtd_dollars!=null && mtdCogs!=null) ? nsLine.mtd_dollars-mtdCogs : null;
-  const pacLine = get("pac");
-
-  const mtdBase = nsLine.mtd_dollars;
-  // Gross Profit %s (higher = better) vs org GP% (= 100 − org COGS%).
-  const gpMpct = (gpM!=null && mtdBase) ? gpM/mtdBase*100 : null;
-  const gpYpct = (gp!=null && base) ? gp/base*100 : null;
-  const orgCogsM = sumOrgPct(cogsIds,"org_mtd_pct"), orgCogsY = sumOrgPct(cogsIds,"org_ytd_pct");
+  const subM = (f.subtotals && f.subtotals.mtd) || {}, subY = (f.subtotals && f.subtotals.ytd) || {};
+  const mtdBase = subM.net_sales!=null ? subM.net_sales : nsLine.mtd_dollars;
+  const base    = subY.net_sales!=null ? subY.net_sales : nsLine.ytd_dollars;
+  // placeholder total (MTD): costs not yet posted ADD to Total Control + SUBTRACT from PAC,
+  // so the totals reflect the placeholders.
+  let phM = 0, hasPh = false;
+  for(const l of lines){ if(l.mtd_placeholder && l.mtd_dollars!=null){ phM += (l.mtd_dollars - (l.mtd_actual_raw||0)); hasPh = true; } }
+  const tcM = subM.total_control!=null ? subM.total_control + phM : null;
+  const pacM = subM.pac!=null ? subM.pac - phM : null;
+  const orgCogsM = sumOrgPct(["food","paper"],"org_mtd_pct"), orgCogsY = sumOrgPct(["food","paper"],"org_ytd_pct");
   const orgGpM = orgCogsM!=null ? Math.round((100-orgCogsM)*10)/10 : null, orgGpY = orgCogsY!=null ? Math.round((100-orgCogsY)*10)/10 : null;
+  const pacLn = get("pac");
+  const gh = (t) => '<div class="lgroup">'+esc(t)+'</div>';
+  const cogsLines = lines.filter(l=>l.section==="cogs");
+  const ctrlLines = lines.filter(l=>l.section==="controllable");
 
   const ledger =
       lr(nsLine, "sub")
-    + cogsIds.map(id=>lr(get(id))).join("")
-    + sub("COGS", mtdCogs, ytdCogs, mtdBase, base, cogsIds)
-    + '<div class="lrow"><span class="lname" style="font-weight:800;color:var(--ink)">Gross Profit</span>'
-      + '<span class="lcell fav">'+(gpM==null?"—":moneyKD(gpM))+pctCell(gpMpct,orgGpM,true)+'</span>'
-      + '<span class="lcell fav">'+(gp==null?"—":moneyKD(gp))+pctCell(gpYpct,orgGpY,true)+'</span>'
-      + '<span class="lcell" style="color:var(--ink-muted)">—</span></div>'
-    + laborIds.map(id=>lr(get(id))).join("")
-    + sub("Total Labor", mtdLabor, ytdLabor, mtdBase, base, laborIds)
-    + ctrlIds.map(id=>lr(get(id))).join("")
-    + sub("Other Controllable", mtdCtrl, ytdCtrl, mtdBase, base, ctrlIds)
-    + '<div class="lrow pac"><span class="lname">P.A.C.</span>'
-      + '<span class="lcell fav">'+(pacLine.mtd_dollars==null?"—":moneyKD(pacLine.mtd_dollars))+pctCell(pacLine.mtd_pct,pacLine.org_mtd_pct,true)+'</span>'
-      + '<span class="lcell fav">'+(pacLine.ytd_dollars==null?"—":moneyKD(pacLine.ytd_dollars))+pctCell(pacLine.ytd_pct,pacLine.org_ytd_pct,true)+'</span>'
-      + projCell(pacLine) + '</div>';
+    + gh("Cost of sales")
+    + cogsLines.map(l=>lr(l)).join("")
+    + subRow("Total Cost of sales", subM.cogs, subY.cogs, mtdBase, base, false, orgCogsM, orgCogsY, false)
+    + subRow("Gross Profit", subM.gross_profit, subY.gross_profit, mtdBase, base, true, orgGpM, orgGpY, false)
+    + gh("Controllable Operating Expenses")
+    + ctrlLines.map(l=>lr(l)).join("")
+    + subRow("Total Control Expenses", tcM, subY.total_control, mtdBase, base, false, null, null, hasPh)
+    + '<div class="lrow pac"><span class="lname">Profit After controllables (PAC)'+(hasPh?' <span class="adjnote">incl. est</span>':'')+'</span>'
+      + (hasPh
+          ? '<span class="lcell ph" title="MTD PAC less ~placeholder estimates for costs not yet posted">~'+(pacM==null?"—":moneyKD(pacM))+(pacM!=null&&mtdBase?'<span class="lcsub ph">~'+pct1(pacM/mtdBase*100)+'</span>':'')+'</span>'
+          : '<span class="lcell fav">'+(subM.pac==null?"—":moneyKD(subM.pac))+pctCell((subM.pac!=null&&mtdBase?subM.pac/mtdBase*100:null), pacLn.org_mtd_pct, true)+'</span>')
+      + '<span class="lcell fav">'+(subY.pac==null?"—":moneyKD(subY.pac))+pctCell((subY.pac!=null&&base?subY.pac/base*100:null), pacLn.org_ytd_pct, true)+'</span>'
+      + projCell(pacLn) + '</div>';
 
   const orgN = (fin.org && fin.org.store_count) || 12;
   const body = lockBar
@@ -1404,7 +1421,8 @@ function renderPacLedger(data){
       + '<b>Projection</b> from pnl_projection ('+(allPending?"pending — set at the monthly meeting":"$ for revenue/PAC, % of sales for cost lines")+'). '
       + 'Each line shows <b>$ and % of sales</b>; the % is <b style="color:var(--good)">colored vs the '+orgN+'-store org average</b> '
       + '(<span style="color:var(--good)">green</span> = better, <span style="color:var(--bad)">red</span> = worse, ±0.3pp = in line; cost lines lower = better). Tap a % for the org avg. '
-      + 'An <b style="color:var(--warn);font-style:italic">~amber italic "est"</b> MTD value is a <b>placeholder</b> — that line hasn’t posted yet this month, so it shows the <b>trailing 3-month average</b> (not colored vs org).</div>';
+      + 'An <b style="color:var(--warn);font-style:italic">~amber italic "est"</b> MTD value is a <b>placeholder</b> until a reasonable number posts — the <b>trailing 3-month average</b> (or a fixed rate, e.g. advertising 3.58%); the <b>Total Control &amp; PAC totals include these estimates</b>. '
+      + 'Every <b>Withum line</b> is listed and <b>projectable</b>; a detailed line showing <b>"—"</b> means its actual still rolls into the group subtotal (itemized once the R365 GL detail is wired).</div>';
   return card("Up-to-PAC P&L", body, { icon:"📐", through: f.store_name+" · YTD"+(thru?" thru "+thru:""), newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
 }
 
@@ -1437,8 +1455,13 @@ function renderNumbersBullets(data){
   const cl = f && f.cost_lines;
   if(!cl || !cl.length) return card("Cost discipline", '<div class="empline">No cost-% lines for the in-scope store yet.</div>', { icon:"📏" });
   const body = '<div class="bset">'
-    + cl.map(c=>bullet(c.label, c.pct, c.target, null, "%")).join("")
-    + '</div><div class="cap">Bars show the <b>YTD level</b>. The vertical target mark is <b>pending source</b> — no sourced cost/PAC target column exists yet (plan §6.4). Colored by favorability (lower = better).</div>';
+    + cl.map(c=>{
+        const note = (c.target!=null)
+          ? ("Target ≤ "+pct1(c.target)+"% — org −8% stretch"+(c.org_pct!=null?" (org "+pct1(c.org_pct)+"%)":"")+(typeof c.pct==="number"&&c.pct>c.target?" · over by "+pct1(c.pct-c.target)+"%":" · in band"))
+          : null;
+        return bullet(c.label, c.pct, c.target, null, "%", note);
+      }).join("")
+    + '</div><div class="cap">Bars show the <b>YTD level</b>. The target mark is a <b>stretch target = the 12-store org average −8%</b> (8% better than the org; no sourced target column yet, plan §6.4). Colored by favorability (lower = better).</div>';
   return card("Cost discipline", body, { icon:"📏", through: f.store_name+" · YTD"+(finThru(fin)?" thru "+finThru(fin):""), drill:{kind:"bullets", store_id:f.store_id} });
 }
 
@@ -1617,9 +1640,9 @@ function openNumbersSheet(kind, arg){
     const s = finStoreById(fin, arg&&arg.store_id); const cl = s&&s.cost_lines||[];
     title = (s?s.store_name+" · ":"")+"Cost discipline";
     crumb = "Numbers › "+(s?esc(s.store_name)+" › ":"")+"<b>Cost lines</b>";
-    body = '<div class="crumb">'+crumb+'</div><div class="dsub">YTD level (target pending source)</div>'
-      + cl.map(c=>dr(esc(c.label), pct2(c.pct)+" · target pending")).join("")
-      + '<div class="cap">No sourced cost/PAC target column yet (plan §6.4) — the level is shown honestly. Data thru '+esc(thru)+'.</div>';
+    body = '<div class="crumb">'+crumb+'</div><div class="dsub">YTD level vs org −8% stretch target</div>'
+      + cl.map(c=>dr(esc(c.label), pct2(c.pct)+(c.target!=null?' · target ≤ '+pct1(c.target)+'% (org −8%)'+(c.org_pct!=null?' · org '+pct1(c.org_pct)+'%':''):' · target pending'))).join("")
+      + '<div class="cap">Target = the 12-store org average −8% (8% better than org); no sourced target column yet (plan §6.4). Data thru '+esc(thru)+'.</div>';
   } else if(kind==="invoice"){
     const inv = fin.invoices; title = "MTD invoices · line breakdown"; crumb = "Numbers › <b>Invoice detail</b>";
     const rows = (inv&&inv.lines||[]).slice().sort((a,b)=>((b.posted+b.in_flight)-(a.posted+a.in_flight))).map(l=>{
