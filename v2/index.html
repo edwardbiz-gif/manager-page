@@ -148,6 +148,7 @@ body[data-theme="arches"] .newbadge{color:#7dd3fc;background:#0c2733;border-colo
 
 /* glance trio */
 .trio{display:flex;gap:8px}
+.trio.voicewrap{flex-wrap:wrap}.trio.voicewrap .gtile{flex:1 1 28%;min-width:84px}
 .gtile{flex:1;min-width:0;text-align:center;background:var(--surface-2);border:1px solid var(--line);
  border-radius:13px;padding:9px 4px 8px}
 .gtile .gl{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-muted)}
@@ -595,7 +596,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.20";
+const SHELL_VERSION = "v2-0.21";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2331,7 +2332,7 @@ function renderHomeRoundup(data){
     {label:"YTD PAC", value:pct2(yPacPct)},
   ]);
   return card("Portfolio roundup — MTD · YTD", head + '<div class="rkwrap">'+rows+'</div>',
-    { icon:"📊", info: ps.length+" stores · ranked by MTD PAC", newBadge:true });
+    { icon:"📊", info: ps.length+" stores · ranked by MTD PAC"+(finThru(fin)?" · data thru "+finThru(fin):""), newBadge:true });
 }
 
 // MODULE — Lab sales view (home). OWNER: 12 stores ranked by MTD sales YoY% (+ GC YoY +
@@ -2387,7 +2388,7 @@ function renderNumbersPacTrend(data){
   const ticks = '<div class="pacx">'+t.map((p,i)=>'<span class="'+(i===t.length-1?"cur":"")+'">'+moAbbr(p.month)+'<b>'+pct2(p.pac_pct)+'</b></span>').join("")+'</div>';
   const sub = '<b>'+pct2(cur)+'</b> this month (MTD)'+(delta!=null?' · <span class="'+(delta>=0?"fav":"unfav")+'">'+(delta>0?"+":"")+delta.toFixed(2)+'pp vs '+moAbbr(t[0].month)+'</span>':'')+' · 6-mo range '+pct2(lo)+'–'+pct2(hi);
   return card("PAC% trend — last 6 months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. Latest point = current MTD actuals with not-yet-posted costs estimated in (preliminary).</div>',
-    { icon:"📉", newBadge:true });
+    { icon:"📉", info: (finThru(fin)?"data thru "+finThru(fin):""), newBadge:true });
 }
 
 // MODULE — Voice (Owner/GM home): the prod GM-view VOICE module, CURRENT-MONTH (MTD)
@@ -2402,13 +2403,27 @@ function renderHomeVoice(data){
   const f1 = (x)=> x!=null ? Number(x).toFixed(1)+"%" : "—";
   // month label from the data-through period (e.g. 2026-06-01 -> "June")
   const moName = vv.data_through ? new Date(vv.data_through+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"}) : "";
-  const tiles = '<div class="trio">'+[
-    {l:"OSAT", v:f1(k.osat)},
-    {l:"Accuracy", v:f1(k.accuracy)},
-    {l:"Digital %EAD", v:f1(k.digital_ead)},
-    {l:"Cleanliness", v:f1(k.cleanliness)},
-  ].map(t=>'<div class="gtile"><div class="gl">'+t.l+'</div><div class="gv">'+t.v+'</div></div>').join("")+'</div>';
-  const foot = '<div class="cap">'+(k.n!=null?'n='+k.n+' surveys · ':'')
+  const org = vv.org || {};
+  // conditional-format each metric vs the org/portfolio benchmark (all 5 higher=better).
+  // green = above org, red = below, neutral within a ±0.3pp dead-band / no benchmark.
+  const fmtVs = (val, bench)=>{
+    if(val==null) return {v:"—", cls:""};
+    if(bench==null) return {v:f1(val), cls:""};
+    const d = val - bench;
+    return {v:f1(val), cls: (Math.abs(d) <= 0.3 ? "" : (d > 0 ? "fav" : "unfav"))};
+  };
+  const metrics = [
+    {l:"OSAT", val:k.osat, b:org.osat},
+    {l:"Accuracy", val:k.accuracy, b:org.accuracy},
+    {l:"Digital %EAD", val:k.digital_ead, b:org.digital_ead},
+    {l:"Cleanliness", val:k.cleanliness, b:org.cleanliness},
+    {l:"Exec. as Designed", val:k.executed_as_designed, b:org.executed_as_designed},
+  ];
+  const tiles = '<div class="trio voicewrap">'+metrics.map(m=>{ const f=fmtVs(m.val,m.b);
+    return '<div class="gtile"><div class="gl">'+m.l+'</div><div class="gv '+f.cls+'">'+f.v+'</div>'
+      +(m.b!=null?'<div class="gs">org '+f1(m.b)+'</div>':'')+'</div>';
+  }).join("")+'</div>';
+  const foot = '<div class="cap">'+(k.n!=null?'n='+k.n+' surveys · ':'')+'green/red vs portfolio · '
     +(vv.sources&&vv.sources.length?esc(vv.sources.join(' / ')):'SMG VOICE')+'</div>';
   return card("Voice — "+(moName?esc(moName)+" ":"")+"MTD", tiles + foot,
     { icon:"⭐", info: (vv.data_through?"VOICE thru "+fmtDate(vv.data_through):"VOICE")+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
