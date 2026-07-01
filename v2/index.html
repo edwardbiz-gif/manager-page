@@ -510,6 +510,40 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
 /* full-standings expander (race/osat) + shift-leader daypart tables (TEAM lane) */
 .stexp{margin-top:10px}
+/* Floor / call-off card (v2-0.27, ported from the prod labor-bar lb-/ls- styles) */
+.lb-counts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+.lb-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.lb-pill b{color:var(--ink)}
+.lb-sub{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:800;margin:10px 0 3px}
+.lb-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.lb-row:last-child{border-bottom:0}
+.lb-st{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;background:var(--accent);color:var(--on-accent);text-transform:uppercase;white-space:nowrap}
+.lb-who{flex:1;min-width:0;line-height:1.3;color:var(--ink-2)}
+.lb-who .lb-id{color:var(--ink-muted);font-size:11px}
+.lb-id{color:var(--ink-muted);font-size:11px}
+.lb-hrs{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
+.lb-hrs.ot{color:var(--bad)}
+.lb-btn{font-size:11px;font-weight:700;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--ink-2);cursor:pointer}
+.lb-btn.warn{border-color:var(--bad);color:var(--bad)}
+.lb-co{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:var(--bad-bg);font-size:12px;margin-bottom:4px}
+.lb-form{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0;font-size:12px}
+.lb-form select,.lb-form input{font-size:12px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;margin:3px 0;box-sizing:border-box}
+.lb-form label{display:block;font-size:10px;text-transform:uppercase;color:var(--ink-muted);font-weight:700;margin-top:4px}
+.lb-actions{display:flex;gap:6px;margin-top:6px}
+.lb-empty{font-size:12px;color:var(--ink-muted);padding:6px 0}
+.lb-fl{font-weight:800;color:var(--ink)}
+.lb-floor .lb-who{font-weight:800;color:var(--accent)}
+.lb-mgr .lb-who{font-weight:800;color:#6c4cd6}
+.lb-st.lb-r1,.lb-st.lb-r2{background:var(--accent);color:var(--on-accent)}
+.lb-st.lb-r3,.lb-st.lb-r4,.lb-st.lb-r5{background:#6c4cd6;color:#fff}
+.lb-st.lb-stn{background:var(--surface-3);color:var(--ink-2)}
+.ls-bar{display:flex;gap:0;margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ls-n{flex:1;text-align:center;padding:8px 4px;border-right:1px solid var(--line)}
+.ls-n:last-child{border-right:0}
+.ls-v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ls-l{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:700;margin-top:2px}
+.ls-l span{font-weight:600;text-transform:none;letter-spacing:0}
+.ls-soon{font-size:11px;font-weight:700;color:var(--ink-muted)}
 /* Shift-Leader Scorecard (QSRSoft) — v2-0.26 */
 .mrcand{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:2px 7px;margin:2px 0 4px}
 .mrstale{font-size:11px;line-height:1.45;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:7px 9px;margin:6px 0}
@@ -618,7 +652,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.26";
+const SHELL_VERSION = "v2-0.27";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2067,6 +2101,150 @@ function renderTeamLabor(data){
   return card("Labor %", body, { icon:"⏱️", through: dl.data_through?fmtDate(dl.data_through):null, newBadge:true, drill:{kind:"deploy"} });
 }
 
+// MODULE — Floor / call-off (v2-0.27 port of prod renderLaborSummary +
+// renderLaborBar — task #25, "who's on the floor now"). Reads
+// data.datapass_labor.labor_summary (floor leader now + Today/Yesterday/MTD/OT
+// labor bar) + .labor_bar (on-now / up-next / called-off from the LSCHD
+// schedule, week-to-date ACTUAL hours per person, today's call-offs). The
+// "Today" live-labor cell is a COMING-SOON placeholder (needs an intraday
+// feed — the in-progress punch number was unreliable). Call-off writes POST
+// calloff_mark / calloff_resolve via v2CallApi (RO tokens rejected server-side,
+// inScope enforced, audited); the buttons are hidden on view-only links
+// (labor_bar.names_shown === false). Crew names are server-gated ("First L."
+// non-RO, GEID-only for RO/guest) — the shell never re-derives a name.
+const DP_STATION_LABEL={Grill:"Grill",DriveThru:"Drive-Thru",FrontCounter:"Front Cntr",Fries:"Fries",Floor:"Floor",McCafe:"McCafe"};
+function dpHM(b){ // HH:MM from a full timestamp ("...T04:30:00" / "... 04:30:00") OR a time-only string
+  var s=String(b||"");
+  if(s.length>=16 && (s.charAt(10)==='T'||s.charAt(10)===' ')) return s.slice(11,16);
+  var m=s.match(/(\d{1,2}):(\d{2})/);
+  return m ? (('0'+m[1]).slice(-2)+':'+m[2]) : s.slice(11,16);
+}
+function dpSL(s){ return DP_STATION_LABEL[s]||s||"—"; }
+function renderTeamFloor(data){
+  const dl = data.datapass_labor;
+  const ls = dl && dl.labor_summary, lb = dl && dl.labor_bar;
+  if(!dl || (!ls && !lb)){
+    return card("Floor — who's on now", '<div class="empline">No DataPass schedule/labor data for the selected store yet.</div>', { icon:"🧑‍🍳" });
+  }
+  const tile=(dl.tiles||[]).find(t=>t.nsn===dl.selected_nsn);
+  const sid=tile?tile.store_id:null, storeName=tile?tile.name:"";
+  const canWrite = !!(lb && lb.names_shown !== false && sid);   // RO links: read-only, no call-off buttons
+  const pct=v=>(v==null)?"—":Number(v).toFixed(1)+"%";
+  const idS=g=>'#'+String(g).slice(-4);
+  const who=p=>(p&&p.name)?esc(p.name):idS(p&&p.geid);
+  let body="";
+  if(ls){
+    const fl=ls.floor_leader;
+    const others=(ls.leaders||[]).filter(l=>!l.is_floor_leader);
+    body += '<div class="cap" style="margin-top:0">Shift leader now: '+(fl
+      ? '<span class="lb-fl">'+who(fl)+'</span> <span class="lb-st lb-r'+(fl.role_rank||9)+'">'+esc(fl.role||"")+'</span>'+(others.length?' <span class="lb-id">+ '+others.length+' mgr'+(others.length>1?'s':'')+'</span>':'')
+      : '<span class="lb-id">no manager on the floor right now</span>')+'</div>';
+    const ot=ls.overtime||{};
+    const n=(label,val,sub)=>'<div class="ls-n"><div class="ls-v">'+val+'</div><div class="ls-l">'+label+(sub?('<br><span>'+sub+'</span>'):'')+'</div></div>';
+    body += '<div class="ls-bar">'
+      + n('Today','<span class="ls-soon">coming soon</span>','live feed')
+      + n('Yesterday', pct(ls.yesterday&&ls.yesterday.labor_pct), esc(String((ls.yesterday&&ls.yesterday.date)||'')))
+      + n('MTD', pct(ls.mtd&&ls.mtd.labor_pct), (ls.mtd?(ls.mtd.days+'d'):''))
+      + n('Overtime', (ot.people||0)+(ot.hours?(' · '+ot.hours+'h'):''), 'wk-to-date')
+      + '</div>'
+      + '<div class="cap">Today&rsquo;s live labor % is coming soon (needs an intraday feed — likely the LifeLenz API; the in-progress punch number was unreliable). MTD = available feed days ('+esc(String((ls.mtd&&ls.mtd.from)||''))+'–'+esc(String((ls.mtd&&ls.mtd.through)||''))+'). OT = staff 40h+ this week (look-back). Leader is from the schedule.</div>';
+  }
+  if(lb){
+    const c=lb.counts||{};
+    const ROLE_CLASS={1:'lb-r1',2:'lb-r2',3:'lb-r3',4:'lb-r4',5:'lb-r5'};
+    const roleBadge=p=>(!p||p.role_rank==null||p.role_rank>=9)?'':'<span class="lb-st '+(ROLE_CLASS[p.role_rank]||'')+'">'+esc(p.role_label||p.role||'')+'</span>';
+    const rowCls=p=>p&&p.is_floor_leader?' lb-floor':((p&&p.role_rank!=null&&p.role_rank<9)?' lb-mgr':'');
+    const offBtn=p=>canWrite?('<button class="lb-btn warn" onclick="v2LbMarkOff(event,'+sid+',\''+esc(p.geid)+'\')">call off</button>'):'';
+    const hrs=p=>(p.week_hours==null)?'':('<span class="lb-hrs'+(p.week_hours>=40?' ot':'')+'">'+p.week_hours+'h</span>');
+    let d='<div class="lb-counts"><span class="lb-pill"><b>'+(c.on_now||0)+'</b> on floor</span><span class="lb-pill"><b>'+(c.up_next||0)+'</b> up next</span><span class="lb-pill"><b>'+(c.called_off||0)+'</b> called off</span><span class="lb-pill"><b>'+(c.bench||0)+'</b> off today</span></div>';
+    d+='<div class="cap">&ldquo;On floor&rdquo; is from the <b>schedule</b> as of '+esc(dpHM(lb.as_of))+' (punch actuals lag); the hours pill is <b>actual</b> worked this week (look-back, 40h+ flagged).'+(lb.names_shown===false?' Crew shown by ID + station only on this view-only link.':'')+'</div>';
+    if((lb.call_offs||[]).length){
+      d+='<div class="lb-sub">Called off today</div>';
+      lb.call_offs.forEach(co=>{
+        d+='<div class="lb-co"><span class="lb-st lb-stn">'+esc(dpSL(co.station))+'</span><span class="lb-who">'+who(co)
+          +(co.replacement_geid?(' &rarr; cover '+(co.replacement_name?esc(co.replacement_name):idS(co.replacement_geid))):' · <i>needs cover</i>')+'</span>'
+          +(canWrite?('<button class="lb-btn" onclick="v2LbCancelOff(event,'+co.id+')">undo</button>'):'')+'</div>';
+      });
+    }
+    d+='<div class="lb-sub">On floor now ('+(c.on_now||0)+')</div>';
+    if((lb.on_now||[]).length){
+      lb.on_now.forEach(p=>{
+        d+='<div class="lb-row'+rowCls(p)+'"><span class="lb-st lb-stn">'+esc(dpSL(p.station))+'</span>'+roleBadge(p)+'<span class="lb-who">'+who(p)+' <span class="lb-id">til '+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
+      });
+    } else { d+='<div class="lb-empty">No one scheduled on the floor right now.</div>'; }
+    if((lb.up_next||[]).length){
+      d+='<div class="lb-sub">Up next today ('+lb.up_next.length+')</div>';
+      lb.up_next.forEach(p=>{
+        d+='<div class="lb-row'+rowCls(p)+'"><span class="lb-st lb-stn">'+esc(dpSL(p.station))+'</span>'+roleBadge(p)+'<span class="lb-who">'+who(p)+' <span class="lb-id">'+esc(dpHM(p.shift_start))+'–'+esc(dpHM(p.shift_end))+'</span></span>'+hrs(p)+offBtn(p)+'</div>';
+      });
+    }
+    d+='<div id="lbForm"></div>';
+    if(lb.replacement_contact_note) d+='<div class="cap">'+esc(lb.replacement_contact_note)+'</div>';
+    body += '<details class="stexp" '+((lb.call_offs||[]).length?'open':'')+'><summary>Who&rsquo;s on the floor · call-offs ('+(c.on_now||0)+' on now'+((c.called_off||0)?(' · '+c.called_off+' off'):'')+')</summary>'+d+'</details>';
+  }
+  const thru = ls && ls.yesterday && ls.yesterday.date ? ls.yesterday.date : dl.data_through;
+  // bare YYYY-MM-DD parses as UTC midnight -> local prior evening; anchor to
+  // local midnight so the label matches the date shown in the Yesterday tile.
+  const thruLbl = thru ? fmtDate(String(thru).length===10 ? (thru+"T00:00:00") : thru) : null;
+  return card("Floor — who's on now"+(storeName?(" · "+storeName):""), body,
+    { icon:"🧑‍🍳", info: "live schedule as of "+dpHM(lb?lb.as_of:"")+(thruLbl?(" · labor % thru "+thruLbl):""), newBadge:true });
+}
+
+// call-off write path (v2-0.27) — POSTs calloff_mark / calloff_resolve via the
+// v2 action spine (v2CallApi -> full-payload re-gather -> renderBoard repaint).
+// RO tokens are rejected server-side before dispatch; inScope enforced there too.
+function v2LbMarkOff(ev, sid, geid){
+  if(ev) ev.stopPropagation();
+  const dl=(STATE&&STATE.data&&STATE.data.datapass_labor)||{};
+  const lb=dl.labor_bar; if(!lb) return;
+  const all=[].concat(lb.on_now||[], lb.up_next||[]);
+  const p=all.find(x=>String(x.geid)===String(geid))||{geid:geid};
+  const seen={}; seen[String(geid)]=1;
+  const cands=[].concat(lb.bench||[], (lb.up_next||[]).map(x=>({geid:x.geid,name:x.name,week_hours:x.week_hours,station:x.station})))
+    .filter(x=>{ if(seen[String(x.geid)])return false; seen[String(x.geid)]=1; return true; });
+  const opts='<option value="">(no replacement yet)</option>'+cands.map(x=>'<option value="'+esc(x.geid)+'">'+(x.name?esc(x.name):'#'+String(x.geid).slice(-4))+(x.week_hours!=null?(' · '+x.week_hours+'h wk'):'')+(x.station?(' · '+esc(dpSL(x.station))):'')+'</option>').join('');
+  const f=document.getElementById('lbForm'); if(!f) return;
+  f.innerHTML='<div class="lb-form" data-store="'+sid+'" data-geid="'+esc(geid)+'" data-role="'+esc(p.role||"")+'" data-station="'+esc(p.station||"")+'" data-shift="'+esc(p.shift_start||"")+'">'
+    +'<b>Call off '+(p&&p.name?esc(p.name):'#'+String(geid).slice(-4))+'</b> <span class="lb-id">'+esc(p.role_label||p.role||"")+' · '+esc(dpSL(p.station))+'</span>'
+    +'<label>replacement (by ID)</label><select id="lbRepl">'+opts+'</select>'
+    +'<input id="lbReason" placeholder="reason (optional)">'
+    +'<div class="lb-actions"><button class="lb-btn warn" onclick="v2LbConfirmOff(event)">Log call-off</button>'
+    +'<button class="lb-btn" onclick="event.stopPropagation();document.getElementById(\'lbForm\').innerHTML=\'\'">cancel</button></div>'
+    +'<div class="cap" style="margin:4px 0 0">Pick a replacement by ID; get their number from LifeLenz / your contact sheet — crew phones aren&rsquo;t stored here.</div></div>';
+  f.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+window.v2LbMarkOff = v2LbMarkOff;
+async function v2LbConfirmOff(ev){
+  if(ev) ev.stopPropagation();
+  const f=document.querySelector('#lbForm .lb-form'); if(!f) return;
+  const btn=f.querySelector('.lb-btn.warn'); if(btn) btn.disabled=true;
+  const repl=(f.querySelector('#lbRepl')||{}).value||"";
+  const reason=(f.querySelector('#lbReason')||{}).value||"";
+  try{
+    const payload=await v2CallApi({action:'calloff_mark', store_id:Number(f.dataset.store), geid:f.dataset.geid,
+      role:f.dataset.role, station:f.dataset.station, shift_start:f.dataset.shift,
+      replacement_geid:repl, reason:reason});
+    if(payload && payload.result && payload.result.ok===false){
+      if(btn) btn.disabled=false;
+      alert(payload.result.msg || "Could not log that call-off."); return;
+    }
+    renderBoard(payload);
+  }catch(e){ if(btn) btn.disabled=false; alert('Call-off failed: '+(e&&e.message)); }
+}
+window.v2LbConfirmOff = v2LbConfirmOff;
+async function v2LbCancelOff(ev, id){
+  if(ev) ev.stopPropagation();
+  if(!confirm('Undo this call-off?')) return;
+  try{
+    const payload=await v2CallApi({action:'calloff_resolve', id:id, status:'cancelled'});
+    if(payload && payload.result && payload.result.ok===false){
+      alert(payload.result.msg || "Could not undo that call-off."); return;
+    }
+    renderBoard(payload);
+  }catch(e){ alert('Undo failed: '+(e&&e.message)); }
+}
+window.v2LbCancelOff = v2LbCancelOff;
+
 // MODULE — drive-thru service times (peak daypart vs org).
 function renderTeamServiceTimes(data){
   const st = data.service_times;
@@ -2719,6 +2897,9 @@ const MANIFEST = [
   { id:"team_scorecards",   lane:"TEAM", title:"Manager scorecards",      render: renderTeamScorecards,    newBadge:true },
   { id:"team_training",     lane:"TEAM", title:"New-hire training",       render: renderTeamTraining,      newBadge:true },
   { id:"team_labor",        lane:"TEAM", title:"Labor %",                 render: renderTeamLabor,         newBadge:true },
+  // v2-0.27 (task #25): Floor / call-off — who's on the floor NOW (schedule),
+  // up next, called-off + the call-off write path (calloff_mark/resolve).
+  { id:"team_floor",        lane:"TEAM", title:"Floor — who's on now",    render: renderTeamFloor,         newBadge:true },
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
   // v2-0.26 (task #24): QSRSoft manager_rank card = the v1 original with ALL
