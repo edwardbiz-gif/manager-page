@@ -608,16 +608,36 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .tab.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .tab:active{transform:translateY(1px)}
 
-/* theme toggle */
-.themebtn{position:fixed;right:14px;bottom:14px;z-index:60;width:42px;height:42px;border-radius:50%;
- border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-size:18px;cursor:pointer;
- box-shadow:var(--sh-2)}
+/* theme toggle — lives in the sticky top chrome next to the version stamp
+   (fix #4, task #22). It used to be a viewport-FIXED bottom-right FAB, which can
+   always collide with the PAGE-FLOW tab bar at some width/scroll/page-height
+   combination (the bar sits at the phone's bottom edge, not the viewport's).
+   In the header it is always visible and the bar is never there. */
+.crowr{display:flex;align-items:center;gap:8px;flex:none}
+.themebtn{width:34px;height:34px;border-radius:50%;flex:none;padding:0;line-height:1;
+ border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font-size:15px;cursor:pointer;
+ box-shadow:var(--sh-1)}
+.themebtn:active{transform:translateY(1px)}
+
+/* narrow phones (≤380px, fix #3 task #22): step the 5-col NUMBERS ledger down —
+   tighter gaps + smaller numerals + shrinkable grid cells (min-width:0) so the
+   Prev · MTD · Projection · Δ columns never overflow a 360px viewport. Last in
+   the stylesheet so it wins the specificity tie with the base rules above. */
+@media(max-width:380px){
+  .lhdr,.lrow{grid-template-columns:.98fr .7fr .74fr .9fr .62fr;gap:3px}
+  .lhdr{font-size:7px}
+  .lhdr span,.lrow>*{min-width:0}
+  .lrow .lname{font-size:9.5px;overflow-wrap:anywhere}
+  .lrow .lcell{font-size:9.5px}
+  .lrow.pac .lcell{font-size:11px}
+  .lrow.sub .lname{font-size:9.5px}
+  .pcell .pproj{font-size:9.5px;padding:2px 4px;gap:2px}
+  .pcell .psub{font-size:7px}
+}
 .hide{display:none!important}
 </style>
 </head>
 <body>
-
-<button class="themebtn" id="themebtn" title="Toggle theme">◐</button>
 
 <div class="phone">
 
@@ -625,7 +645,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
   <div class="chrome" id="chrome">
     <div class="crow">
       <div class="brand"><svg class="wordmark" viewBox="0 0 35 13" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ed Ops"><rect x="1" y="1" width="7" height="1" fill="#160a33"/><rect x="1" y="2" width="7" height="1" fill="#160a33"/><rect x="1" y="3" width="2" height="1" fill="#160a33"/><rect x="1" y="4" width="2" height="1" fill="#160a33"/><rect x="1" y="5" width="5" height="1" fill="#160a33"/><rect x="1" y="6" width="5" height="1" fill="#160a33"/><rect x="1" y="7" width="2" height="1" fill="#160a33"/><rect x="1" y="8" width="2" height="1" fill="#160a33"/><rect x="1" y="9" width="2" height="1" fill="#160a33"/><rect x="1" y="10" width="7" height="1" fill="#160a33"/><rect x="1" y="11" width="7" height="1" fill="#160a33"/><rect x="14" y="5" width="1" height="1" fill="#160a33"/><rect x="14" y="6" width="1" height="1" fill="#160a33"/><rect x="11" y="7" width="4" height="1" fill="#160a33"/><rect x="10" y="8" width="1" height="1" fill="#160a33"/><rect x="14" y="8" width="1" height="1" fill="#160a33"/><rect x="10" y="9" width="1" height="1" fill="#160a33"/><rect x="14" y="9" width="1" height="1" fill="#160a33"/><rect x="10" y="10" width="1" height="1" fill="#160a33"/><rect x="14" y="10" width="1" height="1" fill="#160a33"/><rect x="11" y="11" width="4" height="1" fill="#160a33"/><rect x="19" y="5" width="3" height="1" fill="#160a33"/><rect x="18" y="6" width="1" height="1" fill="#160a33"/><rect x="22" y="6" width="1" height="1" fill="#160a33"/><rect x="18" y="7" width="1" height="1" fill="#160a33"/><rect x="22" y="7" width="1" height="1" fill="#160a33"/><rect x="18" y="8" width="1" height="1" fill="#160a33"/><rect x="22" y="8" width="1" height="1" fill="#160a33"/><rect x="18" y="9" width="1" height="1" fill="#160a33"/><rect x="22" y="9" width="1" height="1" fill="#160a33"/><rect x="18" y="10" width="1" height="1" fill="#160a33"/><rect x="22" y="10" width="1" height="1" fill="#160a33"/><rect x="19" y="11" width="3" height="1" fill="#160a33"/><rect x="24" y="5" width="4" height="1" fill="#160a33"/><rect x="24" y="6" width="1" height="1" fill="#160a33"/><rect x="28" y="6" width="1" height="1" fill="#160a33"/><rect x="24" y="7" width="1" height="1" fill="#160a33"/><rect x="28" y="7" width="1" height="1" fill="#160a33"/><rect x="24" y="8" width="4" height="1" fill="#160a33"/><rect x="24" y="9" width="1" height="1" fill="#160a33"/><rect x="24" y="10" width="1" height="1" fill="#160a33"/><rect x="24" y="11" width="1" height="1" fill="#160a33"/><rect x="31" y="5" width="4" height="1" fill="#160a33"/><rect x="30" y="6" width="1" height="1" fill="#160a33"/><rect x="30" y="7" width="1" height="1" fill="#160a33"/><rect x="31" y="8" width="3" height="1" fill="#160a33"/><rect x="34" y="9" width="1" height="1" fill="#160a33"/><rect x="34" y="10" width="1" height="1" fill="#160a33"/><rect x="30" y="11" width="4" height="1" fill="#160a33"/><rect x="0" y="0" width="7" height="1" fill="#ffffff"/><rect x="0" y="1" width="7" height="1" fill="#ffd23f"/><rect x="0" y="2" width="2" height="1" fill="#ffd23f"/><rect x="0" y="3" width="2" height="1" fill="#ffd23f"/><rect x="0" y="4" width="5" height="1" fill="#ff7a3d"/><rect x="0" y="5" width="5" height="1" fill="#ff7a3d"/><rect x="0" y="6" width="2" height="1" fill="#ff7a3d"/><rect x="0" y="7" width="2" height="1" fill="#ff2e9a"/><rect x="0" y="8" width="2" height="1" fill="#ff2e9a"/><rect x="0" y="9" width="7" height="1" fill="#ff2e9a"/><rect x="0" y="10" width="7" height="1" fill="#ff2e9a"/><rect x="13" y="4" width="1" height="1" fill="#27e0e0"/><rect x="13" y="5" width="1" height="1" fill="#27e0e0"/><rect x="10" y="6" width="4" height="1" fill="#27e0e0"/><rect x="9" y="7" width="1" height="1" fill="#27e0e0"/><rect x="13" y="7" width="1" height="1" fill="#27e0e0"/><rect x="9" y="8" width="1" height="1" fill="#27e0e0"/><rect x="13" y="8" width="1" height="1" fill="#27e0e0"/><rect x="9" y="9" width="1" height="1" fill="#27e0e0"/><rect x="13" y="9" width="1" height="1" fill="#27e0e0"/><rect x="10" y="10" width="4" height="1" fill="#27e0e0"/><rect x="18" y="4" width="3" height="1" fill="#27e0e0"/><rect x="17" y="5" width="1" height="1" fill="#27e0e0"/><rect x="21" y="5" width="1" height="1" fill="#27e0e0"/><rect x="17" y="6" width="1" height="1" fill="#27e0e0"/><rect x="21" y="6" width="1" height="1" fill="#27e0e0"/><rect x="17" y="7" width="1" height="1" fill="#27e0e0"/><rect x="21" y="7" width="1" height="1" fill="#27e0e0"/><rect x="17" y="8" width="1" height="1" fill="#27e0e0"/><rect x="21" y="8" width="1" height="1" fill="#27e0e0"/><rect x="17" y="9" width="1" height="1" fill="#27e0e0"/><rect x="21" y="9" width="1" height="1" fill="#27e0e0"/><rect x="18" y="10" width="3" height="1" fill="#27e0e0"/><rect x="23" y="4" width="4" height="1" fill="#27e0e0"/><rect x="23" y="5" width="1" height="1" fill="#27e0e0"/><rect x="27" y="5" width="1" height="1" fill="#27e0e0"/><rect x="23" y="6" width="1" height="1" fill="#27e0e0"/><rect x="27" y="6" width="1" height="1" fill="#27e0e0"/><rect x="23" y="7" width="4" height="1" fill="#27e0e0"/><rect x="23" y="8" width="1" height="1" fill="#27e0e0"/><rect x="23" y="9" width="1" height="1" fill="#27e0e0"/><rect x="23" y="10" width="1" height="1" fill="#27e0e0"/><rect x="30" y="4" width="4" height="1" fill="#27e0e0"/><rect x="29" y="5" width="1" height="1" fill="#27e0e0"/><rect x="29" y="6" width="1" height="1" fill="#27e0e0"/><rect x="30" y="7" width="3" height="1" fill="#27e0e0"/><rect x="33" y="8" width="1" height="1" fill="#27e0e0"/><rect x="33" y="9" width="1" height="1" fill="#27e0e0"/><rect x="29" y="10" width="4" height="1" fill="#27e0e0"/></svg></div>
-      <span class="vstamp" id="vstamp">v2</span>
+      <div class="crowr"><span class="vstamp" id="vstamp">v2</span><button class="themebtn" id="themebtn" title="Toggle theme">◐</button></div>
     </div>
     <div class="tabline" id="tabline">Today · <b id="scopeLabel">…</b></div>
   </div>
@@ -652,7 +672,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.27";
+const SHELL_VERSION = "v2-0.28";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -957,8 +977,14 @@ function waterfall(steps){
        pinned to the top of TODAY (plan §2) with this store's rank + honest gap.
    ========================================================================= */
 
-// Central-time "today at 00:00" for due/SLA math (data-through honesty).
+// Central-time "today" for due/SLA math (data-through honesty).
 function _now(){ return Date.now(); }
+// "Due today" means the due timestamp falls on TODAY'S America/Chicago calendar
+// date (fix #5, task #22) — never the viewer's local date and never a rolling
+// 24h window. Same CT pattern the Edge Fn + service screen use (en-CA → YYYY-MM-DD).
+const CT_DAY_FMT = new Intl.DateTimeFormat("en-CA", { timeZone:"America/Chicago" });
+function ctDay(ts){ try{ return CT_DAY_FMT.format(ts==null ? new Date() : new Date(ts)); }catch(_e){ return ""; } }
+function ctDayPlus(days){ const p = ctDay().split("-").map(Number); return new Date(Date.UTC(p[0], p[1]-1, p[2]+days)).toISOString().slice(0,10); }
 
 // Severity ranks for sorting the exception feed (lower = more urgent).
 const SEV_RANK = { bad:0, warn:1, info:2 };
@@ -976,7 +1002,7 @@ function computeTodayPriorities(data){
   for(const c of (data.complaints||[])){
     const due = c.due_at ? new Date(c.due_at).getTime() : null;
     const overdue = due!=null && due < now;
-    const dueToday = due!=null && !overdue && (due - now) < 24*3600000;
+    const dueToday = due!=null && !overdue && ctDay(due) === ctDay();   // CT calendar day, not a 24h window
     if(!overdue && !dueToday && !c.recovery_needed) continue;  // only surface the pressured ones
     const issue = c.issue_subcode || c.issue_reason || c.issue_category || "Guest complaint";
     const sev = overdue ? "bad" : (dueToday || c.recovery_needed) ? "warn" : "info";
@@ -1301,20 +1327,23 @@ function ageSince(ts){
   if(h < 24) return h+"h ago";
   return Math.floor(h/24)+"d ago";
 }
+// "today"/"tomorrow" buckets are AMERICA/CHICAGO calendar days (fix #5, task #22),
+// not rolling 24h/48h windows off the viewer's clock — a complaint due 11pm CT
+// tonight is "due today" even for a viewer in another timezone.
 function dueChip(due_at){
   if(!due_at) return "";
-  const d=new Date(due_at).getTime(), now=_now();
-  const h=(d-now)/3600000;
-  if(h < 0) return '<span class="duechip over">overdue</span>';
-  if(h < 24) return '<span class="duechip today">due today</span>';
+  const d=new Date(due_at).getTime();
+  if(d < _now()) return '<span class="duechip over">overdue</span>';
+  if(ctDay(d) === ctDay()) return '<span class="duechip today">due today</span>';
   return '<span class="duechip">due '+esc(fmtDate(due_at))+'</span>';
 }
 function v2Sla(due_at){
   if(!due_at) return { key:"ok", label:"Within SLA" };
-  const h=(new Date(due_at).getTime()-_now())/3600000;
-  if(h < 0) return { key:"over", label:"Overdue" };
-  if(h < 24) return { key:"today", label:"Due today" };
-  if(h < 48) return { key:"tom", label:"Due tomorrow" };
+  const d = new Date(due_at).getTime();
+  if(d < _now()) return { key:"over", label:"Overdue" };
+  const day = ctDay(d);
+  if(day === ctDay()) return { key:"today", label:"Due today" };
+  if(day === ctDayPlus(1)) return { key:"tom", label:"Due tomorrow" };
   return { key:"ok", label:"Within SLA" };
 }
 
@@ -1432,11 +1461,26 @@ function renderNumbersRollup(data){
 // MODULE — the up-to-PAC ledger: MTD actual · YTD actual · monthly projection.
 // Projection cells reflect pnl_projection (pending until the meeting; lock state
 // when present). %s come from the precomputed _pct fields, never recomputed.
+let FIN_MONTH_LOADING = false;  // NUMBERS-local: a month switch is in flight (fix #2, task #22)
 function renderPacLedger(data){
   const fin = data.financials || {};
   if(fin.error) return "";
   const f = finFocus(fin);
   if(!f) return card("Up-to-PAC P&L", '<div class="empline">No P&L lines for the in-scope store(s) yet.</div>', { icon:"📐", newBadge:true });
+  // month switch in flight → paint the selector (kept live so further picks queue)
+  // + a loading skeleton in place of the ledger. No stale numbers mid-switch.
+  if(FIN_MONTH_LOADING){
+    const moL = f.available_months || fin.available_months || [];
+    const selL = FIN_MONTH_REQUESTED || f.selected_month || fin.selected_month || "";
+    const ctlL = moL.length
+      ? '<div class="finmonth"><label>Month</label><select onchange="v2SelectFinMonth(this.value)" aria-busy="true">'
+        + moL.map(m=>'<option value="'+esc(m.month)+'"'+(m.month===selL?' selected':'')+'>'+esc(m.label)+(m.is_future?' · project':'')+'</option>').join("")
+        + '</select></div>' : '';
+    return card("P&L", ctlL
+      + '<div class="skel" style="border:0;box-shadow:none;padding:4px 0 0;margin:0" aria-busy="true">'
+      + '<div class="sl w40"></div><div class="sl w90"></div><div class="sl w70"></div><div class="sl w90"></div><div class="sl w70"></div><div class="sl tall"></div></div>'
+      + '<div class="cap">Loading the selected month…</div>', { icon:"📊", newBadge:true });
+  }
   const lines = f.lines || [];
   const lineById = new Map(lines.map(l=>[l.line, l]));
   const thru = finThru(fin), prelim = finPrelim(fin);
@@ -1626,22 +1670,26 @@ function renderPacLedger(data){
     + pacRow;
 
   // ── MONTH SELECTOR (incl. the next month forward, for projecting) ──
-  const moList = f.available_months || [];
-  const selMo = f.selected_month || "";
+  // These live at the FIN level (gatherFinancials emits them beside per_store);
+  // reading them off the focus row only left the selector unmounted (v2-0.28 fix).
+  const moList = f.available_months || fin.available_months || [];
+  const selMo = f.selected_month || fin.selected_month || "";
   const monthCtl = (moList.length > 1)
     ? '<div class="finmonth"><label>Month</label><select onchange="v2SelectFinMonth(this.value)">'
       + moList.map(m=>'<option value="'+esc(m.month)+'"'+(m.month===selMo?' selected':'')+'>'+esc(m.label)+(m.is_future?' · project':'')+'</option>').join("")
       + '</select></div>' : '';
-  const isFut = f.is_future_month;
+  const isFut = (f.is_future_month != null) ? f.is_future_month : fin.is_future_month;
+  const selMoLabel = f.selected_month_label || fin.selected_month_label || "";
+  const prevMoLabel = f.prev_month_label || fin.prev_month_label || "";
   const orgN = (fin.org && fin.org.store_count) || 12;
   const body = monthCtl + lockBar
     + '<div class="lhdr"><span>Line (Withum)</span><span>Prev</span><span>'+(isFut?"Actual":"MTD")+'</span><span class="hproj">Projection</span><span>Δ vs proj</span></div>'
     + '<div class="ledger">'+ledger+'</div>'
-    + '<div class="cap"><b>'+(isFut?"This is a FUTURE month — no actuals yet; pencil your projection.":"<b>"+(prelim?"MTD (preliminary)":"Actual")+"</b> = "+esc(f.selected_month_label||"")+" actual"+(prelim?" so far (R365 re-keys open periods)":""))+'</b> · '
-      + '<b>Prev</b> = '+esc(f.prev_month_label||"prior month")+' actual · <b>Projection</b> = your penciled plan (tap to edit; $ or % of sales) · <b>Δ vs proj</b> = actual − projection (<span style="color:var(--good)">green</span> = favorable). '
+    + '<div class="cap"><b>'+(isFut?"This is a FUTURE month — no actuals yet; pencil your projection.":"<b>"+(prelim?"MTD (preliminary)":"Actual")+"</b> = "+esc(selMoLabel)+" actual"+(prelim?" so far (R365 re-keys open periods)":""))+'</b> · '
+      + '<b>Prev</b> = '+esc(prevMoLabel||"prior month")+' actual · <b>Projection</b> = your penciled plan (tap to edit; $ or % of sales) · <b>Δ vs proj</b> = actual − projection (<span style="color:var(--good)">green</span> = favorable). '
       + 'MTD % is <b style="color:var(--good)">colored vs the '+orgN+'-store org average</b>; an <b style="color:var(--warn);font-style:italic">~amber "est"</b> value is a placeholder until a reasonable number posts (the Total Control &amp; PAC totals include estimates). '
       + 'Every <b>Withum line</b> is itemized from the R365 GL detail; YTD avg/month is in the line detail (tap the card). Use <b>Month</b> above to review a prior month or project next month.</div>';
-  const title = (f.selected_month_label ? f.selected_month_label + " P&L" : "P&L");
+  const title = (selMoLabel ? selMoLabel + " P&L" : "P&L");
   return card(title, body, { icon:"📊", through: f.store_name, newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
 }
 
@@ -1995,7 +2043,7 @@ function renderGuestsVoice(data){
   // segmented toggle (All + each daypart present).
   const dpDefs = [{key:"all",label:"All day"}].concat((vt.dayparts||[]).map(d=>({key:d.key,label:d.label})));
   const toggle = '<div class="segtog">'+dpDefs.map(d=>
-    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
+    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(event,\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
   // OSAT + QSC + B2B groups (polarity-aware). Show the metrics present in cells.
   const groups = vt.groups || {};
   const order = (groups.osat||[]).concat(groups.qsc||[], groups.b2b||[]);
@@ -2013,7 +2061,17 @@ function renderGuestsVoice(data){
     + '<div class="cap">'+esc(dpLabel)+' · score + MoM (favorability-aware: ↓ metrics are lower-is-better) + vs CHICAGO-MOCNI BU + org rank. From voice_scores ('+esc(ent.name||"")+').</div>';
   return card("Voice / SMG trend", body, { icon:"📈", through: thru?("VOICE · "+esc(thru)):null, drill:{kind:"gvoice"} });
 }
-function setVoiceDaypart(k){ VOICE_DAYPART = k; renderBoard(); }
+// Fix #1 (task #22): the daypart toggle repaints the FULL lane via the manifest
+// walker (renderBoard) — and ONLY the lane. stopPropagation is required: the
+// toggle lives inside the card's data-card-drill surface, and without it the
+// click bubbles on to #app's delegated drill handler (the card is detached by
+// the repaint but the propagation path was fixed at dispatch), popping the
+// gvoice detail sheet OVER the freshly painted lane.
+function setVoiceDaypart(ev, k){
+  if(ev && ev.stopPropagation) ev.stopPropagation();
+  VOICE_DAYPART = k;
+  renderBoard();
+}
 window.setVoiceDaypart = setVoiceDaypart;
 
 /* =========================================================================
@@ -3275,15 +3333,34 @@ async function init(){
    ========================================================================= */
 // MONTH SELECTOR (NUMBERS P&L): re-fetch financials for the chosen month (incl. a future
 // month to project) and repaint. Swaps only the financials slice in STATE.data.
+// Fix #2 (task #22): ONE fetch in flight at a time — while a switch is pending,
+// further picks are QUEUED (latest wins) instead of racing, and the ledger card
+// paints a loading skeleton (FIN_MONTH_LOADING → renderPacLedger). Fast clicking
+// can no longer double-paint or land an out-of-order (stale) month.
+let FIN_MONTH_INFLIGHT = false;   // a fetch is pending
+let FIN_MONTH_PENDING = null;     // the newest pick queued while in flight
+let FIN_MONTH_REQUESTED = null;   // what the skeleton's selector should show
 async function v2SelectFinMonth(month){
+  FIN_MONTH_REQUESTED = month;
+  if(FIN_MONTH_INFLIGHT){ FIN_MONTH_PENDING = month; return; }   // queue, don't race
+  FIN_MONTH_INFLIGHT = true;
+  FIN_MONTH_LOADING = true;
+  renderBoard();                                                 // immediate skeleton
   try{
     const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&lane=TODAY,NUMBERS&fin_month=" + encodeURIComponent(month));
     if(!r.ok) throw new Error("HTTP " + r.status);
     const payload = await r.json();
     const incoming = (payload && payload.data) || {};
     if(STATE && STATE.data && incoming.financials){ STATE.data.financials = incoming.financials; }
-    renderBoard();
   }catch(e){ console.error("fin month switch failed:", e && (e.message||e)); }
+  finally{
+    FIN_MONTH_INFLIGHT = false;
+    const next = FIN_MONTH_PENDING; FIN_MONTH_PENDING = null;
+    if(next != null && next !== month){ v2SelectFinMonth(next); return; }  // run the queued pick (skeleton stays up)
+    FIN_MONTH_LOADING = false;
+    FIN_MONTH_REQUESTED = null;
+    renderBoard();
+  }
 }
 
 async function ensureLane(lane){
