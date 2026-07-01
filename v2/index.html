@@ -510,6 +510,10 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
 /* full-standings expander (race/osat) + shift-leader daypart tables (TEAM lane) */
 .stexp{margin-top:10px}
+/* Shift-Leader Scorecard (QSRSoft) — v2-0.26 */
+.mrcand{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:2px 7px;margin:2px 0 4px}
+.mrstale{font-size:11px;line-height:1.45;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:7px 9px;margin:6px 0}
+.mrstale code{font-size:10px}
 .stexp>summary{cursor:pointer;list-style:none;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);padding:4px 0;user-select:none}
 .stexp>summary::-webkit-details-marker{display:none}
 .stexp>summary::after{content:" \25be";color:var(--ink-muted)}
@@ -614,7 +618,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.25";
+const SHELL_VERSION = "v2-0.26";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2158,6 +2162,81 @@ function renderShiftLeaderMetrics(data){
       info: s.window?esc(s.window):null, newBadge:true, drill:{kind:"shiftmetrics"} });
 }
 
+// MODULE — Shift-Leader Scorecard (QSRSoft, v2-0.26 port of v1 renderManagerRank —
+// task #24). Eddie's ask: the DESIGNATED shift leaders (all of them, e.g. 11 at
+// Lake St — not just GM/AM) with #shifts (30d) · OEPE · KVS · R2P · punched-labor%
+// · park%, daypart-grouped, ranked by OEPE ascending (lower = better). Reads
+// data.manager_rank = QSRSoft shift_manager_summary — the ONLY source with all
+// designated leaders + R2P + punched-labor%. PRIMARY SCORECARD CANDIDATE: the
+// SPLH leaderboard + DataPass scorecard below stay mounted until Eddie decides
+// swap-vs-keep. CAVEAT the card itself surfaces: the source is a MANUAL QSRSoft
+// upload (pull_shift_manager.py, not cron'd) — the card prints its own as_of and
+// flags staleness. Names PII-gated SERVER-side (RO/guest tokens get "Leader N").
+const QSR_DAYPART_LABEL = {
+  "Breakfast(4 AM-11 AM)":"Breakfast (4-11 AM)",
+  "Lunch(11 AM-2 PM)":   "Lunch (11 AM-2 PM)",
+  "Snack(2 PM-4 PM)":    "Snack (2-4 PM)",
+  "Dinner(4 PM-9 PM)":   "Dinner (4-9 PM)",
+  "Evening(9 PM-12 AM)": "Evening (9 PM-12 AM)"
+};
+const QSR_DAYPART_ORDER = ["Breakfast(4 AM-11 AM)","Lunch(11 AM-2 PM)",
+  "Snack(2 PM-4 PM)","Dinner(4 PM-9 PM)","Evening(9 PM-12 AM)"];
+// "Last, First" -> "First Last" (title-cased); pass-through for anything else
+// (e.g. the server's masked "Leader N" labels on read-only links).
+function shortMgr(name){
+  const s=String(name||"").trim();
+  const i=s.indexOf(",");
+  if(i<0) return s;
+  const last=s.slice(0,i).trim();
+  const first=s.slice(i+1).trim();
+  const tc=t=>t? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : t;
+  return (first.split(/\s+/).map(tc).join(" ")+" "+tc(last)).trim();
+}
+function renderManagerRank(data){
+  const rows = data.manager_rank;
+  if(!rows || !rows.length){
+    return card("Shift-Leader Scorecard (QSRSoft)", '<div class="empline">No QSRSoft shift-manager summary rows for your scope yet. Load one via pull_shift_manager.py.</div>', { icon:"🏆" });
+  }
+  const by={};
+  rows.forEach(r=>{(by[r.time_slice]=by[r.time_slice]||[]).push(r);});
+  const asOf = (rows[0]&&rows[0].as_of) ? String(rows[0].as_of).slice(0,10) : null;
+  // Staleness flag — this source is a MANUAL QSRSoft upload (not cron'd), so an
+  // old as_of means R2P / punched-labor% are behind the DataPass cards.
+  let stale="";
+  if(asOf){
+    const age=Math.floor((Date.now()-new Date(asOf+"T00:00:00").getTime())/86400000);
+    if(age>3) stale='<div class="mrstale">⚠ Source data is <b>'+age+' days old</b> — trailing 30 days through <b>'+esc(fmtDate(asOf+"T00:00:00"))+'</b> only. This is a manual QSRSoft upload: re-run <code>pull_shift_manager.py</code> with a fresh "Shift Manager Summary" export to bring R2P / labor% current.</div>';
+  }
+  const fmtN=v=>(v==null||v===""||isNaN(Number(v)))?"—":String(Math.round(Number(v)));
+  const fmtP=v=>(v==null||v===""||isNaN(Number(v)))?"—":Number(v).toFixed(1)+"%";
+  let any=false, opened=false, blocks="";
+  QSR_DAYPART_ORDER.forEach(slice=>{
+    const list=by[slice]; if(!list||!list.length) return; any=true;
+    list.sort((a,b)=>a.oepe_wo_park-b.oepe_wo_park);
+    const trs=list.map((r,i)=>
+      '<tr'+(i===0?' class="win"':'')+'>'
+      +'<td>'+esc(shortMgr(r.manager_name))+'</td>'
+      +'<td class="num">'+fmtN(r.shifts)+'</td>'
+      +'<td class="num">'+fmtN(r.oepe_wo_park)+'</td>'
+      +'<td class="num">'+fmtN(r.kvs)+'</td>'
+      +'<td class="num">'+fmtN(r.r2p)+'</td>'
+      +'<td class="num">'+fmtP(r.punch_labor_pct)+'</td>'
+      +'<td class="num">'+fmtP(r.park_pct)+'</td></tr>').join("");
+    blocks+='<details class="stexp"'+(opened?'':' open')+'><summary>'+esc(QSR_DAYPART_LABEL[slice]||slice)+' · '+list.length+' leader'+(list.length===1?'':'s')+'</summary>'
+      +'<table class="sttbl"><thead><tr><th>Manager</th><th class="num">Sh</th><th class="num">OEPE</th><th class="num">KVS</th><th class="num">R2P</th><th class="num">Lab%</th><th class="num">Park%</th></tr></thead>'
+      +'<tbody>'+trs+'</tbody></table></details>';
+    opened=true;
+  });
+  if(!any){
+    return card("Shift-Leader Scorecard (QSRSoft)", '<div class="empline">No QSRSoft shift-leader rows in the standard dayparts for your scope.</div>', { icon:"🏆" });
+  }
+  return card("Shift-Leader Scorecard (QSRSoft)",
+    '<div class="mrcand">Primary scorecard candidate — the two cards below stay until Eddie picks</div>'
+    + stale + blocks
+    + '<div class="cap">ALL designated shift leaders (the v1 original), ranked by OEPE w/o Parked (lower = better) per daypart, trailing 30 days'+(asOf?' through <b>'+esc(fmtDate(asOf+"T00:00:00"))+'</b>':'')+'. Sh = shifts · KVS = kitchen sec/GC · R2P = ready-to-present · Lab% = punched labor. Names hidden on view-only links. From QSRSoft shift_manager_summary (manual upload).</div>',
+    { icon:"🏆", through: asOf?fmtDate(asOf+"T00:00:00"):null, newBadge:true });
+}
+
 // MODULE — bonus (rankings + per-recipient quarterly true-up if any).
 function renderTeamBonus(data){
   const res = data.bonus_results || [], adj = data.bonus_adjustments || [];
@@ -2642,6 +2721,10 @@ const MANIFEST = [
   { id:"team_labor",        lane:"TEAM", title:"Labor %",                 render: renderTeamLabor,         newBadge:true },
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
+  // v2-0.26 (task #24): QSRSoft manager_rank card = the v1 original with ALL
+  // designated leaders + R2P — the PRIMARY scorecard candidate. The two cards
+  // after it stay mounted until Eddie decides swap-vs-keep (§2A handoff).
+  { id:"team_managerrank",  lane:"TEAM", title:"Shift-Leader Scorecard (QSRSoft)", render: renderManagerRank, newBadge:true },
   { id:"team_shiftleaders", lane:"TEAM", title:"Shift-leader leaderboard",render: renderTeamShiftLeaders },
   { id:"team_shiftmetrics",  lane:"TEAM", title:"Shift-leader scorecard",   render: renderShiftLeaderMetrics, newBadge:true },
   // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
