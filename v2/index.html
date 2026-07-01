@@ -596,7 +596,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.23";
+const SHELL_VERSION = "v2-0.24";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -649,7 +649,7 @@ const LANE_KEYS = {
 // — correct, just one extra (cheap) fetch. The auto-mark is an optimization, not
 // correctness: missing it only costs a redundant, correct fetch.
 const LANE_DISTINCTIVE = {
-  GUESTS: ["voice_trend"],
+  GUESTS: ["voice_comments_recent"],   // voice_trend now arrives with the TODAY home, so it can't prove a GUESTS load; voice_comments_recent stays GUESTS-only (default null)
   TEAM:   ["manager_scorecards", "operations", "newHireTraining", "datapass_labor", "service_times", "shiftLeaders", "waste_compliance"],
   MORE:   ["meeting", "contacts", "owner_pulse", "manual_reports", "advisor_briefing", "hazel"],
 };
@@ -2401,42 +2401,49 @@ function renderNumbersPacTrend(data){
     { icon:"📉", info: (finThru(fin)?"data thru "+finThru(fin):""), newBadge:true });
 }
 
-// MODULE — Voice (Owner/GM home): the prod GM-view VOICE module, CURRENT-MONTH (MTD)
-// only. Four SMG KPIs — OSAT / Accuracy / Digital %EAD / Cleanliness — for the Combined
-// org (owner) or the store (GM). The edge fn gates KPIs to the current month, so this
-// never shows last month; an unreported metric shows "—". From voice_view.kpis[0].
+// MODULE — Voice (Owner/GM home): ports the LIVE v1 "voice_trend" methodology to the
+// home top-line. Five SMG KPIs — OSAT / Accuracy / Digital %EAD / Cleanliness / Executed-
+// as-Designed — for the Combined org (owner = entities[0]) or the GM's store (entities[0]).
+// CONDITIONAL-FORMAT vs the per-metric "...BU" benchmark (CHICAGO-MOCNI co-op, the `bu`
+// field on each cell), NOT the org self-average: polarity-aware (lower_better) + two
+// intensities (|diff|>=5 = strong). OSAT shows org rank #/12. Cleanliness/%EAD/Exec come
+// ONLY from the Digital source (merged into cells by gatherVoiceTrend's vvBuild). Period
+// label = "<Month> MTD" from voice_trend.data_through (UTC-anchored MAX(period_start),
+// already "June 2026") — kills the legacy voice_view "thru May 31" off-by-one.
 function renderHomeVoice(data){
-  const vv = data.voice_view;
-  if(!vv || !vv.kpis || !vv.kpis.length) return "";
-  const k = vv.kpis[0];
-  if(k.osat==null && k.accuracy==null && k.cleanliness==null && k.digital_ead==null) return "";
+  const vt = data.voice_trend;
+  if(!vt || !Array.isArray(vt.entities) || !vt.entities.length) return "";
+  const ent = vt.entities[0];                 // owner: Org (Combined); GM/sup: focal store
+  const cells = ent.cells || {};
+  const c = (m)=> cells[m] || null;
+  const HOME_KEYS = ["Overall Satisfaction","Accuracy","Digital - % EAD","Overall Cleanliness","Pull Forward - Executed as Designed (Yes)"];
+  if(HOME_KEYS.every(m=>!c(m) || c(m).june==null)) return "";
   const f1 = (x)=> x!=null ? Number(x).toFixed(1)+"%" : "—";
-  // month label from the data-through period (e.g. 2026-06-01 -> "June")
-  const moName = vv.data_through ? new Date(vv.data_through+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"}) : "";
-  const org = vv.org || {};
-  // conditional-format each metric vs the org/portfolio benchmark (all 5 higher=better).
-  // green = above org, red = below, neutral within a ±0.3pp dead-band / no benchmark.
-  const fmtVs = (val, bench)=>{
-    if(val==null) return {v:"—", cls:""};
-    if(bench==null) return {v:f1(val), cls:""};
-    const d = val - bench;
-    return {v:f1(val), cls: (Math.abs(d) <= 0.3 ? "" : (d > 0 ? "fav" : "unfav"))};
+  // BU-benchmarked, polarity-aware, two intensities (mirrors v1 vtVsBU's |diff|>=5 rule).
+  // v2 has one favorability class pair, so strong is conveyed by ★ (strong-good) / ⚠ +
+  // the "BU n.n" sub line (strong-bad) rather than a second color shade.
+  const fmtBU = (cell)=>{
+    if(!cell || cell.june==null) return {v:"—", cls:"", strong:false, ok:null};
+    if(cell.bu==null) return {v:f1(cell.june), cls:"", strong:false, ok:null};
+    const good = cell.lower_better ? (cell.june <= cell.bu) : (cell.june >= cell.bu);
+    const strong = Math.abs(cell.june - cell.bu) >= 5;
+    return {v:f1(cell.june), cls:(good?"fav":"unfav"), strong, ok:good};
   };
-  const metrics = [
-    {l:"OSAT", val:k.osat, b:org.osat},
-    {l:"Accuracy", val:k.accuracy, b:org.accuracy},
-    {l:"Digital %EAD", val:k.digital_ead, b:org.digital_ead},
-    {l:"Cleanliness", val:k.cleanliness, b:org.cleanliness},
-    {l:"Exec. as Designed", val:k.executed_as_designed, b:org.executed_as_designed},
-  ];
-  const tiles = '<div class="trio voicewrap">'+metrics.map(m=>{ const f=fmtVs(m.val,m.b);
-    return '<div class="gtile"><div class="gl">'+m.l+'</div><div class="gv '+f.cls+'">'+f.v+'</div>'
-      +(m.b!=null?'<div class="gs">org '+f1(m.b)+'</div>':'')+'</div>';
+  const LABELS = {"Overall Satisfaction":"OSAT","Accuracy":"Accuracy","Digital - % EAD":"Digital %EAD","Overall Cleanliness":"Cleanliness","Pull Forward - Executed as Designed (Yes)":"Exec. as Designed"};
+  const osatC = c("Overall Satisfaction");
+  const rankChip = (osatC && osatC.rank!=null && osatC.rank_of!=null)
+    ? ' · <b>#'+osatC.rank+'/'+osatC.rank_of+'</b> org rank' : '';
+  const tiles = '<div class="trio voicewrap">'+HOME_KEYS.map(m=>{
+    const cell = c(m), f = fmtBU(cell);
+    const sub = (cell && cell.bu!=null) ? '<div class="gs">BU '+f1(cell.bu)+(cell.lower_better?' ↓':'')+(f.strong&&f.ok===false?' ⚠':'')+'</div>' : '';
+    return '<div class="gtile"><div class="gl">'+esc(LABELS[m]||m)+'</div><div class="gv '+f.cls+'">'+f.v+(f.strong&&f.ok?'<span style="font-size:11px">★</span>':'')+'</div>'+sub+'</div>';
   }).join("")+'</div>';
-  const foot = '<div class="cap">'+(k.n!=null?'n='+k.n+' surveys · ':'')+'green/red vs portfolio · '
-    +(vv.sources&&vv.sources.length?esc(vv.sources.join(' / ')):'SMG VOICE')+'</div>';
-  return card("Voice — "+(moName?esc(moName)+" ":"")+"MTD", tiles + foot,
-    { icon:"⭐", info: "VOICE · "+voiceMtdLabel(vv.data_through)+(k.store_name&&k.store_name!=="Combined"?" · "+esc(k.store_name):" · portfolio"), newBadge:true });
+  const nVal = (osatC && osatC.n!=null) ? osatC.n : null;
+  const foot = '<div class="cap">'+(nVal!=null?'n='+nVal+' surveys · ':'')
+    +'color vs CHICAGO-MOCNI BU (↓ = lower is better)'+rankChip+' · SMG VOICE</div>';
+  const isStore = ent.id != null;
+  return card("Voice — "+voiceMtdLabel(vt.current_period||vt.data_through), tiles + foot,
+    { icon:"⭐", info: "VOICE · "+voiceMtdLabel(vt.current_period||vt.data_through)+(isStore?" · "+esc(ent.name):" · portfolio"), newBadge:true });
 }
 
 const MANIFEST = [
