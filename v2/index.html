@@ -286,6 +286,10 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .rkrow .rkv .rks{display:block;font-size:7px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.3px}
 /* PAC% 6-month trend (top of NUMBERS) */
 .pactrend{margin:4px 0 2px} .pactrend .svgwrap{width:100%;height:48px}
+.salestrend .svgwrap{width:100%;height:118px}
+.strendleg{display:flex;flex-wrap:wrap;gap:7px 12px;margin-top:7px;font-size:10.5px;color:var(--ink-muted);align-items:center}
+.strendleg svg{vertical-align:middle}
+.strenddot{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle;margin-right:3px}
 .pacx{display:flex;justify-content:space-between;gap:3px;margin-top:3px;font-size:7.5px;color:var(--ink-muted)}
 .pacx span{flex:1;display:flex;flex-direction:column;align-items:center;line-height:1.25} .pacx span b{font-size:9px;color:var(--ink-2);font-weight:800}
 .pacx span.cur b{color:var(--good)}
@@ -504,6 +508,20 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .dprow .dprate{text-align:right;font-weight:900;font-variant-numeric:tabular-nums;min-width:46px}
 .statedot{font-size:8px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
+/* full-standings expander (race/osat) + shift-leader daypart tables (TEAM lane) */
+.stexp{margin-top:10px}
+.stexp>summary{cursor:pointer;list-style:none;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);padding:4px 0;user-select:none}
+.stexp>summary::-webkit-details-marker{display:none}
+.stexp>summary::after{content:" \25be";color:var(--ink-muted)}
+.stexp[open]>summary::after{content:" \25b4"}
+.sttbl{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px}
+.sttbl th{text-align:left;font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted);padding:4px 6px;border-bottom:1px solid var(--line)}
+.sttbl td{padding:5px 6px;border-bottom:1px solid var(--line);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.sttbl tr:last-child td{border-bottom:0}
+.sttbl td.num,.sttbl th.num{text-align:right}
+.sttbl tr.you td{font-weight:800;color:var(--ink);background:var(--surface-2)}
+.sttbl tr.win td{background:var(--good-bg)}
+.slwin{color:var(--good);font-weight:900}
 .tlist{display:flex;flex-direction:column;gap:5px;margin-top:7px}
 .tprod{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;padding:5px 2px;border-bottom:1px solid var(--line)}
 .tprod:last-child{border-bottom:0}
@@ -596,7 +614,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.24";
+const SHELL_VERSION = "v2-0.25";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -746,6 +764,39 @@ function sparkline(values, opts={}){
     + '<path d="'+d+'" fill="none" stroke="var(--svg-this)" stroke-width="2" '
     + 'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>'
     + '<circle cx="'+lx+'" cy="'+ly+'" r="2.6" fill="var(--svg-this)"/></svg>';
+}
+
+// salesTrendChart(rows) — YoY weekly sales LINE chart ported from the v1 Lab
+// view (manager-page-static labTrendChart). This-year solid + last-year dashed
+// gray on shared axes, min/max value labels, month x-ticks, per-week LTO segment
+// coloring + legend. Token-themed (--svg-this / --svg-prior / --svg-grid).
+// rows = data.lab.avg_check_weekly (already COMPLETE-week-filtered by the caller).
+function salesTrendChart(rows, ltos){
+  const series = (rows||[]).filter(r=>r && r.sales!=null);
+  if(series.length < 2) return '<div class="cap">Not enough complete weeks to chart yet.</div>';
+  const W=440,H=120,padX=12,padT=16,padB=20;
+  const cur=series.map(r=>r.sales), lyv=series.map(r=>r.sales_ly).filter(v=>v!=null);
+  const all=cur.concat(lyv), maxV=Math.max.apply(null,all), minV=Math.min.apply(null,all);
+  const sp=(maxV-minV)||1, pad=sp*0.18||0.25, mn=minV-pad, mx=maxV+pad;
+  const x=i=>padX+i*(W-2*padX)/(series.length-1), y=v=>H-padB-(v-mn)/(mx-mn)*(H-padT-padB);
+  // last-year dashed gray
+  let lyLine='',pv=-1;
+  series.forEach((r,i)=>{ if(r.sales_ly!=null){ if(pv>=0) lyLine+='<line x1="'+x(pv).toFixed(1)+'" y1="'+y(series[pv].sales_ly).toFixed(1)+'" x2="'+x(i).toFixed(1)+'" y2="'+y(r.sales_ly).toFixed(1)+'" stroke="var(--svg-prior)" stroke-width="1.4" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>'; pv=i; } });
+  // this-year, each segment colored by the prior week's LTO (falls back to --svg-this)
+  let seg='';
+  for(let i=1;i<series.length;i++){ const c=series[i-1].lto_color||'var(--svg-this)'; seg+='<line x1="'+x(i-1).toFixed(1)+'" y1="'+y(series[i-1].sales).toFixed(1)+'" x2="'+x(i).toFixed(1)+'" y2="'+y(series[i].sales).toFixed(1)+'" stroke="'+c+'" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'; }
+  const dots=series.map((r,i)=>'<circle cx="'+x(i).toFixed(1)+'" cy="'+y(r.sales).toFixed(1)+'" r="'+(r.lto_color?2.6:1.7)+'" fill="'+(r.lto_color||'var(--svg-this)')+'"/>').join('');
+  let lastM=''; const xl=series.map((r,i)=>{const m=new Date(r.week+'T00:00:00').toLocaleDateString('en-US',{month:'short'}); if(m!==lastM){lastM=m; return '<text x="'+x(i).toFixed(1)+'" y="'+(H-5)+'" fill="var(--svg-frame)" font-size="8.5" text-anchor="middle">'+m+'</text>';} return '';}).join('');
+  const salesFmt=v=>'$'+(v>=1e6?(v/1e6).toFixed(2)+'M':Math.round(v/1e3)+'K');
+  const cMax=Math.max.apply(null,cur),cMin=Math.min.apply(null,cur),iMx=cur.indexOf(cMax),iMn=cur.indexOf(cMin),cx=i=>Math.min(Math.max(x(i),22),W-22).toFixed(1);
+  const vl=(i,v,above)=>'<text x="'+cx(i)+'" y="'+(y(v)+(above?-5:12)).toFixed(1)+'" fill="var(--svg-frame)" font-size="8.5" text-anchor="middle">'+salesFmt(v)+'</text>';
+  const svg='<svg class="svgwrap" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" height="118" role="img" aria-label="weekly sales year over year">'+lyLine+seg+dots+vl(iMx,cMax,true)+vl(iMn,cMin,false)+xl+'</svg>';
+  const leg='<div class="strendleg">'+
+    '<span><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--svg-this)" stroke-width="2.4"/></svg> This year</span>'+
+    '<span><svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="var(--svg-prior)" stroke-width="1.4" stroke-dasharray="3 2"/></svg> Last year</span>'+
+    (ltos||[]).map(l=>'<span><span class="strenddot" style="background:'+esc(l.color)+'"></span>'+esc(l.name)+'</span>').join('')+
+    '</div>';
+  return svg+leg;
 }
 
 // trend(values, ly) — this-year solid + last-year dashed gray on shared axes.
@@ -1113,6 +1164,7 @@ function contestBody(c, data, opts){
   const standings = c.standings;
   const mine = standings.filter(s=>myIds.has(s.store_id));
   const note = c.note ? '<div class="contestsub" style="margin-top:9px">'+esc(c.note)+'</div>' : '';
+  const fullStandings = contestStandings(c, myIds, opts);
 
   if(!mine.length){
     // Owner/portfolio scope — show the leader + qualifying summary instead.
@@ -1121,7 +1173,7 @@ function contestBody(c, data, opts){
     const sum = opts.kind==="osat"
       ? '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores ≥ '+opts.threshold+'% '+opts.amount+'</div>'
       : '<div class="contestsub">Top 3 win '+(opts.prizes||[]).join(" / ")+'</div>';
-    return '<div>'+lead+sum+'</div>'+note;
+    return '<div>'+lead+sum+'</div>'+note+fullStandings;
   }
 
   return mine.map(s => {
@@ -1155,7 +1207,36 @@ function contestBody(c, data, opts){
       + '<div class="contestmain"><div class="contesthd">'+esc(s.store_name)+'</div>'+line
       + '<div class="gapbar"><i style="width:'+barPct.toFixed(0)+'%;background:'+barCol+'"></i></div></div>'
       + '</div>';
-  }).join('<div style="height:10px"></div>') + note;
+  }).join('<div style="height:10px"></div>') + note + fullStandings;
+}
+
+// Expandable FULL 12-store standings table for the race / OSAT contest cards
+// (ports prod renderCleanlinessRace / renderOsatIncentive "See all standings").
+// Native <details> — no JS wiring. Highlights the viewer's own store(s); OSAT rows
+// mark the >=threshold in-money stores green. Store-level only (no PII).
+function contestStandings(c, myIds, opts){
+  const st = c.standings || [];
+  if(st.length < 2) return "";
+  const num = v => v==null ? "—" : (Math.round(Number(v)*10)/10).toFixed(1)+"%";
+  const isOsat = opts.kind==="osat";
+  const thr = opts.threshold;
+  const head = '<tr><th>#</th><th>Store</th><th class="num">'+(isOsat?"OSAT":"Score")+'</th>'
+    + (isOsat ? '<th class="num">'+(thr!=null?thr:72)+'%+</th>' : '<th class="num">Rank</th>')+'</tr>';
+  const rows = st.map(s=>{
+    const mine = myIds.has(s.store_id);
+    const inMoney = isOsat ? (thr!=null ? s.score>=thr : !!s.in_money) : false;
+    const cls = mine ? "you" : (inMoney ? "win" : "");
+    const last = isOsat
+      ? (inMoney ? '<span class="slwin">$</span>' : (thr!=null ? '+'+(thr-s.score).toFixed(1) : ''))
+      : '#'+s.rank;
+    return '<tr'+(cls?' class="'+cls+'"':'')+'><td>'+s.rank+'</td>'
+      + '<td>'+esc(s.store_name)+(mine?' ←':'')+'</td>'
+      + '<td class="num">'+num(s.score)+'</td>'
+      + '<td class="num">'+last+'</td></tr>';
+  }).join("");
+  return '<details class="stexp"><summary>'+(isOsat?"See all stores":"See all standings")
+    + ' · '+esc(voiceMtdLabel(c.data_through))+'</summary>'
+    + '<table class="sttbl"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></details>';
 }
 
 /* ---- small TODAY-lane formatters (local; no global helper touched) ---- */
@@ -2038,6 +2119,45 @@ function renderTeamShiftLeaders(data){
     { icon:"🏅", through: sl.data_through?fmtDate(sl.data_through):null, drill:{kind:"shiftleaders"} });
 }
 
+// MODULE — Shift-Leader Scorecard (v80 legacy GM-view, DataPass-only, CALIBRATED
+// to QSRSoft). data.shiftLeaderMetrics = {data_through, window, multi_store,
+// rows:[{nsn,store,geid,leader,daypart,daypart_ord,shifts,oepe_s,kvs_per_gc,
+// labor_pct,park_pct}]}. Grouped by daypart, each daypart ranked by OEPE (lower =
+// better). Names PII-gated server-side (RO/guest -> "GEID nnnn"); the shell never
+// re-derives a name. Tap -> per-daypart drill sheet. From v_shift_leader_metrics.
+function renderShiftLeaderMetrics(data){
+  const s = data.shiftLeaderMetrics;
+  if(!s || !s.rows || !s.rows.length){
+    return card("Shift-leader scorecard", '<div class="empline">No shift-leader metrics for your scope yet.</div>', { icon:"🎖️" });
+  }
+  const ms = !!s.multi_store;
+  const by = {}, ord = {};
+  s.rows.forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
+  const dayparts = Object.keys(by).sort((a,b)=>((ord[a]==null?9:ord[a])-(ord[b]==null?9:ord[b])));
+  const secs = ary => (ary==null||isNaN(ary)) ? "—" : Math.round(Number(ary))+"s";
+  const kvs = v => (v==null||isNaN(v)) ? "—" : Math.round(Number(v))+"s";
+  const pct = v => (v==null||isNaN(v)) ? "—" : Number(v).toFixed(1)+"%";
+  const block = dayparts.map(dp=>{
+    const list = by[dp].slice().sort((a,b)=>((a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s))));
+    const rows = list.map((r,i)=>
+      '<tr'+(i===0?' class="win"':'')+'><td>'+(i+1)+'</td>'
+      + '<td>'+esc(r.leader)+(ms?' <small style="color:var(--ink-muted)">'+esc(r.store||"")+'</small>':'')+'</td>'
+      + '<td class="num">'+(r.shifts!=null?r.shifts:"—")+'</td>'
+      + '<td class="num">'+secs(r.oepe_s)+'</td>'
+      + '<td class="num">'+kvs(r.kvs_per_gc)+'</td>'
+      + '<td class="num">'+pct(r.labor_pct)+'</td>'
+      + '<td class="num">'+pct(r.park_pct)+'</td></tr>').join("");
+    return '<details class="stexp"'+(dayparts.length===1?' open':'')+'><summary>'+esc(dp)+' · '+list.length+' leader'+(list.length===1?'':'s')+'</summary>'
+      + '<table class="sttbl"><thead><tr><th>#</th><th>Leader</th><th class="num">Sh</th>'
+      + '<th class="num">OEPE</th><th class="num">KVS</th><th class="num">Lab%</th><th class="num">Park%</th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table></details>';
+  }).join("");
+  return card("Shift-leader scorecard", block
+    + '<div class="cap">Each leader’s dominant-daypart shifts over the last 30 days, DataPass-only, <b>calibrated to QSRSoft</b> (OEPE &amp; KVS within ~8%). Ranked by OEPE (order-to-present w/o parked; lower = better). KVS = kitchen sec/guest. Lab% = labor$ &divide; sales. Names hidden on guest links. From v_shift_leader_metrics.</div>',
+    { icon:"🎖️", through: s.data_through?fmtDate(s.data_through):null,
+      info: s.window?esc(s.window):null, newBadge:true, drill:{kind:"shiftmetrics"} });
+}
+
 // MODULE — bonus (rankings + per-recipient quarterly true-up if any).
 function renderTeamBonus(data){
   const res = data.bonus_results || [], adj = data.bonus_adjustments || [];
@@ -2201,7 +2321,7 @@ function renderMoreOwnerTools(data){
    etc.); the delegated card-drill handler routes object-drills with a non-NUMBERS
    kind here. Detail restates its data-through date and never fabricates a number.
    ========================================================================= */
-const LANE_DRILL_KINDS = new Set(["gfeedback","gvoice","scorecard","training","deploy","servicetimes","turnover","shiftleaders","operations"]);
+const LANE_DRILL_KINDS = new Set(["gfeedback","gvoice","scorecard","training","deploy","servicetimes","turnover","shiftleaders","shiftmetrics","operations"]);
 function laneDrill(el, ev){
   if(ev) ev.stopPropagation();
   const kind = el.getAttribute("data-drill");
@@ -2308,6 +2428,19 @@ function openLaneSheet(kind, arg){
       + (sens.some(s=>(s.problem_list||[]).length) ? '<div class="dsub">Sensor problems</div>'
           + sens.flatMap(s=>(s.problem_list||[])).slice(0,8).map(p=>dr(esc(p.sensor||"sensor"), esc(p.reason||"")+(p.last_reading_ts?" · "+String(p.last_reading_ts).slice(0,10):""))).join("") : "")
       + '<div class="cap">'+esc(op.sensor_note||"")+' From the Jolt feed. Data thru '+esc(op.data_through?fmtDate(op.data_through):"—")+'.</div>';
+  } else if(kind==="shiftmetrics"){
+    const s = data.shiftLeaderMetrics || {}; title="Shift-leader scorecard · detail"; crumb="Team › <b>Shift leaders</b>";
+    const by = {}, ord = {};
+    (s.rows||[]).forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
+    const dayparts = Object.keys(by).sort((a,b)=>((ord[a]==null?9:ord[a])-(ord[b]==null?9:ord[b])));
+    body = '<div class="crumb">'+crumb+'</div>'
+      + dayparts.map(dp=>{
+          const list = by[dp].slice().sort((a,b)=>((a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s))));
+          return '<div class="dsub">'+esc(dp)+'</div>'
+            + list.map((r,i)=>dr("#"+(i+1)+" "+esc(r.leader)+(s.multi_store?" <small style='color:var(--ink-muted)'>"+esc(r.store||"")+"</small>":""),
+                "OEPE "+(r.oepe_s!=null?Math.round(r.oepe_s)+"s":"—")+" · KVS "+(r.kvs_per_gc!=null?Math.round(r.kvs_per_gc)+"s":"—")+" · "+(r.shifts||0)+" sh · Lab "+(r.labor_pct!=null?Number(r.labor_pct).toFixed(1)+"%":"—")+" · Park "+(r.park_pct!=null?Number(r.park_pct).toFixed(1)+"%":"—"))).join("");
+        }).join("")
+      + '<div class="cap">DataPass-only, calibrated to QSRSoft (OEPE &amp; KVS ~8%). '+esc(s.window||"trailing 30 days")+'. Names hidden on guest links. From v_shift_leader_metrics. Data thru '+esc(s.data_through?fmtDate(s.data_through):"—")+'.</div>';
   }
   document.getElementById("sheetTitle").textContent = title;
   document.getElementById("sheetBody").innerHTML = body;
@@ -2382,6 +2515,30 @@ function renderHomeSalesRanker(data){
     { icon:"📈", info: (sl.data_through?"sales thru "+fmtDate(sl.data_through)+" · ":"")+"Yesterday · MTD · YTD", newBadge:true });
 }
 
+// MODULE — Sales trend (home). The Lab view's weekly sales LINE GRAPH, ported to
+// the home next to the ranker. OWNER: org weekly product sales, this year vs last
+// (LTO-colored). GM: the SAME chart scoped to THEIR store (data.lab is scopeIds-
+// scoped in the Edge Fn). Complete weeks only (days>=7), so the data-through date
+// equals the last plotted week's end (mirrors the v1 salesWeeks filter).
+function renderHomeSalesTrend(data){
+  const lab = data.lab; if(!lab) return "";
+  const wkly = lab.avg_check_weekly || [];
+  const complete = wkly.filter(w=>(w.days||0) >= 7);
+  if(complete.length < 2) return "";
+  const ltos = lab.ltos || [];
+  // data-through = end (Sunday) of the last COMPLETE week, so the caption date
+  // matches the rightmost point on the line (not the dropped partial week).
+  const lastWk = complete[complete.length-1].week;
+  const end = new Date(lastWk+"T00:00:00"); end.setDate(end.getDate()+6);
+  const thru = end.toISOString().slice(0,10);
+  const isOrg = !!data.scope_all;
+  const who = isOrg ? "org" : (((data.stores && data.stores[0] && data.stores[0].name)) || "your store");
+  const body = salesTrendChart(complete, ltos)
+    + '<div class="cap">Product sales per week ('+esc(who)+'), complete weeks only. This-year line color = the freshest major LTO running that week.</div>';
+  return card("Sales trend — "+esc(who)+" (weekly)", body,
+    { icon:"📊", info: "weekly · complete weeks · sales thru "+fmtDate(thru), newBadge:true });
+}
+
 // MODULE — PAC% 6-month trend (top of the NUMBERS / projection screen). Scope-aggregate
 // (org for owner, the store for a GM), last 6 months including the current MTD.
 function renderNumbersPacTrend(data){
@@ -2453,6 +2610,7 @@ const MANIFEST = [
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   { id:"home_roundup",     lane:"TODAY", title:"Portfolio roundup",       render: renderHomeRoundup     },
   { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
+  { id:"home_sales_trend", lane:"TODAY", title:"Sales trend",             render: renderHomeSalesTrend  },
   { id:"home_voice",       lane:"TODAY", title:"Voice top line",          render: renderHomeVoice       },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
@@ -2485,6 +2643,7 @@ const MANIFEST = [
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
   { id:"team_shiftleaders", lane:"TEAM", title:"Shift-leader leaderboard",render: renderTeamShiftLeaders },
+  { id:"team_shiftmetrics",  lane:"TEAM", title:"Shift-leader scorecard",   render: renderShiftLeaderMetrics, newBadge:true },
   // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
   // noise; re-enable when the Q3 LIVE bonus engine launches. renderTeamBonus kept.
   // { id:"team_bonus",     lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
