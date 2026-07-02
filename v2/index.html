@@ -674,7 +674,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.31";
+const SHELL_VERSION = "v2-0.32";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -3442,7 +3442,16 @@ function buildTabBar(){
         await ensureLane(lane);
         if(ACTIVE_LANE === lane) renderBoard();  // user may have tabbed away mid-fetch
       }
-      document.getElementById("app").scrollIntoView({block:"start"});
+      // v2-0.32: jump to the top of the new lane WITHOUT scrollIntoView. The
+      // .phone frame is overflow:hidden yet still programmatically scrollable
+      // (the off-screen drill sheet hangs past its bottom edge), so
+      // scrollIntoView silently scrolled .phone by the chrome's height (~82px);
+      // the sticky chrome then STUCK over every lane's first card ("PAC% trend
+      // starts mid-chart") with no scrollbar for the user to recover. Reset any
+      // stray inner scroll + scroll the window to the top instead.
+      const ph = document.querySelector(".phone");
+      if(ph) ph.scrollTop = 0;
+      window.scrollTo(0, 0);
     });
   });
 }
