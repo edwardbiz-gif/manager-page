@@ -621,6 +621,18 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
  box-shadow:var(--sh-1)}
 .themebtn:active{transform:translateY(1px)}
 
+/* v2-0.33: NUMBERS verdict — MTD + YTD duo hero + the projection-compare line.
+   MTD sits LEFT of YTD (Eddie), each with its own small-caps label; .vproj is
+   the compare line under the sub (good/bad vs the penciled PAC projection,
+   neutral hint when none is entered; .hint = tappable, opens the pencil editor). */
+.vhero.vduo{gap:18px;align-items:flex-end;flex-wrap:wrap}
+.vhero.vduo .vfig{display:flex;flex-direction:column;min-width:0}
+.vhero.vduo .vnum{font-size:clamp(23px,6.8vw,31px)}
+.vhero.vduo .vfl{font-size:8.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--ink-muted);margin-top:3px;white-space:nowrap}
+.vproj{font-size:11px;font-weight:800;margin-top:7px;line-height:1.4}
+.vproj.fav{color:var(--good)} .vproj.unfav{color:var(--bad)} .vproj.neu{color:var(--ink-muted);font-weight:600}
+.vproj.hint{color:var(--proj);font-weight:700;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+
 /* narrow phones (≤380px, fix #3 task #22): step the 5-col NUMBERS ledger down —
    tighter gaps + smaller numerals + shrinkable grid cells (min-width:0) so the
    Prev · MTD · Projection · Δ columns never overflow a 360px viewport. Last in
@@ -674,7 +686,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.32";
+const SHELL_VERSION = "v2-0.33";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1458,19 +1470,99 @@ function finPrelim(fin){
   return (fin.ytd && fin.ytd.is_preliminary_any) || (fin.mtd && fin.mtd.is_preliminary) || false;
 }
 
+// ---- v2-0.33 verdict helpers: MTD PAC% + the penciled-projection compare ----
+// MTD PAC% for a per_store entry: prefer the store's pac_trend6 LAST point when
+// it IS the selected month — that point is placeholder-adjusted (not-yet-posted
+// costs estimated in), the same figure the PAC% trend card shows, so the two
+// NUMBERS cards agree. Falls back to the precomputed mtd.pac_pct column (§6.1).
+function mtdPacPct(fin, f){
+  const t = f.pac_trend6 || [];
+  const last = t.length ? t[t.length-1] : null;
+  if(last && last.pac_pct!=null && fin.selected_month && last.month===fin.selected_month) return last.pac_pct;
+  return f.mtd ? f.mtd.pac_pct : null;
+}
+// The store's penciled PAC projection (pnl_projection line 'pac', selected month)
+// as a % of sales: the entered % directly, or the server-derived % when entered
+// in dollars (v_pnl_projection_state derives it vs the penciled net-sales
+// projection; null until net sales is penciled — honest n/a, never fabricated).
+// Returns null when NO PAC row exists for the store+month.
+function pacProjPct(f){
+  const pl = (f.lines||[]).find(l=>l.line==="pac");
+  const p = pl && pl.projection;
+  if(!p || (pl && pl.projection_pending)) return null;
+  const pct = p.value_type==="pct_of_sales" ? p.value
+    : (p.derived_type==="pct_of_sales" ? p.derived_value : null);
+  return { pct:(pct!=null && !isNaN(pct))?Number(pct):null,
+           dollars: p.value_type==="dollars" ? p.value : (p.derived_type==="dollars"?p.derived_value:null) };
+}
+// The projection-compare line under the verdict sub. When a PAC projection
+// exists and a % is derivable: signed pp delta vs it (PAC higher = better).
+// When none exists: a neutral hint — tappable straight into the pencil editor
+// (the mounted projection-edit path) for a GM/Sup/Owner on a writable month.
+function pacProjLine(fin, f, m, moName){
+  const proj = pacProjPct(f);
+  if(proj && proj.pct!=null && m!=null){
+    const d = m - proj.pct;
+    return { cls:(d>=0?"fav":"unfav"),
+      html:'<div class="vproj '+(d>=0?"fav":"unfav")+'">'+(d>=0?"+":"")+d.toFixed(1)+'pp vs proj '+Number(proj.pct).toFixed(1)+'% ('+esc(moName)+')</div>' };
+  }
+  if(proj){  // entered in $ but no penciled net sales yet, so no % to compare
+    return { cls:"", html:'<div class="vproj neu">PAC projection entered ('+moneyKD(proj.dollars)+'). Pencil a net sales projection in the P&amp;L below to compare in points.</div>' };
+  }
+  const role = (data_roleForProj());
+  const meta = f.projection_meta || {};
+  const projMonth = fin.projection_target_month || meta.period_month || fin.projection_month || "";
+  const canPencil = (role==="GM"||role==="Supervisor"||role==="Owner") && !fin.read_only && meta.locked!==true && projMonth;
+  if(!canPencil) return { cls:"", html:'<div class="vproj neu">No '+esc(moName)+' PAC projection entered</div>' };
+  // projected net sales denominator for the editor mirror (same fallback chain
+  // as the ledger: penciled proj net sales, else YTD per-month run rate, MTD, YTD).
+  const nsL = (f.lines||[]).find(l=>l.line==="net_sales");
+  const nsProj = (meta.proj_net_sales!=null) ? meta.proj_net_sales
+    : (nsL && nsL.projection && nsL.projection.value_type==="dollars" ? nsL.projection.value
+      : (nsL ? (nsL.ytd_avg_month_dollars ?? nsL.mtd_dollars ?? nsL.ytd_dollars) : null));
+  return { cls:"", html:'<div class="vproj hint"'
+    + ' data-pj-store="'+f.store_id+'" data-pj-line="pac"'
+    + ' data-pj-label="Profit After controllables (PAC)"'
+    + ' data-pj-month="'+esc(projMonth)+'" data-pj-defaulttype="pct_of_sales"'
+    + ' data-pj-value="" data-pj-valuetype=""'
+    + ' data-pj-ns="'+(nsProj!=null?esc(nsProj):"")+'"'
+    + ' onclick="v2EditProjection(this,event)">No '+esc(moName)+' PAC projection entered. Tap to pencil one ✎</div>' };
+}
+// the viewer's role (for the pencil gate) — read from the global STATE payload.
+function data_roleForProj(){ const d=(STATE&&STATE.data)||{}; return (d.manager&&d.manager.role)||""; }
+
 // MODULE — VERDICT/glance: the money BLUF. Owner/sup lead with the portfolio PAC
 // + the genuine spread insight (§6.3); GM leads with their store's PAC level.
+// v2-0.33: MTD PAC% shown LEFT of the YTD figure (both labeled); the MTD figure
+// conditional-formats vs the penciled pnl_projection PAC target when one exists
+// (delta in points), neutral + a pencil hint when none does. YTD keeps its level
+// coloring only — there is no sensible YTD projection aggregate to compare to.
 function renderNumbersVerdict(data){
   const fin = data.financials || {};
   if(fin.error) return card("Numbers — financials", '<div class="empline">Financials are temporarily unavailable. The rest of the board is unaffected.</div>', { icon:"📊" });
   const thru = finThru(fin), prelim = finPrelim(fin);
   const agg = fin.aggregate, ps = fin.per_store || [];
-  const flags = (prelim ? '<span class="flag prelim">⚠ June preliminary</span>' : '')
+  const moName = (fin.selected_month_label||"").split(" ")[0] || "MTD";
+  const flags = (prelim ? '<span class="flag prelim">⚠ '+esc(moName)+' preliminary</span>' : '')
     + '<span class="flag recon">YTD roll · pre-Withum</span>';
+  // data-through honesty for BOTH figures: state each side's date when they
+  // differ, one shared date when they match (the usual case — same txn roll).
+  const mThru = (fin.mtd && fin.mtd.data_through) || null;
+  const yThru = (fin.ytd && fin.ytd.data_through) || null;
+  const thruTxt = (mThru && yThru && mThru !== yThru)
+    ? 'MTD thru <b>'+esc(mThru)+'</b> · YTD thru <b>'+esc(yThru)+'</b>'
+    : 'data thru <b>'+esc(thru||"—")+'</b>';
 
   if(data.scope_all || ps.length > 1){
-    // Owner/Supervisor — portfolio/patch verdict + spread.
+    // Owner/Supervisor — portfolio/patch verdict + spread. MTD aggregate PAC% =
+    // the scope-aggregate pac_trend6 last point (placeholder-adjusted, matches
+    // the trend card) else summed dollars (renderHomeRoundup convention).
     if(!agg) return card("Numbers — financials", '<div class="empline">No in-scope financials yet.</div>', { icon:"📊", through: thru });
+    let mNs=0, mPac=0, mAny=false;
+    for(const s of ps){ if(s.mtd && s.mtd.net_sales!=null){ mNs+=(s.mtd.net_sales||0); mPac+=(s.mtd.pac_dollars||0); mAny=true; } }
+    let mPct = (mAny && mNs) ? mPac/mNs*100 : null;
+    const at = fin.pac_trend6||[], atLast = at.length?at[at.length-1]:null;
+    if(atLast && atLast.pac_pct!=null && atLast.month===fin.selected_month) mPct = atLast.pac_pct;
     const pos = ps.filter(s=>s.ytd && s.ytd.pac_pct!=null && s.ytd.pac_pct>=0).length;
     const pacs = ps.map(s=>s.ytd&&s.ytd.pac_pct).filter(x=>x!=null);
     const lo = pacs.length?Math.min(...pacs):null, hi = pacs.length?Math.max(...pacs):null;
@@ -1478,11 +1570,21 @@ function renderNumbersVerdict(data){
     const sub = '<b>'+esc(who)+' · '+pos+' of '+ps.length+' PAC-positive'
       + (lo!=null?' ('+lo.toFixed(0)+'–'+hi.toFixed(0)+'%)':'')+'.</b> '
       + (agg.pac_spread_pp!=null?'The story is the <b>'+agg.pac_spread_pp.toFixed(1)+'pp spread</b> — labor is the swing factor. ':'')
-      + 'data thru <b>'+esc(thru||"—")+'</b>';
+      + thruTxt;
+    // Projections are penciled PER STORE — no invented org aggregate (§ ship
+    // note 3). Surface how many stores have one; per-store compare lives in the
+    // store drill + the P&L ledger.
+    const withProj = ps.filter(s=>pacProjPct(s)).length;
+    const projLine = withProj
+      ? '<div class="vproj neu">'+withProj+' of '+ps.length+' stores have a '+esc(moName)+' PAC projection. Per store compare in the store drill.</div>'
+      : '<div class="vproj neu">No '+esc(moName)+' PAC projections entered yet</div>';
     const body = '<div class="verdict" style="background:linear-gradient(180deg,var(--good-bg),var(--surface) 80%);margin:0;box-shadow:none;border:0;padding:0">'
-      + '<div class="vk">'+(data.scope_all?"Portfolio verdict":"Patch verdict")+' · YTD '+(prelim?"(June preliminary)":"")+'</div>'
-      + '<div class="vhero"><span class="vnum countup fav">'+pct2(agg.pac_pct)+'</span><span class="vsub" style="padding-bottom:6px;font-weight:800">PAC</span></div>'
-      + '<div class="vsub">'+sub+'</div>'
+      + '<div class="vk">'+(data.scope_all?"Portfolio verdict":"Patch verdict")+' · MTD + YTD '+(prelim?"("+esc(moName)+" preliminary)":"")+'</div>'
+      + '<div class="vhero vduo">'
+      +   '<span class="vfig"><span class="vnum countup">'+pct2(mPct)+'</span><span class="vfl">MTD PAC · '+esc(moName)+'</span></span>'
+      +   '<span class="vfig"><span class="vnum countup fav">'+pct2(agg.pac_pct)+'</span><span class="vfl">YTD PAC</span></span>'
+      + '</div>'
+      + '<div class="vsub">'+sub+'</div>'+projLine
       + '<div class="vflags"><span class="flag good">✓ '+pos+'/'+ps.length+' above water</span>'+flags+'</div></div>';
     return card("Numbers — financials", body, { icon:"📊", through: thru, newBadge:true, drill:{kind:"agg"} });
   }
@@ -1491,11 +1593,19 @@ function renderNumbersVerdict(data){
   const f = finFocus(fin);
   if(!f || !f.ytd) return card("Numbers — financials", '<div class="empline">No P&L posted for your store yet.</div>', { icon:"📊", through: thru });
   const y = f.ytd;
-  const sub = '<b class="fav">Solidly profitable.</b> Labor at <b>'+pct1(y.labor_pct)+'</b> of sales · food <b>'+pct1(y.food_pct)+'</b> · data thru <b>'+esc(thru||"—")+'</b>';
+  const m = mtdPacPct(fin, f);
+  const pj = pacProjLine(fin, f, m, moName);
+  // MTD colors ONLY vs the penciled projection (neutral when none exists);
+  // YTD keeps its level coloring.
+  const mtdCls = pj.cls || "";
+  const sub = '<b class="fav">Solidly profitable.</b> Labor at <b>'+pct1(y.labor_pct)+'</b> of sales · food <b>'+pct1(y.food_pct)+'</b> · '+thruTxt;
   const body = '<div class="verdict" style="background:linear-gradient(180deg,var(--good-bg),var(--surface) 80%);margin:0;box-shadow:none;border:0;padding:0">'
-    + '<div class="vk">'+esc(f.store_name)+' · YTD '+(prelim?"(June preliminary)":"")+'</div>'
-    + '<div class="vhero"><span class="vnum countup '+(y.pac_pct>=0?"fav":"unfav")+'">'+pct2(y.pac_pct)+'</span><span class="vsub" style="padding-bottom:6px;font-weight:800">PAC</span></div>'
-    + '<div class="vsub">'+sub+'</div>'
+    + '<div class="vk">'+esc(f.store_name)+' · MTD + YTD '+(prelim?"("+esc(moName)+" preliminary)":"")+'</div>'
+    + '<div class="vhero vduo">'
+    +   '<span class="vfig"><span class="vnum countup '+mtdCls+'">'+pct2(m)+'</span><span class="vfl">MTD PAC · '+esc(moName)+'</span></span>'
+    +   '<span class="vfig"><span class="vnum countup '+(y.pac_pct>=0?"fav":"unfav")+'">'+pct2(y.pac_pct)+'</span><span class="vfl">YTD PAC</span></span>'
+    + '</div>'
+    + '<div class="vsub">'+sub+'</div>'+pj.html
     + '<div class="vflags">'+flags+'</div></div>';
   return card("Numbers — financials", body, { icon:"📊", through: thru, newBadge:true, drill:{kind:"store", store_id:f.store_id} });
 }
