@@ -508,6 +508,8 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .dprow .dprate{text-align:right;font-weight:900;font-variant-numeric:tabular-nums;min-width:46px}
 .statedot{font-size:8px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
+.sd-warn{color:var(--warn);background:var(--warn-bg)}   /* v2-0.30 Jolt late/stale */
+.optile .opv.warn{color:var(--warn)}                     /* amber mid-band op tiles */
 /* full-standings expander (race/osat) + shift-leader daypart tables (TEAM lane) */
 .stexp{margin-top:10px}
 /* Floor / call-off card (v2-0.27, ported from the prod labor-bar lb-/ls- styles) */
@@ -672,7 +674,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.29";
+const SHELL_VERSION = "v2-0.30";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -711,7 +713,12 @@ const LANE_KEYS = {
   TEAM:   ["manager_scorecards", "operations", "newHireTraining", "datapass_labor", "datapass_food",
            "datapass_sales", "service_times", "turnover", "shiftLeaders", "shiftLeaderMetrics",
            "manager_rank", "bonus_results", "bonus_adjustments", "waste_compliance", "sales_summary",
-           "cash_integrity", "pmix", "speed_vs_labor", "crew_readouts", "visits", "labor"],
+           "cash_integrity", "pmix", "speed_vs_labor", "crew_readouts", "visits", "labor",
+           // v2-0.30 Jolt cards. NOT in LANE_DISTINCTIVE — like voice_trend they
+           // also arrive with the TODAY home (the priorities row reads them), so
+           // they can't prove a TEAM load. The TEAM fetch re-merges them WITH the
+           // GM per-run drill rows (runs_today ships only on the TEAM lane).
+           "jolt_checklists", "jolt_temps"],
   MORE:   ["campaigns", "rgr", "check_in", "meeting", "contacts", "owner_pulse", "manual_reports",
            "advisor_briefing", "key_dates", "hazel"],
 };
@@ -1065,6 +1072,32 @@ function computeTodayPriorities(data){
   flagVoice(data.cleanliness_race, "Cleanliness", null);
   flagVoice(data.osat_incentive, "OSAT", (data.osat_incentive && data.osat_incentive.threshold) || null);
 
+  // (4) Jolt (v2-0.30): ONLY out-of-range fridge/freezer temps + missed
+  //     FOOD-SAFETY checklists today (per spec) — small rows linking to the
+  //     TEAM cards. out_of_range is the Edge Fn's labeled conservative band
+  //     (fridge >48°F / freezer >20°F, reading ≤24h old, active sensor).
+  const goTeam = ' <a href="#" onclick="gotoLane(\'TEAM\');return false;">Team tab ›</a>';
+  const jtA = data.jolt_temps;
+  for(const sn of ((jtA&&jtA.sensors)||[])){
+    if(!sn.out_of_range) continue;
+    items.push({
+      sev:"warn",
+      title:"Temp: "+esc(sn.sensor_name)+" at "+esc(sn.temp_f)+"°F",
+      why:"Above the "+(sn.is_freezer?"20":"48")+"°F safety band at its last reading — check the unit."+goTeam,
+      meta:(sn.store_name?esc(sn.store_name)+" · ":"")+"Jolt · read "+esc(joltAge(sn.age_min)),
+    });
+  }
+  const jcA = data.jolt_checklists;
+  for(const st of ((jcA&&jcA.stores)||[])){
+    if(!(st.fs_missed_today>0)) continue;
+    items.push({
+      sev:"warn",
+      title:"Food safety: "+st.fs_missed_today+" checklist"+(st.fs_missed_today===1?"":"s")+" missed today",
+      why:"Due earlier today and not completed as of the last Jolt sync."+goTeam,
+      meta: esc(st.store_name||"")+" · Jolt data thru "+esc(fmtCT(jcA.data_through)),
+    });
+  }
+
   items.sort((a,b)=>(SEV_RANK[a.sev]??9)-(SEV_RANK[b.sev]??9));
   return items;
 }
@@ -1327,6 +1360,37 @@ function ageSince(ts){
   if(h < 24) return h+"h ago";
   return Math.floor(h/24)+"d ago";
 }
+/* ---- Jolt helpers (v2-0.30) ---- */
+// "Jolt data thru 6:20 PM CT" — a TIME, not just a date: the pull is twice
+// daily so the hour matters (spec: docs/plans/jolt-v2-cards/plan-spec.md).
+function fmtCT(ts){
+  if(!ts) return "—";
+  try{
+    return new Intl.DateTimeFormat("en-US",{timeZone:"America/Chicago",
+      month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(ts))+" CT";
+  }catch(_e){ return String(ts).slice(0,16); }
+}
+function fmtCTTime(ts){
+  if(!ts) return "—";
+  try{
+    return new Intl.DateTimeFormat("en-US",{timeZone:"America/Chicago",
+      hour:"numeric",minute:"2-digit"}).format(new Date(ts));
+  }catch(_e){ return String(ts).slice(11,16); }
+}
+// minute-grained reading age ("12m ago") — sensor readings can be minutes old.
+function joltAge(min){
+  if(min==null) return "";
+  if(min < 60) return min+"m ago";
+  if(min < 2880) return Math.round(min/60)+"h ago";
+  return Math.round(min/1440)+"d ago";
+}
+// programmatic lane switch (the TODAY Jolt alert rows link to the TEAM cards);
+// clicking the real tab button reuses the lazy-load + repaint path.
+function gotoLane(id){
+  const btn = document.querySelector('.tab[data-lane="'+id+'"]');
+  if(btn) btn.click();
+}
+window.gotoLane = gotoLane;
 // "today"/"tomorrow" buckets are AMERICA/CHICAGO calendar days (fix #5, task #22),
 // not rolling 24h/48h windows off the viewer's clock — a complaint due 11pm CT
 // tonight is "due today" even for a viewer in another timezone.
@@ -2499,6 +2563,119 @@ function renderTeamBonus(data){
 }
 
 // MODULE — Operations (Jolt): pre-shift completion + grill temps + sensor health.
+/* =========================================================================
+   JOLT CARDS (v2-0.30, spec docs/plans/jolt-v2-cards/plan-spec.md)
+   Card 1 — Checklists & Food Safety: today due/on-time/late/missed + trailing
+   7-day on-time % per template group; GM drill = today's per-run list; owner/
+   sup = 12-store worst-first rollup, tap a store to expand its groups.
+   Card 2 — Fridge & Freezer Temps: latest reading per sensor with its age;
+   stale (>2h or inactive) flagged; out-of-range = the Edge Fn's LABELED
+   conservative band (no numeric thresholds exist in the Jolt feed).
+   Data-through = real max completion_ts / reading_ts ("Jolt data thru <t> CT").
+   ========================================================================= */
+function joltStatusDot(st){
+  if(st==="on_time")  return '<span class="statedot sd-ok">on time</span>';
+  if(st==="late")     return '<span class="statedot sd-warn">late</span>';
+  if(st==="missed")   return '<span class="statedot sd-miss">missed</span>';
+  return '<span class="statedot">upcoming</span>';
+}
+function joltGroupRow(g, multi){
+  const t=g.today||{}, wp=(g.week&&g.week.pct_on_time!=null)?g.week.pct_on_time:(g.week_pct_on_time!=null?g.week_pct_on_time:null);
+  const bits=[];
+  if(t.on_time) bits.push(t.on_time+" on time");
+  if(t.late)    bits.push(t.late+" late");
+  if(t.missed)  bits.push('<b>'+t.missed+' missed</b>');
+  if(t.upcoming)bits.push(t.upcoming+" upcoming");
+  return '<div class="dprow"><span class="dpn">'+esc(g.group)
+    + '<small>today: '+(t.due? (bits.join(" · ")||"—") : "none due")+'</small></span>'
+    + '<span class="dprate">'+(wp!=null? wp.toFixed(0)+"% 7d" : "—")+'</span>'
+    + '<span class="statedot '+((t.missed||0)>0?"sd-miss":((t.late||0)>0?"sd-warn":"sd-ok"))+'">'
+    + ((t.missed||0)>0? t.missed+" missed" : (t.due? "on track":"—"))+'</span></div>';
+}
+function renderJoltChecklists(data){
+  const jc = data.jolt_checklists;
+  if(!jc){
+    return card("Checklists & Food Safety", '<div class="empline">No Jolt checklist data for your scope yet.</div>', { icon:"✅" });
+  }
+  const t = jc.today||{}, w = jc.week||{};
+  const doneDen = (t.due||0)-(t.upcoming||0);
+  const pctCls = p => p==null?"":(p>=90?"fav":p>=70?"warn":"unfav");
+  let body = '<div class="opbar">'
+    + '<div class="optile"><div class="opl">Today on-time</div><div class="opv '+pctCls(t.pct_on_time)+'">'
+      +(t.pct_on_time!=null? Number(t.pct_on_time).toFixed(0)+"%":"—")+'</div><div class="ops">'+(t.on_time||0)+'/'+doneDen+' due so far</div></div>'
+    + '<div class="optile"><div class="opl">Missed today</div><div class="opv '+((t.missed||0)?"unfav":"fav")+'">'+(t.missed||0)+'</div><div class="ops">runs</div></div>'
+    + '<div class="optile"><div class="opl">7-day on-time</div><div class="opv '+pctCls(w.pct_on_time)+'">'
+      +(w.pct_on_time!=null? Number(w.pct_on_time).toFixed(0)+"%":"—")+'</div><div class="ops">'+(w.on_time||0)+'/'+(w.due||0)+'</div></div></div>';
+  if(jc.multi_store){
+    // owner/sup rollup — worst-first (server-sorted); tap a store for its groups.
+    body += (jc.stores||[]).map(st=>{
+      const stt=st.today||{};
+      const inner = (st.groups||[]).map(g=>joltGroupRow(g)).join("");
+      return '<details class="stexp"><summary>'+esc(st.store_name||("Store "+st.store_id))
+        + ' · '+((stt.missed||0)?('<b>'+stt.missed+' missed</b>'):'0 missed')+' today'
+        + (st.week_pct_on_time!=null?(' · '+Number(st.week_pct_on_time).toFixed(0)+'% 7d'):'')
+        + ((st.fs_missed_today||0)?' · ⚠ food safety':'')
+        + '</summary>'+inner+'</details>';
+    }).join("");
+  } else {
+    body += (jc.groups||[]).map(g=>joltGroupRow(g)).join("");
+    // GM drill — today's per-run list (arrives with the TEAM lane fetch).
+    const runs = jc.runs_today||[];
+    if(runs.length){
+      const byG = {};
+      for(const r of runs){ (byG[r.group]=byG[r.group]||[]).push(r); }
+      let inner = "";
+      for(const g of Object.keys(byG)){
+        inner += '<div class="dsub">'+esc(g)+'</div>'
+          + byG[g].map(r=>'<div class="dprow"><span class="dpn">'+esc(r.title)
+            + '<small>due '+esc(fmtCTTime(r.deadline_ts))
+            + (r.completion_ts? ' · done '+esc(fmtCTTime(r.completion_ts)) : '')
+            + (r.submitted_by? ' · '+esc(r.submitted_by) : '')
+            + (r.score!=null? ' · score '+esc(r.score) : '')+'</small></span>'
+            + '<span class="dprate"></span>'+joltStatusDot(r.status)+'</div>').join("");
+      }
+      body += '<details class="stexp"><summary>Today&rsquo;s runs · '+runs.length+'</summary>'+inner+'</details>';
+    }
+  }
+  body += '<div class="cap">'+esc(jc.status_note||"")
+    + (jc.names_shown===false? " Submitted-by names hidden on this view-only link." : "")
+    + ' Last Jolt sync '+esc(fmtCT(jc.synced_at))+'.</div>';
+  return card("Checklists & Food Safety", body,
+    { icon:"✅", newBadge:true, info: "Jolt data thru "+fmtCT(jc.data_through) });
+}
+function renderJoltTemps(data){
+  const jt = data.jolt_temps;
+  if(!jt || !(jt.sensors||[]).length){
+    const extra = (jt && (jt.no_sensor_stores||[]).length)
+      ? " No RTS temp sensors reporting for: "+esc(jt.no_sensor_stores.join(", "))+"."
+      : "";
+    return card("Fridge & Freezer Temps", '<div class="empline">No Jolt temperature sensors reporting for your scope yet.'+extra+'</div>', { icon:"🧊" });
+  }
+  const sensors = jt.sensors||[];
+  const outN = sensors.filter(s=>s.out_of_range).length;
+  const staleN = sensors.filter(s=>s.stale).length;
+  let body = '<div class="opbar">'
+    + '<div class="optile"><div class="opl">Sensors</div><div class="opv">'+sensors.length+'</div><div class="ops">reporting</div></div>'
+    + '<div class="optile"><div class="opl">Out of range</div><div class="opv '+(outN?"unfav":"fav")+'">'+outN+'</div><div class="ops">flagged</div></div>'
+    + '<div class="optile"><div class="opl">Stale</div><div class="opv '+(staleN?"warn":"fav")+'">'+staleN+'</div><div class="ops">&gt;2h / inactive</div></div></div>';
+  body += sensors.map(s=>{
+    const flag = s.out_of_range ? '<span class="statedot sd-miss">OUT OF RANGE</span>'
+      : s.stale ? '<span class="statedot sd-warn">stale</span>'
+      : '<span class="statedot sd-ok">ok</span>';
+    return '<div class="dprow"><span class="dpn">'+(s.is_freezer?"❄️ ":"")+esc(s.sensor_name)
+      + '<small>'+(jt.multi_store? esc(s.store_name||"")+' · ':'')
+      + 'read '+esc(joltAge(s.age_min))+(s.is_active?'':' · sensor inactive')+'</small></span>'
+      + '<span class="dprate'+(s.out_of_range?' unfav':'')+'">'+(s.temp_f!=null? esc(s.temp_f)+"°F":"—")+'</span>'
+      + flag+'</div>';
+  }).join("");
+  if((jt.no_sensor_stores||[]).length){
+    body += '<div class="empline">No sensors reporting: '+esc(jt.no_sensor_stores.join(", "))+'.</div>';
+  }
+  body += '<div class="cap">'+esc(jt.threshold_note||"")+'</div>';
+  return card("Fridge & Freezer Temps", body,
+    { icon:"🧊", newBadge:true, info: "Jolt data thru "+fmtCT(jt.data_through) });
+}
+
 function renderTeamOperations(data){
   const op = data.operations;
   if(!op){
@@ -2969,6 +3146,11 @@ const MANIFEST = [
   // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
   // noise; re-enable when the Q3 LIVE bonus engine launches. renderTeamBonus kept.
   // { id:"team_bonus",     lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
+  // v2-0.30 Jolt cards (spec docs/plans/jolt-v2-cards/plan-spec.md): checklist
+  // execution + RTS temps from the live Jolt feed, ahead of the older
+  // pre-shift-only Operations card.
+  { id:"team_jolt_checklists", lane:"TEAM", title:"Checklists & Food Safety", render: renderJoltChecklists, newBadge:true },
+  { id:"team_jolt_temps",      lane:"TEAM", title:"Fridge & Freezer Temps",   render: renderJoltTemps,      newBadge:true },
   { id:"team_operations",   lane:"TEAM", title:"Operations (Jolt)",       render: renderTeamOperations,    newBadge:true },
   { id:"team_waste",        lane:"TEAM", title:"Waste compliance",        render: renderTeamWaste        },
   // MORE — Owner-Hub overflow (GM-relevant subset; owner/sup tools render dark).
