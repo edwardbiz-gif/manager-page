@@ -633,6 +633,26 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .vproj.fav{color:var(--good)} .vproj.unfav{color:var(--bad)} .vproj.neu{color:var(--ink-muted);font-weight:600}
 .vproj.hint{color:var(--proj);font-weight:700;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 
+/* v2-0.34: Jolt Ops full view (home entry module + drill sheet), adapted from
+   mockups/redesign/jolt-ops.html: warn flag chip, grill min-temp tiles, sensor
+   health ring, pre-shift MTD rate color. Semantic tokens only. */
+.flag.warn{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+.jgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.jgt{border:1px solid var(--line);border-radius:13px;padding:10px 11px;background:var(--surface-2)}
+.jgt.g-good{border-left:4px solid var(--good)} .jgt.g-warn{border-left:4px solid var(--warn)} .jgt.g-bad{border-left:4px solid var(--bad)}
+.jgt .jgl{font-size:10.5px;font-weight:800;color:var(--ink-2)}
+.jgt .jgv{font-size:21px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.05;margin-top:3px}
+.jgt.g-good .jgv{color:var(--good)} .jgt.g-warn .jgv{color:var(--warn)} .jgt.g-bad .jgv{color:var(--bad)}
+.jgt .jdeg{font-size:12px;font-weight:800;color:var(--ink-muted)}
+.jgt .jgs{font-size:9px;color:var(--ink-muted);font-weight:700;margin-top:2px}
+.shhero{display:flex;align-items:center;gap:13px;padding:4px 2px 8px}
+.shbig{font-size:24px;font-weight:900;line-height:1} .shbig small{font-size:12px;font-weight:800;color:var(--ink-muted)}
+.shlab{font-size:11px;color:var(--ink-muted);font-weight:700;margin-top:2px}
+.allc{font-size:11.5px;font-weight:700;color:var(--good);background:var(--good-bg);border:1px solid color-mix(in srgb,var(--good) 30%,transparent);border-radius:10px;padding:9px 11px;margin-top:4px}
+.dprate.warn{color:var(--warn)} .dprate.fav{color:var(--good)} .dprate.unfav{color:var(--bad)}
+.jbar{height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden;border:1px solid var(--line);margin:2px 0 8px}
+.jbar>i{display:block;height:100%;border-radius:999px}
+
 /* narrow phones (≤380px, fix #3 task #22): step the 5-col NUMBERS ledger down —
    tighter gaps + smaller numerals + shrinkable grid cells (min-width:0) so the
    Prev · MTD · Projection · Δ columns never overflow a 360px viewport. Last in
@@ -686,7 +706,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.33";
+const SHELL_VERSION = "v2-0.34";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2812,6 +2832,276 @@ function renderTeamOperations(data){
   return card("Operations (Jolt)", body, { icon:"✅", through: op.data_through?fmtDate(op.data_through):null, newBadge:true, drill:{kind:"operations"} });
 }
 
+/* =========================================================================
+   JOLT OPS FULL VIEW (v2-0.34) — mockups/redesign/jolt-ops.html brought into
+   v2. Entry = the "Jolt Ops" module on the TODAY home (compact summary from
+   the jolt_v2_* slices that already ride first paint); tapping it opens the
+   FULL drill sheet: operations readiness verdict → Checklists & Food Safety →
+   Pre-shift readiness (Module A latest + Module B MTD rate + Module C top
+   missers) → Grill min-temps (Module D) → Fridge & Freezer temps → Sensor
+   health (Module E). The pre-shift/grill/sensor slices ride the TEAM lane
+   (data.operations), so the sheet opens on a skeleton and ensureLane("TEAM")
+   fills it — no new Edge Fn query, no TEAM-lane regression. Owner/sup get
+   worst-first store pills + per-store drill; a GM sees their store. Names are
+   masked SERVER-side for RO/guest tokens (submit_person/submitted_by null).
+   Checklist statuses are computed vs each store&rsquo;s last Jolt sync (never
+   now() — the pull is twice daily); temps carry reading age + the v2-0.31
+   inferred-product-temp caption. Every section states its Jolt data-through.
+   ========================================================================= */
+// grill flag, McD cooked-hold guidance (mockup): >=155 in range, 130..154 watch,
+// <130 below safe. Null temp renders "—" and takes the watch border.
+function grillFlag(t){ if(t==null||isNaN(t)) return "warn"; if(t>=155) return "good"; if(t>=130) return "warn"; return "bad"; }
+const JOLT_DP_ORD = { "Breakfast":0, "Lunch":1, "Dinner":2 };
+function maxTs(a,b){ if(!a) return b||null; if(!b) return a; return String(a)>String(b)?a:b; }
+
+// MODULE — Jolt Ops entry (TODAY home): compact food-safety/checklist state +
+// temp alerts from the already-shipped jolt_v2_* slices. Owner/sup see the
+// worst-first store summary (top 3); tap opens the full Jolt Ops view.
+function renderTodayJolt(data){
+  const jc = data.jolt_checklists, jt = data.jolt_temps;
+  if(!jc && !jt) return card("Jolt Ops", '<div class="empline">No Jolt checklist or sensor data for your scope yet.</div>', { icon:"🧾" });
+  const t = (jc && jc.today) || {};
+  const sensors = (jt && jt.sensors) || [];
+  const outN = sensors.filter(s=>s.out_of_range).length;
+  const staleN = sensors.filter(s=>s.stale).length;
+  const doneDen = (t.due||0)-(t.upcoming||0);
+  const pctCls = p => p==null?"":(p>=90?"fav":p>=70?"warn":"unfav");
+  let body = '<div class="opbar">'
+    + '<div class="optile"><div class="opl">Today on-time</div><div class="opv '+pctCls(t.pct_on_time)+'">'
+      +(t.pct_on_time!=null? Number(t.pct_on_time).toFixed(0)+"%":"—")+'</div><div class="ops">'+(t.on_time||0)+'/'+doneDen+' due so far</div></div>'
+    + '<div class="optile"><div class="opl">Missed today</div><div class="opv '+((t.missed||0)?"unfav":"fav")+'">'+(t.missed||0)+'</div><div class="ops">checklists</div></div>'
+    + '<div class="optile"><div class="opl">Temp alerts</div><div class="opv '+(outN?"unfav":"fav")+'">'+outN+'</div><div class="ops">'+(staleN? staleN+" stale":"sensors")+'</div></div></div>';
+  if(jc && jc.multi_store){
+    body += (jc.stores||[]).slice(0,3).map(st=>{
+      const stt = st.today||{};
+      return '<div class="dprow"><span class="dpn">'+esc(st.store_name||("Store "+st.store_id))
+        + '<small>'+(st.week_pct_on_time!=null? Number(st.week_pct_on_time).toFixed(0)+'% on time 7d':'no 7d history')
+        + ((st.fs_missed_today||0)?' · ⚠ food safety':'')+'</small></span>'
+        + '<span class="dprate"></span>'
+        + '<span class="statedot '+((stt.missed||0)>0?"sd-miss":((stt.late||0)>0?"sd-warn":"sd-ok"))+'">'
+        + ((stt.missed||0)>0? stt.missed+' missed':'on track')+'</span></div>';
+    }).join("");
+    body += '<div class="cap">Worst first. Every store drills in the full view.</div>';
+  }
+  body += '<div class="cap">Checklist statuses vs the last Jolt sync per store (twice daily pull). '
+    + 'Tap for the full Jolt Ops view: checklists, pre-shift readiness, grill temps, fridge and freezer temps, sensor health.</div>';
+  const thru = maxTs(jc && jc.data_through, jt && jt.data_through);
+  return card("Jolt Ops", body,
+    { icon:"🧾", newBadge:true, info:"Jolt data thru "+fmtCT(thru), drill:{kind:"jolt_ops"} });
+}
+
+// ---- the full view (drill sheet). Opens on a skeleton, ensures the TEAM lane
+// (operations + GM per-run rows), then paints; store pills repaint client-side.
+let JOLT_OPS_STORE = null;
+async function openJoltOpsSheet(storeId){
+  document.getElementById("sheetTitle").textContent = "Jolt Ops";
+  document.getElementById("sheetBody").innerHTML =
+    '<div class="skel" style="border:0;box-shadow:none;margin:0;padding:4px 0 0">'
+    + '<div class="sl w40"></div><div class="sl w90"></div><div class="sl w70"></div><div class="sl tall"></div></div>'
+    + '<div class="cap">Loading pre-shift, grill and sensor detail…</div>';
+  document.getElementById("veil").classList.add("show");
+  document.getElementById("sheet").classList.add("show");
+  try{ await ensureLane("TEAM"); }catch(_e){ /* sections render honest empty states */ }
+  const data = (STATE && STATE.data) || {};
+  JOLT_OPS_STORE = storeId!=null ? Number(storeId) : joltOpsDefaultStore(data);
+  joltOpsPaint();
+}
+window.openJoltOpsSheet = openJoltOpsSheet;
+function joltOpsDefaultStore(data){
+  const jc = data.jolt_checklists;
+  if(jc && jc.multi_store && (jc.stores||[]).length) return jc.stores[0].store_id;  // worst first
+  const st = data.stores||[];
+  return st.length ? st[0].id : null;
+}
+function joltOpsPick(id){ JOLT_OPS_STORE = Number(id); joltOpsPaint(); }
+window.joltOpsPick = joltOpsPick;
+
+function joltOpsPaint(){
+  const data = (STATE && STATE.data) || {};
+  const jc = data.jolt_checklists, jt = data.jolt_temps, ops = data.operations;
+  const sid = JOLT_OPS_STORE;
+  const stores = data.stores||[];
+  const multi = stores.length > 1;
+  const dr2 = (k,v)=>'<div class="drow"><span class="dk">'+k+'</span><span class="dv">'+v+'</span></div>';
+  const stEntry = jc ? ((jc.stores||[]).find(s=>s.store_id===sid) || null) : null;
+  const stName = ((stores.find(s=>s.id===sid)||{}).name) || (stEntry && stEntry.store_name) || "";
+
+  // store pills (owner/sup): worst-first (the server-sorted jc.stores order),
+  // then any in-scope store with no checklist rows yet.
+  let pills = "";
+  if(multi){
+    const order = [], seen = new Set();
+    for(const st of ((jc && jc.stores)||[])){
+      if(seen.has(st.store_id)) continue;
+      seen.add(st.store_id);
+      order.push({ id:st.store_id, name:st.store_name||("Store "+st.store_id),
+                   warn:((st.today&&st.today.missed)||0)+((st.fs_missed_today)||0) });
+    }
+    for(const s of stores){ if(!seen.has(s.id)){ seen.add(s.id); order.push({id:s.id, name:s.name, warn:0}); } }
+    pills = '<div class="segtog" style="margin:0 0 10px">'+order.map(o=>
+      '<button class="segb'+(o.id===sid?" on":"")+'" onclick="joltOpsPick('+o.id+')">'+esc(o.name)+(o.warn?' ⚠':'')+'</button>').join("")+'</div>';
+  }
+
+  // store-scoped slices
+  const groups  = stEntry ? (stEntry.groups||[]) : ((jc && !jc.multi_store && jc.groups)||[]);
+  const stToday = stEntry ? (stEntry.today||{})  : ((jc && !jc.multi_store && jc.today)||{});
+  const sensors = jt ? (jt.sensors||[]).filter(s=>s.store_id===sid) : [];
+  const outN = sensors.filter(s=>s.out_of_range).length, staleN = sensors.filter(s=>s.stale).length;
+  const psL = ops ? (ops.preshift_latest||[]).filter(r=>r.store_id===sid)
+      .slice().sort((a,b)=>((JOLT_DP_ORD[a.daypart]??9)-(JOLT_DP_ORD[b.daypart]??9))) : [];
+  const psR = ops ? (ops.preshift_rate||[]).filter(r=>r.store_id===sid) : [];
+  const psM = ops ? (ops.preshift_misses||[]).filter(r=>r.store_id===sid && r.top_misser) : [];
+  const grill = ops ? (ops.grill_temps||[]).filter(r=>r.store_id===sid) : [];
+  const sh = ops ? ((ops.sensors||[]).find(r=>r.store_id===sid) || null) : null;
+
+  // ---- verdict (BLUF): readiness today ----
+  const psDone = psL.filter(p=>p.completed).length;
+  const grillBad = grill.filter(g=>grillFlag(g.min_cook_temp_f)==="bad").length;
+  const grillWarn = grill.filter(g=>g.min_cook_temp_f!=null && grillFlag(g.min_cook_temp_f)==="warn").length;
+  const shOk = sh ? (sh.sensors_functioning||0) : null, shTot = sh ? (sh.sensors_total||0) : null;
+  const thru = maxTs(jc && jc.data_through, jt && jt.data_through);
+  let h = '<div class="crumb">Today › <b>Jolt Ops</b>'+(stName?' · '+esc(stName):'')+'</div>' + pills;
+  h += '<div class="dsub">Operations readiness · today</div>'
+    + '<div class="opbar">'
+    + '<div class="optile"><div class="opl">Pre-shifts</div><div class="opv '+(psL.length?(psDone===psL.length?"fav":"warn"):"")+'">'
+      +(psL.length? psDone+'/'+psL.length : "—")+'</div><div class="ops">done today</div></div>'
+    + '<div class="optile"><div class="opl">Missed</div><div class="opv '+((stToday.missed||0)?"unfav":"fav")+'">'+(stToday.missed||0)+'</div><div class="ops">checklists today</div></div>'
+    + '<div class="optile"><div class="opl">Temp alerts</div><div class="opv '+(outN?"unfav":"fav")+'">'+outN+'</div><div class="ops">'+(staleN? staleN+" stale":"sensors")+'</div></div>'
+    + (shTot!=null? '<div class="optile"><div class="opl">Sensors OK</div><div class="opv '+(shOk<shTot?"warn":"fav")+'">'+shOk+'/'+shTot+'</div><div class="ops">functioning</div></div>':'')
+    + '</div>'
+    + '<div class="vflags">'
+    + (grill.length ? (grillBad? '<span class="flag warn">'+grillBad+' grill below safe</span>'
+        : (grillWarn? '<span class="flag warn">'+grillWarn+' grill on watch</span>' : '<span class="flag good">grill safe</span>')) : '')
+    + ((stEntry && (stEntry.fs_missed_today||0)) ? '<span class="flag warn">food safety missed today</span>' : '')
+    + (outN? '<span class="flag warn">'+outN+' temp alert'+(outN===1?"":"s")+'</span>' : (sensors.length? '<span class="flag good">temps ok</span>':''))
+    + (shTot!=null ? (shOk<shTot? '<span class="flag warn">'+(shTot-shOk)+' sensor'+((shTot-shOk)===1?"":"s")+' need a look</span>'
+        : '<span class="flag good">sensors ok</span>') : '')
+    + '</div>'
+    + '<div class="cap">Jolt data thru '+esc(fmtCT(thru))+'. '+esc((jc && jc.status_note)||"")+'</div>';
+
+  // ---- Checklists & Food Safety (today + trailing 7d per template group) ----
+  h += '<div class="dsub">Checklists &amp; food safety</div>';
+  if(groups.length){
+    h += groups.map(g=>joltGroupRow(g)).join("");
+    const runs = (jc && jc.runs_today) || [];
+    if(runs.length && !multi){
+      const byG = {};
+      for(const r of runs){ (byG[r.group]=byG[r.group]||[]).push(r); }
+      let inner = "";
+      for(const g of Object.keys(byG)){
+        inner += '<div class="dsub">'+esc(g)+'</div>'
+          + byG[g].map(r=>'<div class="dprow"><span class="dpn">'+esc(r.title)
+            + '<small>due '+esc(fmtCTTime(r.deadline_ts))
+            + (r.completion_ts? ' · done '+esc(fmtCTTime(r.completion_ts)) : '')
+            + (r.submitted_by? ' · '+esc(r.submitted_by) : '')
+            + (r.score!=null? ' · score '+esc(r.score) : '')+'</small></span>'
+            + '<span class="dprate"></span>'+joltStatusDot(r.status)+'</div>').join("");
+      }
+      h += '<details class="stexp"><summary>Today&rsquo;s runs · '+runs.length+'</summary>'+inner+'</details>';
+    } else if(multi){
+      h += '<div class="cap">Per-run detail ships on the single-store GM link.</div>';
+    }
+    h += '<div class="cap">'+esc((jc && jc.status_note)||"")
+      + (jc && jc.names_shown===false? ' Submitted-by names hidden on this view-only link.' : '')
+      + ' Last Jolt sync '+esc(fmtCT(jc && jc.synced_at))+' · Jolt data thru '+esc(fmtCT(jc && jc.data_through))+'.</div>';
+  } else {
+    h += '<div class="empline">No checklist data for this store in the last 7 days.</div>';
+  }
+
+  // ---- Pre-shift readiness (Module A latest + Module B MTD rate) ----
+  h += '<div class="dsub">Pre-shift readiness</div>';
+  if(!ops){
+    h += '<div class="empline">Pre-shift, grill and sensor detail did not load. Open the Team tab once, then reopen this view.</div>';
+  } else if(psL.length){
+    const rateBy = {}; for(const r of psR) rateBy[r.daypart]=r;
+    h += psL.map(p=>{
+      const r = rateBy[p.daypart]||{};
+      const rate = r.completion_rate_pct;
+      const rc = rate==null?"":(rate>=90?"good":rate>=70?"warn":"bad");
+      const stat = !p.completed ? '<span class="statedot sd-miss">not done</span>'
+        : (p.on_time===false ? '<span class="statedot sd-warn">late</span>' : '<span class="statedot sd-ok">on time</span>');
+      const sub = p.completed
+        ? ((p.submit_person? 'by '+esc(p.submit_person)+' · ':'')+esc(fmtCT(p.completion_ts||p.display_ts)))
+        : ('due '+esc(fmtCTTime(p.deadline_ts))+' · latest not completed');
+      return '<div class="dprow"><span class="dpn">'+esc(p.daypart)+'<small>'+sub+'</small></span>'
+        + '<span class="dprate '+(rc==="good"?"fav":rc==="warn"?"warn":rc==="bad"?"unfav":"")+'">'
+        + (rate!=null? 'MTD '+Number(rate).toFixed(0)+'% · '+(r.completed_total||0)+'/'+(r.assigned_total||0) : '—')+'</span>'
+        + stat + '</div>'
+        + (rate!=null? '<div class="jbar"><i style="width:'+Math.max(3,Math.min(100,rate)).toFixed(0)+'%;background:var(--'+(rc==="good"?"good":rc==="warn"?"warn":"bad")+')"></i></div>' : '');
+    }).join("");
+    if(psM.length){
+      h += '<div class="cap">Top missers (MTD): '+psM.map(m=>esc(m.daypart)+' '+esc(m.top_misser)+' ('+(m.miss_count||0)+')').join(' · ')+'</div>';
+    }
+    const psThru = psL.reduce((m,r)=>{ const t2=r.completion_ts||r.display_ts; return t2&&String(t2)>m?String(t2):m; },"");
+    h += '<div class="cap">Latest completion per daypart + MTD completed/assigned, from the Jolt pre-shift views. '
+      + (jc && jc.names_shown===false? 'Names hidden on this view-only link. ':'')
+      + 'Jolt data thru '+esc(psThru?fmtCT(psThru):"—")+'.</div>';
+  } else {
+    h += '<div class="empline">No pre-shift checklist data for this store yet.</div>';
+  }
+
+  // ---- Grill min-temps (Module D) ----
+  h += '<div class="dsub">Grill min-temps</div>';
+  if(grill.length){
+    const gThru = grill.reduce((m,r)=>{ const t2=r.completion_ts; return t2&&String(t2)>m?String(t2):m; },"");
+    h += '<div class="jgrid">'+grill.slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category))).map(g=>{
+      const f = grillFlag(g.min_cook_temp_f);
+      return '<div class="jgt g-'+f+'"><div class="jgl">'+esc(g.product_category)+'</div>'
+        + '<div class="jgv">'+(g.min_cook_temp_f!=null? Number(g.min_cook_temp_f).toFixed(1):"—")+'<span class="jdeg">°F</span></div>'
+        + '<div class="jgs">min of '+(g.cook_reading_count||0)+' cook reads · '+esc(fmtCT(g.completion_ts))+'</div></div>';
+    }).join("")+'</div>';
+    h += '<div class="cap">Lowest cooked product temp on the latest food safety check per product. '
+      + '<b style="color:var(--good)">≥155°F in range</b> · <b style="color:var(--warn)">130 to 154°F watch</b> · <b style="color:var(--bad)">&lt;130°F below safe</b>. '
+      + 'YES/NO and N/A items excluded. Jolt data thru '+esc(gThru?fmtCT(gThru):"—")+'.</div>';
+  } else if(ops){
+    h += '<div class="empline">No grill cook-temp reads for this store yet.</div>';
+  }
+
+  // ---- Fridge & freezer temps (latest reading per sensor, with age) ----
+  h += '<div class="dsub">Fridge &amp; freezer temps</div>';
+  if(sensors.length){
+    h += sensors.map(s=>{
+      const flag = s.out_of_range ? '<span class="statedot sd-miss">OUT OF RANGE</span>'
+        : s.stale ? '<span class="statedot sd-warn">stale</span>'
+        : '<span class="statedot sd-ok">ok</span>';
+      return '<div class="dprow"><span class="dpn">'+(s.is_freezer?"❄️ ":"")+esc(s.sensor_name)
+        + '<small>read '+esc(joltAge(s.age_min))+(s.is_active?'':' · sensor inactive')+'</small></span>'
+        + '<span class="dprate'+(s.out_of_range?' unfav':'')+'">'+(s.temp_f!=null? esc(s.temp_f)+"°F":"—")+'</span>'
+        + flag+'</div>';
+    }).join("");
+    h += '<div class="cap">'+esc((jt && jt.threshold_note)||"")+' Jolt data thru '+esc(fmtCT(jt && jt.data_through))+'.</div>';
+  } else {
+    h += '<div class="empline">No RTS temp sensors reporting for this store.</div>';
+  }
+
+  // ---- Sensor health (Module E: ring + problem list) ----
+  h += '<div class="dsub">Sensor health</div>';
+  if(sh){
+    const tot = sh.sensors_total||0, fn = sh.sensors_functioning||0;
+    const pct = tot? Math.round(100*fn/tot) : 0;
+    const C = 2*Math.PI*16, off = tot? C*(1-fn/tot) : C;
+    const ringCol = (tot && fn===tot) ? "var(--good)" : ((tot && fn/tot>=0.8) ? "var(--warn)" : "var(--bad)");
+    h += '<div class="shhero"><svg width="60" height="60" viewBox="0 0 40 40" role="img" aria-label="sensors functioning">'
+      + '<circle cx="20" cy="20" r="16" fill="none" stroke="var(--surface-3)" stroke-width="5"/>'
+      + '<circle cx="20" cy="20" r="16" fill="none" stroke="'+ringCol+'" stroke-width="5" stroke-linecap="round"'
+      + ' stroke-dasharray="'+C.toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'" transform="rotate(-90 20 20)"/>'
+      + '<text x="20" y="23" text-anchor="middle" font-size="11" font-weight="900" fill="var(--ink)">'+pct+'%</text></svg>'
+      + '<div><div class="shbig">'+fn+'<small> of '+tot+' functioning</small></div>'
+      + '<div class="shlab">'+((sh.sensors_with_problem||0)? sh.sensors_with_problem+' need a look' : 'all reporting')+'</div></div></div>';
+    const probs = sh.problem_list||[];
+    h += probs.length
+      ? probs.map(p=>dr2(esc(p.sensor||"sensor"), esc(p.reason||"")+(p.last_reading_ts?' · '+esc(fmtCT(p.last_reading_ts)):''))).join("")
+      : '<div class="allc">✓ All '+tot+' sensors reporting.</div>';
+    h += '<div class="cap">'+esc((ops && ops.sensor_note)||"")
+      + ' As of the last Jolt sync'+(jc && jc.synced_at? ' '+esc(fmtCT(jc.synced_at)):'')+'.</div>';
+  } else if(ops){
+    h += '<div class="empline">No sensor health data for this store.</div>';
+  }
+
+  document.getElementById("sheetTitle").textContent = "Jolt Ops"+(stName?" · "+stName:"");
+  document.getElementById("sheetBody").innerHTML = h;
+}
+
 // MODULE — waste-count compliance (X/N stores filed raw waste).
 function renderTeamWaste(data){
   const wc = data.waste_compliance;
@@ -2923,7 +3213,7 @@ function renderMoreOwnerTools(data){
    etc.); the delegated card-drill handler routes object-drills with a non-NUMBERS
    kind here. Detail restates its data-through date and never fabricates a number.
    ========================================================================= */
-const LANE_DRILL_KINDS = new Set(["gfeedback","gvoice","scorecard","training","deploy","servicetimes","turnover","shiftleaders","shiftmetrics","operations"]);
+const LANE_DRILL_KINDS = new Set(["gfeedback","gvoice","scorecard","training","deploy","servicetimes","turnover","shiftleaders","shiftmetrics","operations","jolt_ops"]);
 function laneDrill(el, ev){
   if(ev) ev.stopPropagation();
   const kind = el.getAttribute("data-drill");
@@ -2933,6 +3223,10 @@ function laneDrill(el, ev){
 window.laneDrill = laneDrill;
 
 function openLaneSheet(kind, arg){
+  // v2-0.34: the Jolt Ops full view manages its own sheet (it awaits the TEAM
+  // lane for the pre-shift/grill/sensor slices, then paints + repaints on the
+  // per-store pills) — hand off and return.
+  if(kind==="jolt_ops"){ openJoltOpsSheet(arg && arg.store_id); return; }
   const data = (STATE && STATE.data) || {};
   let title="Detail", body="", crumb="";
   const dr = (k,v) => '<div class="drow"><span class="dk">'+k+'</span><span class="dv">'+v+'</span></div>';
@@ -3214,6 +3508,9 @@ const MANIFEST = [
   { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
   { id:"home_sales_trend", lane:"TODAY", title:"Sales trend",             render: renderHomeSalesTrend  },
   { id:"home_voice",       lane:"TODAY", title:"Voice top line",          render: renderHomeVoice       },
+  // v2-0.34: Jolt Ops entry module — compact checklist/food-safety + temp-alert
+  // summary; tap opens the FULL Jolt Ops view (drill sheet, mockup jolt-ops.html).
+  { id:"today_jolt",       lane:"TODAY", title:"Jolt Ops",                render: renderTodayJolt,       newBadge:true },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
   { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
