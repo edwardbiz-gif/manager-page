@@ -376,6 +376,37 @@ body{padding-bottom:74px}
 .advisor-body .md-ul{margin:5px 0 5px 16px;padding:0}
 .advisor-body li{margin:2px 0}
 .advisor-foot{font-size:10.5px;color:var(--muted);margin-top:8px;font-style:italic}
+/* Advisor Brain — PAC waterfall + anomaly feed (Owner-only) */
+.aw-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px;align-items:center}
+.aw-chip{font:inherit;font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--line);background:var(--paper);color:var(--ink2);cursor:pointer}
+.aw-chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.aw-sel{font:inherit;font-size:11px;padding:3px 6px;border-radius:8px;border:1px solid var(--line);
+  background:var(--paper);color:var(--fg);margin-left:auto}
+.aw-head{font-size:12.5px;font-weight:700;margin:7px 0 2px}
+.aw-delta{font-size:15px;font-weight:800}
+.aw-prelim{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--due-soon);color:var(--due-soonc);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.aw-row{display:flex;align-items:center;gap:8px;margin:2.5px 0;font-size:11.5px}
+.aw-lab{flex:0 0 118px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aw-track{flex:1;display:flex;height:12px;position:relative}
+.aw-track .half{flex:1;position:relative}
+.aw-track .half:first-child{border-right:1px solid var(--line)}
+.aw-bar{position:absolute;top:1px;bottom:1px;border-radius:3px;min-width:2px}
+.aw-bar.pos{background:var(--ok);left:0}
+.aw-bar.neg{background:var(--urgent);right:0}
+.aw-bar.resid{background:var(--muted)}
+.aw-amt{flex:0 0 74px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.aw-amt.pos{color:var(--ok)}.aw-amt.neg{color:var(--urgent)}.aw-amt.mut{color:var(--muted);font-weight:600}
+.aw-note{font-size:10.5px;color:var(--muted);margin-top:6px}
+.aw-det{margin:4px 0 2px}
+.aw-det summary{font-size:10.5px;color:var(--accent);cursor:pointer;font-weight:700}
+.aw-det .aw-row{font-size:10.5px}
+.anom-item{margin:5px 0;border-bottom:1px dashed var(--line);padding-bottom:5px}
+.anom-item summary{display:flex;gap:7px;align-items:baseline;font-size:11.5px;cursor:pointer;line-height:1.35}
+.anom-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;position:relative;top:0}
+.anom-exp{font-size:11px;color:var(--ink2);margin:5px 0 2px 15px}
+.anom-meta{font-size:10px;color:var(--muted);margin-left:15px}
 
 /* Owner pulse strip */
 .pulse{margin:10px 0 0}
@@ -543,7 +574,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v89";
+const SHELL_VERSION = "v91"; // staged with FN v91 (Advisor Brain: PAC waterfall + anomalies)
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -3172,6 +3203,109 @@ function renderAdvisorBriefing(ab){
   return h+'<div class="advisor-foot">Biweekly brief'+dt+'</div></div>';
 }
 
+// ---- Advisor Brain: PAC variance waterfall (Owner-only) -------------
+// data.advisor_waterfall = rows from the persisted advisor_pac_waterfall table
+// (org rollup store_id null + per-store; compare mom|yoy; 2 latest months).
+// bars jsonb amounts sum EXACTLY to pac_delta; the residual bar is the honesty
+// check. Deterministic SQL (build_advisor_brain.py) - nothing computed here.
+let _awData=null, _awSt={cmp:"mom", store:"", month:""};
+function awFmt(n){
+  const v=Number(n)||0, a=Math.round(Math.abs(v)).toLocaleString("en-US");
+  return (v<0?"-$":"+$")+a;
+}
+function awFmt0(n){ return "$"+Math.round(Math.abs(Number(n)||0)).toLocaleString("en-US"); }
+function awMonth(d){ const t=vdate(d); return t?t.toLocaleDateString("en-US",{month:"short",year:"numeric",timeZone:"UTC"}):String(d); }
+function awSet(k,v){ _awSt[k]=v; const el=document.getElementById("aw-body"); if(el) el.innerHTML=awBody(); }
+function awBody(){
+  const wf=_awData||[];
+  const months=[...new Set(wf.filter(r=>r.compare==="mom"&&r.store_id===null).map(r=>r.period_month))].sort().reverse();
+  if(!months.length) return '<div class="aw-note">No waterfall rows yet.</div>';
+  if(!_awSt.month||months.indexOf(_awSt.month)<0) _awSt.month=months[0];
+  const row=wf.find(r=>r.compare===_awSt.cmp && r.period_month===_awSt.month &&
+    (_awSt.store ? r.store_number===_awSt.store : r.store_id===null));
+  const stores=[...new Set(wf.filter(r=>r.store_number).map(r=>r.store_number))].sort((a,b)=>Number(a)-Number(b));
+  let h='<div class="aw-chips">'+
+    '<button class="aw-chip'+(_awSt.cmp==="mom"?" on":"")+'" onclick="awSet(\'cmp\',\'mom\')">MoM</button>'+
+    '<button class="aw-chip'+(_awSt.cmp==="yoy"?" on":"")+'" onclick="awSet(\'cmp\',\'yoy\')">YoY</button>'+
+    months.map(m=>'<button class="aw-chip'+(_awSt.month===m?" on":"")+'" onclick="awSet(\'month\',\''+esc(m)+'\')">'+esc(awMonth(m))+'</button>').join("")+
+    '<select class="aw-sel" onchange="awSet(\'store\',this.value)">'+
+    '<option value=""'+(!_awSt.store?" selected":"")+'>All 12 (org)</option>'+
+    stores.map(s=>'<option value="'+esc(s)+'"'+(_awSt.store===s?" selected":"")+'>'+esc(s)+'</option>').join("")+
+    '</select></div>';
+  if(!row) return h+'<div class="aw-note">No row for that selection (YoY needs the prior-year R365 month).</div>';
+  const bars=Array.isArray(row.bars)?row.bars:[];
+  const scale=Math.max(1,...bars.map(b=>Math.abs(Number(b.amount)||0)));
+  const dPos=Number(row.pac_delta)>=0;
+  h+='<div class="aw-head">'+esc(awMonth(row.base_month))+' &rarr; '+esc(awMonth(row.period_month))+
+     (_awSt.store?' &middot; store '+esc(_awSt.store):' &middot; all 12 stores')+
+     (row.is_preliminary?'<span class="aw-prelim">preliminary</span>':'')+'</div>';
+  h+='<div class="aw-delta">PAC '+awFmt0(row.pac_prior)+' &rarr; '+awFmt0(row.pac_cur)+
+     ' <span class="'+(dPos?"aw-amt pos":"aw-amt neg")+'" style="flex:none">('+awFmt(row.pac_delta)+')</span></div>';
+  bars.forEach(b=>{
+    const v=Number(b.amount)||0, w=Math.max(1.5,Math.abs(v)/scale*100);
+    const resid=b.key==="residual";
+    h+='<div class="aw-row"><div class="aw-lab" title="'+esc(b.label)+'">'+esc(b.label)+'</div>'+
+       '<div class="aw-track"><div class="half">'+(v<0?'<div class="aw-bar neg'+(resid?" resid":"")+'" style="width:'+w+'%"></div>':'')+'</div>'+
+       '<div class="half">'+(v>=0?'<div class="aw-bar pos'+(resid?" resid":"")+'" style="width:'+w+'%"></div>':'')+'</div></div>'+
+       '<div class="aw-amt '+(resid?"mut":(v>=0?"pos":"neg"))+'">'+awFmt(v)+'</div></div>';
+  });
+  const sd=row.sales_detail||{};
+  if(sd.gc_cur!=null && sd.gc_prior!=null)
+    h+='<div class="aw-note">Guests '+Number(sd.gc_prior).toLocaleString("en-US")+' &rarr; '+
+       Number(sd.gc_cur).toLocaleString("en-US")+
+       (sd.ac_cur!=null&&sd.ac_prior!=null?' &middot; avg check $'+Number(sd.ac_prior).toFixed(2)+' &rarr; $'+Number(sd.ac_cur).toFixed(2):'')+
+       (sd.days_cur!=null?' &middot; '+esc(sd.days_cur)+' vs '+esc(sd.days_prior)+' days':'')+'</div>';
+  const fd=row.food_detail||{};
+  if(fd.available && Array.isArray(fd.components)){
+    h+='<details class="aw-det"><summary>Food cost drill (base / waste / condiment / discounts...)</summary>';
+    fd.components.forEach(c=>{
+      const v=Number(c.amount)||0;
+      h+='<div class="aw-row"><div class="aw-lab" style="flex-basis:190px" title="'+esc(c.label)+'">'+esc(c.label)+'</div>'+
+         '<div style="flex:1"></div><div class="aw-amt '+(v>=0?"pos":"neg")+'">'+awFmt(v)+'</div></div>';
+    });
+    if(fd.fob_context && fd.fob_context.fob_delta_amt!=null)
+      h+='<div class="aw-note">FOB context: '+awFmt(fd.fob_context.fob_delta_amt)+' vs prior (separate stat, not a summing component).</div>';
+    h+='</details>';
+  } else if(fd.note){
+    h+='<div class="aw-note">'+esc(fd.note)+'</div>';
+  }
+  h+='<div class="aw-note">Bars sum exactly to the PAC change; residual = rounding + anything unexplained. '+
+     'Data thru '+esc(row.txn_through_date||"?")+(row.is_preliminary?' (R365 period still open - numbers will move)':'')+'.</div>';
+  return h;
+}
+function renderAdvisorWaterfall(wf){
+  if(!wf || !wf.length) return "";
+  _awData=wf;
+  return '<div class="advisor" id="advisor-wf"><div class="advisor-tag"><span>&#128202; PAC Bridge - what moved profit</span></div>'+
+         '<div id="aw-body">'+awBody()+'</div></div>';
+}
+
+// ---- Advisor Brain: anomaly feed (Owner-only) -----------------------
+// data.advisor_anomalies = open advisor_anomalies rows (last 14 days, high
+// severity first). Detection is deterministic SQL; the explanation text was
+// written by Claude grounded ONLY in the detection numbers (precomputed by
+// build_advisor_brain.py - never generated in-request).
+function renderAdvisorAnomalies(list){
+  if(!list || !list.length) return "";
+  const sevColor={high:"var(--urgent)",medium:"var(--high)",low:"var(--muted)"};
+  const nHigh=list.filter(a=>a.severity==="high").length;
+  const show=list.slice(0,12);
+  let h='<div class="advisor" id="advisor-anom"><div class="advisor-tag"><span>&#9888;&#65039; Anomalies - '+
+        list.length+' open'+(nHigh?' ('+nHigh+' high)':'')+'</span></div>';
+  show.forEach(a=>{
+    h+='<details class="anom-item"><summary>'+
+       '<span class="anom-dot" style="background:'+(sevColor[a.severity]||"var(--muted)")+'"></span>'+
+       '<span>'+esc(a.summary||a.metric_label||"")+'</span></summary>';
+    if(a.explanation) h+='<div class="anom-exp">'+esc(a.explanation)+'</div>';
+    h+='<div class="anom-meta">'+esc(a.metric_label||a.metric)+(a.dim?' &middot; '+esc(a.dim):'')+
+       (a.z!=null?' &middot; robust z '+esc(a.z):'')+' &middot; data thru '+esc(a.data_through||a.business_date)+'</div>'+
+       '</details>';
+  });
+  if(list.length>show.length) h+='<div class="aw-note">+ '+(list.length-show.length)+' more (lower severity).</div>';
+  h+='<div class="aw-note">Detected by deterministic SQL baselines (median + MAD) and rule bounds; explanations grounded in the detection numbers only.</div>';
+  return h+'</div>';
+}
+
 // ---- Owner pulse strip (Owner-only, above the chips) ----------------
 // data.owner_pulse: complaints + onboarding + intakes snapshot. Shows only
 // what the task chips DON'T already cover (avoids duplicating overdue/urgent).
@@ -3822,6 +3956,11 @@ function renderBoard(payload){
 
   // Business Advisor briefing — Owner-only, very top (renders "" when empty).
   h+=sect(()=>renderAdvisorBriefing(data.advisor_briefing));
+
+  // Advisor Brain — PAC variance waterfall + anomaly feed (Owner-only; both
+  // render "" until build_advisor_brain.py has populated the tables).
+  h+=sect(()=>renderAdvisorWaterfall(data.advisor_waterfall));
+  h+=sect(()=>renderAdvisorAnomalies(data.advisor_anomalies));
 
   // Supervisor Meeting — Owner-only agenda card (Owner Hub tool #3): link + Update.
   h+=sect(()=>renderMeeting(data.meeting, mgr));
