@@ -4017,7 +4017,11 @@ function renderBonusHomeTile(data){
   } else {
     body += emptyState("💰", "No bonus run yet", "The tile lights up when the first monthly run lands.");
   }
-  return card("Q3 Bonus — Preliminary", body,
+  // Monthly framing: the tile shows the latest single monthly run (e.g. "June
+  // 2026"), so title by the month, not the containing quarter. Payout cadence
+  // (pays at Q3 close) stays in the watermark/info — accurate, just not the header.
+  const tileTitle = (bh.period_label ? bh.period_label + " " : "") + "Bonus — Preliminary";
+  return card(tileTitle, body,
     { icon:"💰", info: info, newBadge:true, drill:{ kind:"page:bonus_ranker" } });
 }
 
@@ -4029,7 +4033,7 @@ const MANIFEST = [
   // v2-0.36: Q3 bonus tile (all manager roles; render self-gates on data.bonus_home
   // which the Fn never sends to RO/guest tokens). Whole card taps into the
   // bonus_ranker PAGE ("page:" drill prefix -> openPage).
-  { id:"today_bonus",      lane:"TODAY", title:"Q3 Bonus (Preliminary)",  render: renderBonusHomeTile,   newBadge:true },
+  { id:"today_bonus",      lane:"TODAY", title:"Monthly Bonus (Preliminary)",  render: renderBonusHomeTile,   newBadge:true },
   { id:"home_roundup",     lane:"TODAY", title:"Portfolio roundup",       render: renderHomeRoundup     },
   { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
   { id:"home_sales_trend", lane:"TODAY", title:"Sales trend",             render: renderHomeSalesTrend  },
