@@ -1424,7 +1424,7 @@ function renderPinnedRace(data){
   return card(esc(race.title||"June Cleanliness Race"),
     contestBody(race, data, { kind:"race", metricLabel:"Overall Cleanliness (VOICE)",
       prizes: race.prizes||["$150","$100","$50"] }),
-    { icon:"🧽", info: "VOICE · "+voiceMtdLabel(race.data_through) });
+    { icon:"🧽", info: "VOICE · "+contestVoiceLabel(race) });
 }
 
 // MODULE — pinned $100 June OSAT Incentive (in-money status + gap to threshold).
@@ -1436,7 +1436,7 @@ function renderPinnedOsat(data){
   return card(esc(oi.title||"$100 June OSAT Incentive"),
     contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
       threshold: oi.threshold, amount: oi.amount||"$100" }),
-    { icon:"💯", info: "VOICE · "+voiceMtdLabel(oi.data_through) });
+    { icon:"💯", info: "VOICE · "+contestVoiceLabel(oi) });
 }
 
 // shared contest body — finds the viewer's store(s) in the standings and shows
@@ -1467,8 +1467,8 @@ function contestBody(c, data, opts){
       barCol = inMoney ? "var(--good)" : "var(--bad)";
       barPct = opts.threshold ? Math.max(4, Math.min(100, (s.score/opts.threshold)*100)) : 0;
       line = inMoney
-        ? '<div class="contestsub">At <b>'+s.score.toFixed(1)+'%</b> — earning the <span class="prizepill">'+esc(opts.amount)+'</span> if June holds.</div>'
-        : '<div class="contestsub"><b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'% now). Close it to earn '+esc(opts.amount)+'.</div>';
+        ? '<div class="contestsub">Finished at <b>'+s.score.toFixed(1)+'%</b> — earned the <span class="prizepill">'+esc(opts.amount)+'</span> for June.</div>'
+        : '<div class="contestsub">Finished <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'%) — missed the '+esc(opts.amount)+' for June.</div>';
     } else {
       const podium = s.rank <= 3;
       medalCls = podium ? "win" : ""; medalTxt = podium ? (s.rank===1?"🥇":s.rank===2?"🥈":"🥉") : "#"+s.rank;
@@ -1481,8 +1481,8 @@ function contestBody(c, data, opts){
       } else {
         const third = standings[2];
         const gap = third ? (third.score - s.score) : null;
-        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — rank '+s.rank+'/'+standings.length
-          + (gap!=null && gap>0 ? '. <b>'+gap.toFixed(1)+' pts</b> to crack the top 3.' : '.')+'</div>';
+        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — finished #'+s.rank+' of '+standings.length
+          + (gap!=null && gap>0 ? ', <b>'+gap.toFixed(1)+' pts</b> outside the top 3.' : '.')+'</div>';
       }
     }
     return '<div class="contest">'
@@ -1518,7 +1518,7 @@ function contestStandings(c, myIds, opts){
       + '<td class="num">'+last+'</td></tr>';
   }).join("");
   return '<details class="stexp"><summary>'+(isOsat?"See all stores":"See all standings")
-    + ' · '+esc(voiceMtdLabel(c.data_through))+'</summary>'
+    + ' · '+esc(contestVoiceLabel(c))+'</summary>'
     + '<table class="sttbl"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></details>';
 }
 
@@ -1537,6 +1537,11 @@ function voiceMtdLabel(iso){
   if(!iso) return "VOICE";
   try{ return new Date(iso+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"})+" MTD"; }
   catch(_e){ return "VOICE"; }
+}
+// Contest label: a CLOSED (status==='final') contest reads "<Month> final", not "<Month> MTD".
+function contestVoiceLabel(c){
+  const base = voiceMtdLabel(c && c.data_through);
+  return (c && c.status === "final") ? base.replace(/ MTD$/, " final") : base;
 }
 function ageSince(ts){
   if(!ts) return "";
