@@ -1,0 +1,88 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Report an issue</title>
+<style>
+  :root{--ink:#20262b;--mut:#5a6670;--line:#d9dddb;--acc:#c2410c;--bg:#f3f4f2;--card:#fff}
+  @media (prefers-color-scheme:dark){:root{--ink:#e7eae6;--mut:#98a4ab;--line:#3a4248;--acc:#f97316;--bg:#14181b;--card:#1d2327}}
+  body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:16px;line-height:1.45}
+  .card{max-width:440px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  h1{font-size:20px;margin:0 0 2px}.store{color:var(--mut);font-size:13px;margin:0 0 14px}
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:12px 0 4px;font-weight:700}
+  textarea,input,select{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:15px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:88px;resize:vertical}
+  .seg{display:flex;gap:8px}.seg button{flex:1;padding:11px 0;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--mut);font-size:15px;font-weight:700;cursor:pointer}
+  .seg button.on{border-color:var(--acc);color:var(--acc);background:transparent}
+  .submit{width:100%;margin-top:16px;padding:13px 0;border:none;border-radius:9px;background:var(--acc);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+  .submit:disabled{opacity:.5}
+  .ok{text-align:center;padding:30px 10px;display:none}
+  .ok .big{font-size:46px}.ok .ref{font-family:ui-monospace,monospace;font-size:22px;font-weight:800;margin:8px 0}
+  .err{color:#b91c1c;font-size:13px;margin-top:10px;display:none}
+  .hint{font-size:12px;color:var(--mut);margin-top:4px}
+  .dead{text-align:center;padding:40px 10px;display:none;color:var(--mut)}
+</style></head><body>
+<div class="card" id="form" style="display:none">
+  <h1>Report an issue</h1>
+  <p class="store" id="store">…</p>
+  <label>Type of problem</label>
+  <div class="seg" id="cat">
+    <button type="button" data-v="it">&#128421;&#65039; IT</button>
+    <button type="button" data-v="maintenance" class="on">&#128295; Maintenance</button>
+  </div>
+  <label>What's wrong?</label>
+  <textarea id="desc" placeholder="e.g. Walk-in cooler door won't seal — gasket torn on the hinge side" maxlength="2000"></textarea>
+  <label>How urgent?</label>
+  <select id="pri">
+    <option value="normal">Normal — when someone can get to it</option>
+    <option value="p1">High — hurting operations today</option>
+    <option value="p0">Emergency — safety or store can't operate</option>
+  </select>
+  <label>Photo (optional, helps a lot)</label>
+  <input type="file" id="photo" accept="image/*" capture="environment">
+  <label>Your name</label>
+  <input type="text" id="who" placeholder="First name and role, e.g. Maria — shift lead" maxlength="120">
+  <button class="submit" id="go">Submit ticket</button>
+  <div class="err" id="err"></div>
+  <p class="hint">Photos and details go to the technician who claims this ticket.</p>
+</div>
+<div class="card ok" id="done">
+  <div class="big">&#9989;</div>
+  <div>Ticket submitted</div>
+  <div class="ref" id="ref"></div>
+  <div class="hint">The team has it. Keep this reference if you want to follow up.</div>
+</div>
+<div class="card dead" id="dead">This link isn't valid. Please use the QR poster in the store, or tell your GM.</div>
+<script>
+  var FN='https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/ticket-submit';
+  var MAXB=6*1024*1024;
+  var tok=new URLSearchParams(location.search).get('t')||'';
+  var cat='maintenance';
+  function show(id){['form','done','dead'].forEach(function(x){document.getElementById(x).style.display=x===id?'block':'none'})}
+  if(!tok){show('dead')}else{
+    fetch(FN+'?api=loc&t='+encodeURIComponent(tok)).then(function(r){return r.ok?r.json():Promise.reject()}).then(function(j){
+      document.getElementById('store').textContent='📍 '+j.name+(j.store_number?' · #'+j.store_number:'')+' — goes straight to the fix team. No login.';
+      show('form');
+    }).catch(function(){show('dead')});
+  }
+  document.querySelectorAll('#cat button').forEach(function(b){
+    b.onclick=function(){cat=b.dataset.v;document.querySelectorAll('#cat button').forEach(function(x){x.classList.remove('on')});b.classList.add('on')};
+  });
+  function b64(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result.split(',')[1])};r.onerror=rej;r.readAsDataURL(f)})}
+  document.getElementById('go').onclick=async function(){
+    var d=document.getElementById('desc').value.trim();
+    var e=document.getElementById('err');e.style.display='none';
+    if(d.length<8){e.textContent='Please describe the problem (a sentence is plenty).';e.style.display='block';return}
+    var btn=this;btn.disabled=true;btn.textContent='Sending…';
+    var body={t:tok,category:cat,priority:document.getElementById('pri').value,description:d,
+      submitter_name:document.getElementById('who').value.trim()||null};
+    var f=document.getElementById('photo').files[0];
+    if(f){if(f.size>MAXB){e.textContent='Photo is too large (6MB max).';e.style.display='block';btn.disabled=false;btn.textContent='Submit ticket';return}
+      body.photo_b64=await b64(f);body.photo_mime=f.type||'image/jpeg'}
+    try{
+      var r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      var j=await r.json();
+      if(!r.ok||!j.ok)throw new Error(j.error||('HTTP '+r.status));
+      document.getElementById('ref').textContent=j.ref;
+      show('done');
+    }catch(ex){e.textContent='Could not submit: '+ex.message+' — please tell your GM.';e.style.display='block';btn.disabled=false;btn.textContent='Submit ticket'}
+  };
+</script></body></html>

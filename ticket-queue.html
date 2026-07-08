@@ -1,0 +1,227 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Ticket queue — Schmitt ops</title>
+<style>
+  :root{--ink:#20262b;--mut:#5a6670;--line:#d9dddb;--acc:#c2410c;--bg:#f3f4f2;--card:#fff;--ok:#15803d;--bad:#b91c1c}
+  @media (prefers-color-scheme:dark){:root{--ink:#e7eae6;--mut:#98a4ab;--line:#3a4248;--acc:#f97316;--bg:#14181b;--card:#1d2327;--ok:#4ade80;--bad:#f87171}}
+  body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:14px;line-height:1.45}
+  .wrap{max-width:560px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0 14px}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--mut);font-size:12px}
+  .hdr-r{display:flex;align-items:center;gap:8px}
+  .upd{color:var(--mut);font-size:11px}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  .btn.good{border-color:var(--ok);color:var(--ok)}
+  .btn.danger{border-color:var(--bad);color:var(--bad)}
+  .sec{margin-bottom:18px}
+  .sech{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:6px}
+  .sech.tog{cursor:pointer}
+  .cnt{background:var(--line);border-radius:9px;padding:0 7px;font-size:11px;color:var(--ink)}
+  .none{color:var(--mut);font-size:13px;padding:2px 2px 6px}
+  .card{background:var(--card);border:1px solid var(--line);border-left:4px solid #94a3b8;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+  .card.pri-p0{border-left-color:#dc2626}
+  .card.pri-p1{border-left-color:var(--acc)}
+  .card.pri-p2{border-left-color:#d97706}
+  .card.mine{outline:1px solid var(--acc)}
+  .row1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .ref{font-family:ui-monospace,monospace;font-weight:800;font-size:13px}
+  .chip{font-size:10px;font-weight:800;letter-spacing:.05em;border-radius:6px;padding:2px 6px;background:var(--bg);border:1px solid var(--line);color:var(--mut)}
+  .chip.cp0{color:#dc2626;border-color:#dc2626}
+  .chip.cp1{color:var(--acc);border-color:var(--acc)}
+  .chip.cp2{color:#d97706;border-color:#d97706}
+  .chip.okc{color:var(--ok);border-color:var(--ok)}
+  .age{margin-left:auto;color:var(--mut);font-size:12px;white-space:nowrap}
+  .ttl{font-size:15px;font-weight:600;margin:4px 0 2px}
+  .meta{font-size:12px;color:var(--mut)}
+  .meta b{color:var(--ink)}
+  .over{color:#dc2626;font-weight:700}
+  .desc{white-space:pre-wrap;font-size:14px;background:var(--bg);border-radius:8px;padding:10px;margin-top:10px;overflow-wrap:anywhere}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12px;margin-top:10px}
+  .k{color:var(--mut)}
+  .ph{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .ph img{max-height:110px;max-width:45%;border-radius:8px;border:1px solid var(--line)}
+  .tl{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  .tli{font-size:12px;margin:4px 0;overflow-wrap:anywhere}
+  .tlt{color:var(--mut);font-family:ui-monospace,monospace;font-size:11px;margin-right:4px;white-space:nowrap}
+  .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .inbox{margin-top:8px;display:none;flex-direction:column;gap:6px}
+  .inbox textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px;background:var(--bg);color:var(--ink);min-height:70px;resize:vertical}
+  .inbox input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;background:var(--bg);color:var(--ink)}
+  .inrow{display:flex;gap:6px}
+  .empty{color:var(--mut);text-align:center;padding:34px 0;font-size:14px}
+</style></head><body>
+<div class="wrap">
+  <header>
+    <div><h1>Ticket queue</h1><div class="sub" id="who">Brandon Guy</div></div>
+    <div class="hdr-r"><span class="upd" id="upd"></span><button class="btn" id="rfr">&#8635; Refresh</button></div>
+  </header>
+  <div id="app"><div class="empty">Loading&#8230;</div></div>
+</div>
+<script>
+var API="https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/ticket-tech";
+var T=new URLSearchParams(location.search).get('t')||'';
+var USER=null,TICKETS=[],EXP=null,DET={},CLOSED_OPEN=false;
+function esc(s){s=String(s==null?'':s);return s.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function age(iso){var m=(Date.now()-new Date(iso).getTime())/60000;if(m<1)return 'now';if(m<60)return Math.floor(m)+'m';var h=m/60;if(h<24)return Math.floor(h)+'h';return Math.floor(h/24)+'d'}
+function fmt(iso){var d=new Date(iso);return d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+var PRI={p0:['P0 EMERGENCY','cp0'],p1:['P1 HIGH','cp1'],p2:['P2 MEDIUM','cp2'],normal:['NORMAL','cn']};
+var CAT={it:'&#128421;&#65039; IT',maintenance:'&#128295; MAINT'};
+var PRANK={p0:0,p1:1,p2:2,normal:3};
+function groupOf(t){if(t.status==='open')return 'open';if(t.status==='in_progress'||t.status==='approved')return 'prog';if(t.status==='on_hold')return 'hold';if(t.status==='awaiting_approval')return 'appr';return 'closed'}
+function loadQueue(cb){
+ fetch(API+'?api=queue&t='+encodeURIComponent(T)).then(function(r){return r.json().then(function(j){return{s:r.status,j:j}})}).then(function(x){
+  if(!x.j.ok){document.getElementById('app').innerHTML='<div class="empty">'+esc(x.j.error||('error '+x.s))+'</div>';return}
+  USER=x.j.user;TICKETS=x.j.tickets;
+  document.getElementById('who').textContent=(USER.name||'')+' · '+String(USER.role).replace('_',' ');
+  document.getElementById('upd').textContent='updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  render();if(cb)cb();
+ }).catch(function(){document.getElementById('app').innerHTML='<div class="empty">Network error. Tap Refresh to retry.</div>'});
+}
+function render(){
+ var g={open:[],prog:[],hold:[],appr:[],closed:[]};
+ TICKETS.forEach(function(t){g[groupOf(t)].push(t)});
+ ['open','prog','hold','appr'].forEach(function(k){g[k].sort(function(a,b){return (PRANK[a.priority]-PRANK[b.priority])||(a.created_at<b.created_at?-1:1)})});
+ var h='';
+ h+=section('open','Open — unclaimed',g.open,false);
+ h+=section('prog','In progress',g.prog,false);
+ h+=section('hold','On hold',g.hold,false);
+ h+=section('appr','Awaiting approval',g.appr,false);
+ h+=section('closed','Recently closed',g.closed,true);
+ if(TICKETS.length===0)h='<div class="empty">Queue is clear. No tickets.</div>';
+ document.getElementById('app').innerHTML=h;
+ bind();
+ if(EXP&&DET[EXP]&&document.getElementById('d'+EXP))renderDetail(EXP);
+}
+function section(key,label,list,coll){
+ var open=!coll||CLOSED_OPEN;
+ var h='<div class="sec"><div class="sech'+(coll?' tog':'')+'" data-sec="'+key+'">'+label+' <span class="cnt">'+list.length+'</span>'+(coll?' <span>'+(open?'&#9662;':'&#9656;')+'</span>':'')+'</div>';
+ if(open){if(list.length===0)h+='<div class="none">none</div>';list.forEach(function(t){h+=card(t)})}
+ h+='</div>';return h;
+}
+function card(t){
+ var mine=USER&&t.assignee_id===USER.id;
+ var h='<div class="card pri-'+esc(t.priority)+(mine?' mine':'')+'" data-id="'+t.id+'">';
+ h+='<div class="row1"><span class="ref">'+esc(t.ref)+'</span><span class="chip">'+(CAT[t.category]||esc(t.category))+'</span><span class="chip '+PRI[t.priority][1]+'">'+PRI[t.priority][0]+'</span>';
+ if(t.status==='approved')h+='<span class="chip okc">APPROVED</span>';
+ if(t.status==='resolved')h+='<span class="chip okc">RESOLVED</span>';
+ if(t.status==='cancelled')h+='<span class="chip">CANCELLED</span>';
+ h+='<span class="age">'+age(t.created_at)+'</span></div>';
+ h+='<div class="ttl">'+esc(t.title)+'</div>';
+ h+='<div class="meta">'+esc(t.location);
+ if(t.submitter_name)h+=' · from '+esc(t.submitter_name);
+ if(t.assignee)h+=' · <b>'+esc(t.assignee)+(mine?' (you)':'')+'</b>';
+ if(t.deadline_at)h+=' · <span class="'+(new Date(t.deadline_at)<new Date()?'over':'')+'">due '+fmt(t.deadline_at)+'</span>';
+ h+='</div><div id="d'+t.id+'"></div></div>';
+ return h;
+}
+function bind(){
+ document.querySelectorAll('.sech.tog').forEach(function(el){el.onclick=function(){CLOSED_OPEN=!CLOSED_OPEN;render()}});
+ document.querySelectorAll('.card').forEach(function(el){
+  el.addEventListener('click',function(ev){
+   if(ev.target.closest('button')||ev.target.closest('a')||ev.target.closest('input')||ev.target.closest('textarea'))return;
+   var id=Number(el.dataset.id);
+   if(EXP===id){EXP=null;render();return}
+   EXP=id;render();loadDetail(id);
+  });
+ });
+}
+function loadDetail(id){
+ var d=document.getElementById('d'+id);
+ if(d&&!DET[id])d.innerHTML='<div class="none">loading&#8230;</div>';
+ fetch(API+'?api=ticket&id='+id+'&t='+encodeURIComponent(T)).then(function(r){return r.json()}).then(function(j){
+  if(!j.ok){if(d)d.innerHTML='<div class="none">'+esc(j.error||'error')+'</div>';return}
+  DET[id]=j;if(EXP===id)renderDetail(id);
+ }).catch(function(){});
+}
+function kv(k,v){return '<div class="k">'+k+'</div><div>'+v+'</div>'}
+function renderDetail(id){
+ var d=document.getElementById('d'+id);if(!d)return;var j=DET[id];if(!j)return;
+ var t=j.ticket;var h='<div>';
+ if(t.description)h+='<div class="desc">'+esc(t.description)+'</div>';
+ h+='<div class="kv">';
+ h+=kv('Opened',fmt(t.created_at)+' ('+age(t.created_at)+' ago)');
+ if(t.submitter_name)h+=kv('Submitted by',esc(t.submitter_name));
+ h+=kv('Status',esc(String(t.status).replace('_',' ')));
+ if(t.assignee)h+=kv('Assigned',esc(t.assignee));
+ h+=kv('Deadline',t.deadline_at?fmt(t.deadline_at):'none');
+ if(t.resolved_at)h+=kv('Resolved',fmt(t.resolved_at));
+ if(j.approval)h+=kv('Approval',esc(j.approval.status)+(j.approval.requested_by?' · asked by '+esc(j.approval.requested_by):'')+(j.approval.note?' · '+esc(j.approval.note):''));
+ h+='</div>';
+ if(j.photos&&j.photos.length){h+='<div class="ph">';j.photos.forEach(function(p){h+='<a href="'+esc(p.url)+'" target="_blank" rel="noopener"><img src="'+esc(p.url)+'" alt="ticket photo"></a>'});h+='</div>'}
+ if(j.timeline&&j.timeline.length){h+='<div class="tl">';j.timeline.forEach(function(e){h+=tlItem(e)});h+='</div>'}
+ h+=actionsHtml(t)+'</div>';
+ d.innerHTML=h;bindDetail(id);
+}
+function tlItem(e){
+ var who=e.actor?esc(e.actor):'system';
+ var b='';
+ if(e.kind==='note')b='<b>'+who+'</b>: '+esc(e.body);
+ else if(e.entry_type==='status_change')b='<b>'+who+'</b> — status '+esc(e.from||'new')+' → '+esc(e.to||'');
+ else if(e.entry_type==='assignment')b='<b>'+who+'</b> claimed — assigned to '+esc(e.to||'');
+ else if(e.entry_type==='deadline_change')b='<b>'+who+'</b> set deadline → '+(e.to&&e.to!=='none'?fmt(e.to):'none');
+ else if(e.entry_type==='approval')b='<b>'+who+'</b> — approval '+esc(e.to||'');
+ else b='<b>'+who+'</b> '+esc(e.entry_type||'');
+ return '<div class="tli"><span class="tlt">'+fmt(e.at)+'</span> '+b+'</div>';
+}
+function btn(act,label,cls){return '<button class="btn '+cls+'" data-act="'+act+'">'+label+'</button>'}
+function actionsHtml(t){
+ var s=t.status,b=[];
+ var closed=(s==='resolved'||s==='cancelled');
+ if(closed){
+  if(USER.can_approve)b.push(btn('reopen','Reopen',''));
+ }else if(s==='awaiting_approval'){
+  if(USER.can_approve){b.push(btn('approve','Approve','good'));b.push(btn('decline','Decline','danger'))}
+  b.push(btn('note','Add note',''));
+ }else{
+  if(s==='open'&&!t.assignee_id)b.push(btn('claim','Claim','primary'));
+  if(s==='on_hold'||s==='approved')b.push(btn('st-in_progress','Resume',''));
+  if(s==='in_progress')b.push(btn('st-on_hold','Hold',''));
+  b.push(btn('st-resolved','Resolve','good'));
+  if(s!=='approved')b.push(btn('req','Request approval',''));
+  b.push(btn('note','Add note',''));
+  b.push(btn('dl','Deadline',''));
+  b.push(btn('st-cancelled','Cancel','danger'));
+ }
+ var h='<div class="acts">'+b.join('')+'</div>';
+ h+='<div class="inbox" id="nb'+t.id+'"><textarea id="nt'+t.id+'" maxlength="2000" placeholder="Note for the ticket timeline"></textarea><div class="inrow"><button class="btn primary" data-act="savenote">Save note</button></div></div>';
+ h+='<div class="inbox" id="db'+t.id+'"><input type="datetime-local" id="dt'+t.id+'"><div class="inrow"><button class="btn primary" data-act="savedl">Set deadline</button><button class="btn" data-act="cleardl">Clear</button></div></div>';
+ return h;
+}
+function tgl(eid){var el=document.getElementById(eid);if(el)el.style.display=(el.style.display==='flex'?'none':'flex')}
+function bindDetail(id){
+ var d=document.getElementById('d'+id);if(!d)return;
+ d.querySelectorAll('button[data-act]').forEach(function(bt){
+  bt.onclick=function(ev){
+   ev.stopPropagation();
+   var a=bt.dataset.act;
+   if(a==='note'){tgl('nb'+id);return}
+   if(a==='dl'){tgl('db'+id);return}
+   if(a==='savenote'){var v=document.getElementById('nt'+id).value.trim();if(!v)return;post({action:'add_note',ticket_id:id,body:v});return}
+   if(a==='savedl'){var v2=document.getElementById('dt'+id).value;if(!v2)return;post({action:'set_deadline',ticket_id:id,deadline_at:new Date(v2).toISOString()});return}
+   if(a==='cleardl'){post({action:'set_deadline',ticket_id:id,deadline_at:null});return}
+   if(a==='claim'){post({action:'claim',ticket_id:id});return}
+   if(a==='req'){post({action:'request_approval',ticket_id:id});return}
+   if(a==='approve'){post({action:'approve',ticket_id:id});return}
+   if(a==='decline'){post({action:'decline',ticket_id:id});return}
+   if(a==='reopen'){post({action:'set_status',ticket_id:id,status:'in_progress'});return}
+   if(a.indexOf('st-')===0){
+    var to=a.slice(3);
+    if(to==='cancelled'&&!confirm('Cancel this ticket?'))return;
+    post({action:'set_status',ticket_id:id,status:to});return}
+  };
+ });
+}
+function post(p){
+ p.t=T;
+ fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})
+ .then(function(r){return r.json()}).then(function(j){
+  if(!j.ok){alert(j.error||'action failed');return}
+  loadQueue(function(){if(EXP)loadDetail(EXP)});
+ }).catch(function(){alert('network error')});
+}
+document.getElementById('rfr').onclick=function(){loadQueue(function(){if(EXP)loadDetail(EXP)})};
+setInterval(function(){loadQueue(function(){if(EXP)loadDetail(EXP)})},60000);
+loadQueue();
+</script></body></html>
