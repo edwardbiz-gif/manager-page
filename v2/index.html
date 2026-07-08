@@ -9,6 +9,24 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.36 — PAGE FRAMEWORK + GM BONUS RANKER + PERF (STAGED; Eddie publishes
+  via push-pages). (1) PAGE FRAMEWORK: PAGE_REGISTRY + openPage/closePage +
+  #pageLayer + PAGE_CACHE (TTL + in-flight dedupe) + popstate history — a page
+  is a self-contained full-screen surface fetching ONLY its own Edge Fn slice
+  (GET ?page=<id>); deep link &p=<route> boots PAGE-FIRST (no board fetch until
+  close); phone back button closes the page, never the board. ADD A PAGE =
+  1 render fn + 1 PAGE_REGISTRY row here + 1 gather + 1 PAGES row in the Fn.
+  (2) GM BONUS RANKER (?p=ranker): 12-GM leaderboard, full $ transparency,
+  podium + bars, viewer row highlighted "#N of 12", per-component HIT/MISS/
+  HELD/PENDING chips with whys, DOUBLE PRELIMINARY watermark + op/profit
+  data-through. (3) Q3 Bonus HOME TILE (data.bonus_home, all manager roles,
+  taps into the ranker via the new "page:" drill prefix). (4) PERF: POSTs are
+  now LANE-SCOPED (&lane=TODAY,NUMBERS,<active> + mergePostPayload whitelist
+  merge — measured 16.8s -> 1.7s on an owner token) and the board keeps a
+  10-min sessionStorage stale-while-revalidate snapshot (instant reload paint,
+  then fresh merge). All additive; the deployed Fn (v2-0.36) stays
+  back-compatible with the live v2-0.34 shell.
+
   Phase 1 (GM Today lane) — ADDED ADDITIVELY (render fns + MANIFEST rows + the
   POST action wiring), no other module's code touched. SHELL_VERSION stays
   "v2-0.1" in lockstep with the deployed Edge Fn (fn_version v2-0.1): the TODAY
@@ -510,6 +528,29 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
 .sd-warn{color:var(--warn);background:var(--warn-bg)}   /* v2-0.30 Jolt late/stale */
 .optile .opv.warn{color:var(--warn)}                     /* amber mid-band op tiles */
+/* Bonus payouts (v2-0.35, owner-only Q3 SHADOW). SHADOW watermark = unmissable
+   amber banner so the preview can never be mistaken for a live payout. */
+.shadowwm{margin:2px 0 12px;padding:9px 11px;border-radius:9px;background:var(--warn-bg);
+ color:var(--warn);border:1px solid var(--warn);font-size:11px;font-weight:900;
+ text-transform:uppercase;letter-spacing:.4px;line-height:1.4}
+.bxwrap{overflow-x:auto;margin:2px -4px 0;padding:0 4px}
+.bxtab{border-collapse:collapse;font-size:11px;min-width:100%;font-variant-numeric:tabular-nums}
+.bxtab th,.bxtab td{padding:5px 7px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right}
+.bxtab thead th{font-size:8px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;
+ color:var(--ink-muted);border-bottom:1px solid var(--line-2);position:sticky;top:0;background:var(--surface)}
+.bxtab th.bxrh,.bxtab td.bxrh{text-align:left;font-weight:700;color:var(--ink-2)}
+.bxtab td.bxrh small{display:block;font-size:8px;color:var(--ink-muted);font-weight:700}
+.bxtab td.bxtot{font-weight:900;color:var(--ink);border-left:1px solid var(--line-2)}
+.bxtab tbody tr:last-child td{border-bottom:0}
+.bxc-held{color:var(--warn);background:var(--warn-bg);border-radius:4px;font-weight:800}
+.bxc-zero{color:var(--ink-muted)}
+.bxc-pay{color:var(--good);font-weight:800}
+.bxwhy{margin-top:12px}
+.bxwhy .bxwrow{padding:7px 2px;border-bottom:1px solid var(--line);font-size:10.5px;line-height:1.4}
+.bxwhy .bxwrow:last-child{border-bottom:0}
+.bxwhy .bxwn{font-weight:800;color:var(--ink-2)}
+.bxwhy .bxwn .bxwc{color:var(--warn);font-weight:700} /* held/component label */
+.bxwhy .bxwd{color:var(--ink-muted);margin-top:2px}
 /* full-standings expander (race/osat) + shift-leader daypart tables (TEAM lane) */
 .stexp{margin-top:10px}
 /* Floor / call-off card (v2-0.27, ported from the prod labor-bar lb-/ls- styles) */
@@ -599,6 +640,21 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .darktool .dtlock{font-size:8px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-muted);
  background:var(--surface-3);border:1px solid var(--line);border-radius:999px;padding:2px 7px}
 
+/* contacts directory (VIEW widened to AM+, v2 launch spec §1) */
+.ctcfind{width:100%;box-sizing:border-box;margin:2px 0 9px;padding:9px 11px;font:inherit;font-size:12px;font-weight:600;
+ color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:11px;outline:none}
+.ctcfind::placeholder{color:var(--ink-muted)}
+.ctcgrp{margin-bottom:10px} .ctcgrp:last-child{margin-bottom:0}
+.ctcgh{font-size:9px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-muted);padding:2px 2px 4px}
+.ctcrow{display:flex;align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid var(--line)}
+.ctcrow:last-child{border-bottom:0}
+.ctcmain{flex:1;min-width:0}
+.ctcname{font-size:12px;font-weight:800;color:var(--ink)}
+.ctcsub{font-size:9.5px;color:var(--ink-muted);font-weight:600;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctcact{display:flex;gap:6px;flex:none}
+.ctcbtn{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+ background:var(--surface-2);font-size:14px;text-decoration:none}
+
 /* ---- bottom tab bar (5 fixed lanes, thumb zone, 48px targets) ---- */
 .tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;
  background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);
@@ -669,6 +725,127 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
   .pcell .psub{font-size:7px}
 }
 .hide{display:none!important}
+
+/* ============ v2-0.36 PAGE LAYER (page framework) ============
+   A full-screen self-contained page inside .phone, ABOVE the drill sheet
+   (z-70 > sheet z-60 > veil z-50 > tabbar z-45). Its own scroll; the board
+   underneath is untouched, so closing repaints nothing. */
+.page{position:absolute;inset:0;z-index:70;background:var(--paper);display:none;
+ overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:26px}
+.page.open{display:block}
+.page-hd{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;
+ background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);
+ border-bottom:1px solid var(--line);padding:12px 14px}
+.pgback{min-height:40px;padding:0 12px;border-radius:11px;border:1px solid var(--line-2);
+ background:var(--surface);color:var(--ink);font-size:12px;font-weight:800;cursor:pointer;box-shadow:var(--sh-1)}
+.pgback:active{transform:translateY(1px)}
+.pgtitle{font-size:12px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent)}
+.page-bd{padding:14px 14px calc(24px + env(safe-area-inset-bottom))}
+
+/* ---- Q3 bonus HOME TILE chips ---- */
+.bhwm{margin:2px 0 10px;padding:8px 10px;border-radius:9px;background:var(--warn-bg);
+ color:var(--warn);border:1px solid var(--warn);font-size:10px;font-weight:900;
+ text-transform:uppercase;letter-spacing:.4px;line-height:1.4}
+.bhhero{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin:2px 0 10px}
+.bhhero .bhv{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+.bhhero .bhrank{font-size:10px;font-weight:900;letter-spacing:.4px;color:var(--on-accent);
+ background:var(--accent);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.bhhero .bhsub{font-size:10.5px;color:var(--ink-muted);font-weight:700}
+.bhgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.bhc{background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--line-2);
+ border-radius:11px;padding:7px 9px;min-width:0}
+.bhc .bhl{font-size:8.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--ink-muted);
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bhc .bhs{font-size:11.5px;font-weight:900;margin-top:2px;font-variant-numeric:tabular-nums}
+.bhc.b-hit{border-left-color:var(--good)} .bhc.b-hit .bhs{color:var(--good)}
+.bhc.b-miss{border-left-color:var(--bad)} .bhc.b-miss .bhs{color:var(--bad)}
+.bhc.b-held{border-left-color:var(--warn)} .bhc.b-held .bhs{color:var(--warn)}
+.bhc.b-pend{border-left-color:var(--line-2)} .bhc.b-pend .bhs{color:var(--ink-muted)}
+.bhc .bhw{font-size:8.5px;color:var(--ink-muted);font-weight:600;margin-top:2px;line-height:1.3}
+/* v2-0.37 richer bonus tile: earned-of-possible hero + progress bar + status
+   pills + target line + tinted chips (stronger conditional formatting) */
+.bhhero .bhof{font-size:11px;font-weight:800;color:var(--ink-muted);white-space:nowrap}
+.bhbar{height:7px;border-radius:999px;background:var(--surface-3);border:1px solid var(--line);
+ overflow:hidden;margin:0 0 7px}
+.bhbar i{display:block;height:100%;border-radius:999px;min-width:2px;
+ background:linear-gradient(90deg,var(--good),color-mix(in srgb,var(--good) 55%,#fff))}
+.bhsub2{font-size:10.5px;color:var(--ink-muted);font-weight:700;margin:0 0 10px;
+ font-variant-numeric:tabular-nums}
+.bhtop{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.bhpill{font-size:7.5px;font-weight:900;letter-spacing:.5px;border-radius:999px;padding:2px 6px;
+ text-transform:uppercase;flex:none;font-variant-numeric:tabular-nums}
+.bhpill.b-hit{background:var(--good);color:#fff}
+.bhpill.b-miss{background:var(--bad);color:#fff}
+.bhpill.b-held{background:var(--warn);color:#fff}
+.bhpill.b-pend{background:var(--line-2);color:var(--ink-2)}
+.bhc.b-hit{background:color-mix(in srgb,var(--good) 9%,var(--surface-2))}
+.bhc.b-miss{background:color-mix(in srgb,var(--bad) 8%,var(--surface-2))}
+.bhc.b-held{background:color-mix(in srgb,var(--warn) 9%,var(--surface-2))}
+.bhc .bht{font-size:8.5px;color:var(--ink-muted);font-weight:700;margin-top:2px;line-height:1.3;
+ font-variant-numeric:tabular-nums}
+
+/* ---- GM BONUS RANKER page (gala aesthetic — self-contained dark, both themes) ---- */
+.rkx{position:relative;margin:-14px -14px 0;padding:18px 14px 26px;overflow:hidden;
+ color:#eef4fb;min-height:100%;
+ background:radial-gradient(900px 520px at 80% -10%, #15314a, #0a0e13 60%) #0a0e13;
+ border-radius:0 0 26px 26px;
+ --rk-gold:#ffc72c;--rk-line:#243240;--rk-surface:#1b2632;--rk-surface2:#16202b;
+ --rk-muted:#8698aa;--rk-good:#43d39e;--rk-bad:#ff6a5e;--rk-warn:#e8a33d;
+ font-variant-numeric:tabular-nums}
+.rkx .rk-kicker{font-size:9.5px;font-weight:800;letter-spacing:2.2px;text-transform:uppercase;color:var(--rk-gold);text-align:center}
+.rkx .rk-title{font-size:22px;font-weight:900;letter-spacing:-.3px;text-align:center;margin-top:4px;line-height:1.15}
+.rkx .rk-thru{font-size:9.5px;color:var(--rk-muted);font-weight:700;text-align:center;margin-top:5px;line-height:1.5}
+.rkx .rk-wm{margin:12px 0;padding:9px 11px;border-radius:10px;background:#33290a;color:#e8a33d;
+ border:1px solid #e8a33d;font-size:10.5px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;
+ line-height:1.45;text-align:center;position:relative;z-index:2}
+.rkx .rk-ribbon{position:absolute;left:-40%;top:120px;width:180%;transform:rotate(-22deg);
+ pointer-events:none;z-index:0;opacity:.05;font-size:26px;font-weight:900;letter-spacing:4px;
+ text-transform:uppercase;color:#e8a33d;line-height:2.1;white-space:normal;word-break:break-word;user-select:none}
+.rk-podium{display:flex;gap:8px;align-items:stretch;margin:14px 0 12px;position:relative;z-index:1}
+.rk-med{flex:1;min-width:0;text-align:center;background:var(--rk-surface);border:1px solid var(--rk-line);
+ border-radius:15px;padding:12px 6px 10px;cursor:pointer;position:relative}
+.rk-med .rk-medal{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;margin:0 auto;
+ font-size:13px;font-weight:900;color:#1b1405}
+.rk-med.m1 .rk-medal{background:linear-gradient(160deg,#ffe08a,#d4a017)}
+.rk-med.m2 .rk-medal{background:linear-gradient(160deg,#e8edf2,#9aa7b4);}
+.rk-med.m3 .rk-medal{background:linear-gradient(160deg,#e7ae83,#a05a2c)}
+.rk-med.m1{border-color:#d4a017;box-shadow:0 8px 26px rgba(212,160,23,.18)}
+.rk-med .rk-store{font-size:10.5px;font-weight:800;margin-top:7px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-med .rk-gm{font-size:9px;color:var(--rk-muted);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-med .rk-amt{font-size:17px;font-weight:900;margin-top:5px;color:var(--rk-gold)}
+.rk-med.you,.rk-row.you{outline:2px solid var(--rk-gold);outline-offset:1px}
+.rk-youchip{display:inline-block;font-size:8px;font-weight:900;letter-spacing:.5px;color:#1b1405;
+ background:var(--rk-gold);border-radius:999px;padding:1px 7px;margin-top:4px;text-transform:uppercase}
+.rk-rows{display:flex;flex-direction:column;gap:7px;position:relative;z-index:1}
+.rk-row{background:var(--rk-surface);border:1px solid var(--rk-line);border-radius:13px;
+ padding:9px 11px;cursor:pointer}
+.rk-rowtop{display:flex;align-items:center;gap:9px;min-height:30px}
+.rk-rank{flex:none;width:24px;text-align:center;font-size:12px;font-weight:900;color:var(--rk-muted)}
+.rk-who{flex:1;min-width:0}
+.rk-who .rk-store{font-size:12px;font-weight:800;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-who .rk-gm{font-size:9.5px;color:var(--rk-muted);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-total{flex:none;font-size:14.5px;font-weight:900;color:var(--rk-gold)}
+.rk-bar{height:5px;border-radius:999px;background:var(--rk-surface2);overflow:hidden;margin-top:7px}
+.rk-bar>i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#8a6a10,var(--rk-gold))}
+.rk-comps{display:none;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px;border-top:1px dashed var(--rk-line);padding-top:9px}
+.rk-row.open .rk-comps,.rk-med.open .rk-comps{display:grid}
+.rk-med .rk-comps{text-align:left}
+.rk-cc{background:var(--rk-surface2);border:1px solid var(--rk-line);border-left:3px solid var(--rk-line);
+ border-radius:9px;padding:6px 8px;min-width:0}
+.rk-cc .rk-cl{font-size:8px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--rk-muted);
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk-cc .rk-cv{font-size:10.5px;font-weight:900;margin-top:2px}
+.rk-cc.b-hit{border-left-color:var(--rk-good)} .rk-cc.b-hit .rk-cv{color:var(--rk-good)}
+.rk-cc.b-miss{border-left-color:var(--rk-bad)} .rk-cc.b-miss .rk-cv{color:var(--rk-bad)}
+.rk-cc.b-held{border-left-color:var(--rk-warn)} .rk-cc.b-held .rk-cv{color:var(--rk-warn)}
+.rk-cc.b-pend{border-left-color:#3a4a5a} .rk-cc.b-pend .rk-cv{color:var(--rk-muted)}
+.rk-cc .rk-cw{font-size:8px;color:var(--rk-muted);font-weight:600;margin-top:2px;line-height:1.3}
+.rk-foot{position:relative;z-index:1;margin-top:14px;font-size:9.5px;color:var(--rk-muted);font-weight:600;line-height:1.6;text-align:center}
+.rk-sticky{position:sticky;top:64px;z-index:4;margin:0 0 10px;padding:8px 11px;border-radius:11px;
+ background:#2a3542;border:1px solid var(--rk-gold);color:#eef4fb;font-size:11px;font-weight:800;
+ cursor:pointer;text-align:center}
+.rk-sticky b{color:var(--rk-gold)}
+@media(prefers-reduced-motion:reduce){.rkx *{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -700,13 +877,22 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
       <button class="sx" onclick="closeSheet()">Close ✕</button></div>
     <div class="sheet-bd" id="sheetBody"></div>
   </div>
+
+  <!-- ============ PAGE LAYER (v2-0.36 page framework) ============
+       Full-screen self-contained pages (?p=<route> deep links). The board
+       underneath stays mounted; the phone back button closes the page. -->
+  <div class="page" id="pageLayer">
+    <div class="page-hd"><button class="pgback" onclick="closePage()">‹ Back</button>
+      <span class="pgtitle" id="pageTitle">Page</span></div>
+    <div class="page-bd" id="pageBody"></div>
+  </div>
 </div>
 
 <script>
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.34";
+const SHELL_VERSION = "v2-0.36";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -750,7 +936,11 @@ const LANE_KEYS = {
            // also arrive with the TODAY home (the priorities row reads them), so
            // they can't prove a TEAM load. The TEAM fetch re-merges them WITH the
            // GM per-run drill rows (runs_today ships only on the TEAM lane).
-           "jolt_checklists", "jolt_temps"],
+           "jolt_checklists", "jolt_temps",
+           // v2-0.35 owner-only bonus (Q3 shadow). Owner-gated + null for non-owners,
+           // so it's kept OUT of LANE_DISTINCTIVE (can't prove a TEAM load). Listed
+           // here so a lazy TEAM fetch actually copies data.bonus into STATE.
+           "bonus"],
   MORE:   ["campaigns", "rgr", "check_in", "meeting", "contacts", "owner_pulse", "manual_reports",
            "advisor_briefing", "key_dates", "hazel"],
 };
@@ -1270,7 +1460,7 @@ function renderPinnedRace(data){
   return card(esc(race.title||"June Cleanliness Race"),
     contestBody(race, data, { kind:"race", metricLabel:"Overall Cleanliness (VOICE)",
       prizes: race.prizes||["$150","$100","$50"] }),
-    { icon:"🧽", info: "VOICE · "+voiceMtdLabel(race.data_through) });
+    { icon:"🧽", info: "VOICE · "+contestVoiceLabel(race) });
 }
 
 // MODULE — pinned $100 June OSAT Incentive (in-money status + gap to threshold).
@@ -1282,7 +1472,7 @@ function renderPinnedOsat(data){
   return card(esc(oi.title||"$100 June OSAT Incentive"),
     contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
       threshold: oi.threshold, amount: oi.amount||"$100" }),
-    { icon:"💯", info: "VOICE · "+voiceMtdLabel(oi.data_through) });
+    { icon:"💯", info: "VOICE · "+contestVoiceLabel(oi) });
 }
 
 // shared contest body — finds the viewer's store(s) in the standings and shows
@@ -1313,8 +1503,8 @@ function contestBody(c, data, opts){
       barCol = inMoney ? "var(--good)" : "var(--bad)";
       barPct = opts.threshold ? Math.max(4, Math.min(100, (s.score/opts.threshold)*100)) : 0;
       line = inMoney
-        ? '<div class="contestsub">At <b>'+s.score.toFixed(1)+'%</b> — earning the <span class="prizepill">'+esc(opts.amount)+'</span> if June holds.</div>'
-        : '<div class="contestsub"><b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'% now). Close it to earn '+esc(opts.amount)+'.</div>';
+        ? '<div class="contestsub">Finished at <b>'+s.score.toFixed(1)+'%</b> — earned the <span class="prizepill">'+esc(opts.amount)+'</span> for June.</div>'
+        : '<div class="contestsub">Finished <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'%) — missed the '+esc(opts.amount)+' for June.</div>';
     } else {
       const podium = s.rank <= 3;
       medalCls = podium ? "win" : ""; medalTxt = podium ? (s.rank===1?"🥇":s.rank===2?"🥈":"🥉") : "#"+s.rank;
@@ -1327,8 +1517,8 @@ function contestBody(c, data, opts){
       } else {
         const third = standings[2];
         const gap = third ? (third.score - s.score) : null;
-        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — rank '+s.rank+'/'+standings.length
-          + (gap!=null && gap>0 ? '. <b>'+gap.toFixed(1)+' pts</b> to crack the top 3.' : '.')+'</div>';
+        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — finished #'+s.rank+' of '+standings.length
+          + (gap!=null && gap>0 ? ', <b>'+gap.toFixed(1)+' pts</b> outside the top 3.' : '.')+'</div>';
       }
     }
     return '<div class="contest">'
@@ -1364,7 +1554,7 @@ function contestStandings(c, myIds, opts){
       + '<td class="num">'+last+'</td></tr>';
   }).join("");
   return '<details class="stexp"><summary>'+(isOsat?"See all stores":"See all standings")
-    + ' · '+esc(voiceMtdLabel(c.data_through))+'</summary>'
+    + ' · '+esc(contestVoiceLabel(c))+'</summary>'
     + '<table class="sttbl"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></details>';
 }
 
@@ -1383,6 +1573,11 @@ function voiceMtdLabel(iso){
   if(!iso) return "VOICE";
   try{ return new Date(iso+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"})+" MTD"; }
   catch(_e){ return "VOICE"; }
+}
+// Contest label: a CLOSED (status==='final') contest reads "<Month> final", not "<Month> MTD".
+function contestVoiceLabel(c){
+  const base = voiceMtdLabel(c && c.data_through);
+  return (c && c.status === "final") ? base.replace(/ MTD$/, " final") : base;
 }
 function ageSince(ts){
   if(!ts) return "";
@@ -2692,6 +2887,101 @@ function renderTeamBonus(data){
     { icon:"💵", info: top[0]&&top[0].quarter?("through "+esc(top[0].quarter)):null });
 }
 
+// MODULE — Bonus payouts (v2-0.35, OWNER-ONLY, READ-ONLY Q3 SHADOW surface).
+// Self-gates to owner (belt-and-suspenders on the server role gate); returns ""
+// for any non-owner or when there are no rows. Renders a recipient x component
+// matrix ($ amounts) + a SHADOW/not-payable watermark + the data-through label +
+// a "Why $0 / held" list so no $0 is ever a bare number. NO write path.
+// Column order mirrors build_renee_bonus_xlsx.py.
+var BX_COMPONENT_ORDER = ["osat","b2b","fob","turnover","onboarded",
+  "oepe_breakfast","oepe_lunch","oepe_dinner","labor",
+  "operational_share","pac_growth","pac_vs_target","profit_share"];
+var BX_COMPONENT_LABEL = {
+  osat:"OSAT", b2b:"B2B", fob:"FOB", turnover:"Turnover", onboarded:"Onboarded",
+  oepe_breakfast:"OEPE-bkf", oepe_lunch:"OEPE-lun", oepe_dinner:"OEPE-din",
+  labor:"Labor", operational_share:"Op share", pac_growth:"PAC$ growth",
+  pac_vs_target:"PAC% vs tgt", profit_share:"Profit share"
+};
+var BX_ROLE_ORDER = { supervisor:0, gm:1, dm:2, am:3 };
+function renderTeamBonusPayouts(data){
+  const b = data.bonus;
+  if(!b || !(data.manager && data.manager.role === "Owner")) return "";
+  const rows = b.rows || [];
+  if(!rows.length) return "";
+  // Pivot rows[] into recipient groups keyed by manager_id.
+  const byMgr = new Map();
+  for(const r of rows){
+    let g = byMgr.get(r.manager_id);
+    if(!g){ g = { manager_id:r.manager_id, recipient:r.recipient, bonus_role:r.bonus_role,
+                  store_name:r.store_name, cells:{}, total:0 }; byMgr.set(r.manager_id, g); }
+    // last cell wins per component (one row per recipient x component in practice)
+    g.cells[r.component] = r;
+    g.total += Number(r.amount||0);
+  }
+  const recips = [...byMgr.values()].sort((a,c)=>{
+    const ra = BX_ROLE_ORDER[a.bonus_role]!=null?BX_ROLE_ORDER[a.bonus_role]:9;
+    const rc = BX_ROLE_ORDER[c.bonus_role]!=null?BX_ROLE_ORDER[c.bonus_role]:9;
+    if(ra!==rc) return ra-rc;
+    return String(a.recipient||"").localeCompare(String(c.recipient||""));
+  });
+  // Only render columns that appear in the data (keeps the matrix lean).
+  const present = new Set(rows.map(r=>r.component));
+  const cols = BX_COMPONENT_ORDER.filter(c=>present.has(c));
+  // --- SHADOW watermark (hard requirement) ---
+  let body = "";
+  if(b.is_shadow){
+    body += '<div class="shadowwm">⚠ SHADOW RUN — NOT PAYABLE. Preview only; no money moves from this view.</div>';
+  }
+  // --- matrix table ---
+  let h = '<div class="bxwrap"><table class="bxtab"><thead><tr>';
+  h += '<th class="bxrh">Recipient</th>';
+  for(const c of cols){ h += '<th>'+esc(BX_COMPONENT_LABEL[c]||c)+'</th>'; }
+  h += '<th class="bxtot">Month total</th></tr></thead><tbody>';
+  for(const g of recips){
+    h += '<tr><td class="bxrh">'+esc(g.recipient)
+       + '<small>'+esc(String(g.bonus_role||"").toUpperCase())
+       + (g.store_name?" · "+esc(g.store_name):"")+'</small></td>';
+    for(const c of cols){
+      const cell = g.cells[c];
+      if(!cell){ h += '<td class="bxc-zero">—</td>'; continue; }
+      const amt = Number(cell.amount||0);
+      if(cell.held){
+        h += '<td class="bxc-held" title="'+esc(cell.why||"")+'">$'+amt.toLocaleString()+' †</td>';
+      } else if(amt===0){
+        h += '<td class="bxc-zero" title="'+esc(cell.why||"")+'">$0'+(cell.why?" †":"")+'</td>';
+      } else {
+        h += '<td class="bxc-pay">$'+amt.toLocaleString()+'</td>';
+      }
+    }
+    h += '<td class="bxtot">$'+Number(g.total||0).toLocaleString()+'</td></tr>';
+  }
+  h += '</tbody></table></div>';
+  body += h;
+  // --- "Why $0 / held" list — every held/$0-with-reason row, explained ---
+  const held = rows.filter(r=>r.held || (Number(r.amount||0)===0 && r.why));
+  if(held.length){
+    let w = '<div class="bxwhy"><div class="cap" style="margin-bottom:4px">Why $0 / held — every held or $0 line, explained (so no $0 is a bare number):</div>';
+    for(const r of held){
+      const compLbl = BX_COMPONENT_LABEL[r.component] || r.component;
+      w += '<div class="bxwrow"><div class="bxwn">'+esc(r.recipient)
+         + ' · <span class="bxwc">'+esc(compLbl)+'</span>'
+         + (r.store_name?' · '+esc(r.store_name):'')+'</div>'
+         + '<div class="bxwd">'+esc(r.why||"$0")
+         + (r.tiers?' · tiers: '+esc(r.tiers):'')
+         + (r.derivation?' · '+esc(r.derivation):'')+'</div></div>';
+    }
+    w += '</div>';
+    body += w;
+  }
+  body += '<div class="cap" style="margin-top:10px">'+esc(b.note||"")
+       + ' Held count: '+Number(b.held_count||0)+'. From bonus_payouts (READ-ONLY preview).</div>';
+  return card("Bonus payouts (Q3 shadow)", body, {
+    icon:"💵",
+    info:"operational data thru "+(b.op_data_through||"")+" · profit "+(b.profit_data_through||""),
+    newBadge:true
+  });
+}
+
 // MODULE — Operations (Jolt): pre-shift completion + grill temps + sensor health.
 /* =========================================================================
    JOLT CARDS (v2-0.30, spec docs/plans/jolt-v2-cards/plan-spec.md)
@@ -3132,10 +3422,11 @@ function renderTeamWaste(data){
 /* =========================================================================
    MORE LANE (Pass 2 — Owner-Hub overflow, GM-relevant subset)
    ADDED ADDITIVELY: render fns + MANIFEST rows. For a GM token the Owner/Sup-
-   only tools (campaigns admin, contacts rolodex, advisor, deck editor, meeting,
-   ticketing) render DARK (a locked tool tile) or are omitted (plan §5) — the GM
-   sees the campaigns they must ACT on (upload) + the RGR prep checklist when a
-   visit is in-window. Reads data.campaigns / data.rgr / data.manager.role.
+   only tools (campaigns admin, advisor, deck editor, meeting, ticketing)
+   render DARK (a locked tool tile) or are omitted (plan §5) — the GM sees the
+   campaigns they must ACT on (upload) + the RGR prep checklist when a visit
+   is in-window + (v2 launch spec §1) the shared contacts directory read-only.
+   Reads data.campaigns / data.rgr / data.contacts / data.manager.role.
    ========================================================================= */
 function isOwnerSup(data){ const r = data.manager && data.manager.role; return r==="Owner" || r==="Supervisor"; }
 
@@ -3190,20 +3481,77 @@ function renderMoreRgr(data){
     { icon:"📋", through: null });
 }
 
+// MODULE — Contacts directory (v2 launch spec §1): VIEW widened to AM+
+// (Owner/Sup/GM/Department). Read-only surface — add/edit stays an Owner/Sup
+// tool (the Fn contact_save/contact_archive gates are unchanged), so no edit
+// affordance renders here for anyone. data.contacts is null for RO/guest
+// tokens (PII gate) and on an older Fn → render nothing (no leak, no shell).
+function renderMoreContacts(data){
+  const cs = data.contacts;
+  if(cs == null) return "";
+  if(!cs.length) return card("Contacts", '<div class="empline">No active contacts in the directory.</div>', { icon:"📇", info:"live directory" });
+  const CATS = [["staff","Staff"],["vendor","Vendors"],["support","Support"],["other","Other"]];
+  let body = '<input class="ctcfind" type="search" placeholder="Search name, company, store…" oninput="contactsFilter(this)">'
+           + '<div id="ctcList">';
+  for(const cat of CATS){
+    const rows = cs.filter(c => (c.contact_category||"other") === cat[0]);
+    if(!rows.length) continue;
+    body += '<div class="ctcgrp"><div class="ctcgh">'+esc(cat[1])+' · '+rows.length+'</div>'
+      + rows.map(c=>{
+          const name = ((c.first_name||"")+" "+(c.last_name||"")).trim() || (c.company||"Contact");
+          const bits = [];
+          if(c.title) bits.push(c.title); else if(c.role && c.role!=="Other") bits.push(c.role);
+          if(c.company && c.company !== name) bits.push(c.company);
+          if(c.store_name) bits.push(c.store_name);
+          const sub = bits.join(" · ");
+          const q = (name+" "+sub+" "+(c.email||"")+" "+(c.mobile||"")).toLowerCase();
+          const acts = (c.mobile?'<a class="ctcbtn" href="tel:'+esc(c.mobile)+'" onclick="event.stopPropagation()">📞</a>':'')
+                     + (c.email?'<a class="ctcbtn" href="mailto:'+esc(c.email)+'" onclick="event.stopPropagation()">✉️</a>':'');
+          return '<div class="ctcrow" data-q="'+esc(q)+'"><div class="ctcmain"><div class="ctcname">'+esc(name)+'</div>'
+            + (sub?'<div class="ctcsub">'+esc(sub)+'</div>':'')
+            + '</div><div class="ctcact">'+acts+'</div></div>';
+        }).join("")
+      + '</div>';
+  }
+  body += '</div><div class="cap">Shared staff / vendor / support directory ('+cs.length+' contacts, live from managers). '
+    + (isOwnerSup(data) ? 'Owner/Sup edit via the Owner Hub rolodex.' : 'Read-only — ask a supervisor or the owner for changes.')
+    + '</div>';
+  return card("Contacts", body, { icon:"📇", info:"live directory", newBadge:true });
+}
+
+// Client-side filter for the contacts rolodex (name/company/store/email/phone).
+function contactsFilter(inp){
+  const q = String(inp.value||"").trim().toLowerCase();
+  const wrap = document.getElementById("ctcList");
+  if(!wrap) return;
+  wrap.querySelectorAll(".ctcrow").forEach(r=>{
+    r.style.display = (!q || (r.getAttribute("data-q")||"").indexOf(q) >= 0) ? "" : "none";
+  });
+  wrap.querySelectorAll(".ctcgrp").forEach(g=>{
+    const any = Array.prototype.some.call(g.querySelectorAll(".ctcrow"), r=>r.style.display!=="none");
+    g.style.display = any ? "" : "none";
+  });
+}
+window.contactsFilter = contactsFilter;
+
 // MODULE — Owner/Sup-only tools, rendered DARK for a GM (plan §5).
 function renderMoreOwnerTools(data){
   if(isOwnerSup(data)) return "";   // Owner/Sup get the live tools in Phase 3; not a GM concern here.
-  const tools = [
-    { ic:"📇", h:"Contacts rolodex", s:"Shared staff/vendor/support directory" },
+  const tools = [];
+  // Contacts is locked ONLY when this viewer did not receive the directory
+  // (RO/guest token or an older Fn) — AM+ tokens get the live Contacts card
+  // above instead (v2 launch spec §1).
+  if(data.contacts == null) tools.push({ ic:"📇", h:"Contacts rolodex", s:"Shared staff/vendor/support directory" });
+  tools.push(
     { ic:"🧭", h:"Business advisor", s:"Biweekly owner briefing + interrupts" },
     { ic:"🗓️", h:"Supervisor check-in", s:"GPS-geofenced store check-in" },
     { ic:"🎟️", h:"Ticketing", s:"Maintenance / IT tickets (reserved)" },
-  ];
+  );
   const body = tools.map(t=>'<div class="darktool"><span class="dtic">'+t.ic+'</span>'
     + '<div class="dtmain"><div class="dth">'+esc(t.h)+'</div><div class="dts">'+esc(t.s)+'</div></div>'
     + '<span class="dtlock">owner/sup</span></div>').join("");
   return card("Owner-Hub tools", body
-    + '<div class="cap">These tools are for owners and supervisors — shown here locked. Your hub is campaigns + RGR above.</div>',
+    + '<div class="cap">These tools are for owners and supervisors — shown here locked. Your hub is campaigns + RGR + contacts above.</div>',
     { icon:"⋯" });
 }
 
@@ -3499,11 +3847,346 @@ function renderHomeVoice(data){
     { icon:"⭐", info: "VOICE · "+voiceMtdLabel(vt.current_period||vt.data_through)+(isStore?" · "+esc(ent.name):" · portfolio"), newBadge:true });
 }
 
+/* =========================================================================
+   v2-0.36 PAGE FRAMEWORK — self-contained interactive pages.
+
+   A page = ONE server gather (Edge Fn PAGES registry, GET ?page=<id>) + ONE
+   client render module + ONE entry in PAGE_REGISTRY below. Pages open in the
+   full-screen #pageLayer with their own scroll + history entry (&p=<route> is
+   deep-linkable; the phone back button closes the page, never the board).
+   Page data is fetched ONLY when the page opens (memoized in PAGE_CACHE with a
+   TTL + in-flight dedupe) — the board never pays for pages, pages never pay
+   for the board. A deep-linked page boots PAGE-FIRST: the board is not fetched
+   until the user closes the page.
+
+   ADD A PAGE: (1) Edge Fn: write gatherXPage() + one PAGES entry. (2) here:
+   write renderXPage() + one PAGE_REGISTRY entry. (3) optional home tile = one
+   small want('TODAY') slice + one MANIFEST row (see bonus_home). Nothing
+   board-wide. If a future page exceeds ~300 rows, chunk-append on scroll —
+   do not grow a lane.
+   ========================================================================= */
+const PAGE_REGISTRY = {
+  bonus_ranker: { route:"ranker", title:"GM Bonus Ranker", render: renderBonusRankerPage, after: rkAfterRender, ttlMs: 5*60*1000 },
+};
+const PAGE_BY_ROUTE = {};
+for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
+const PAGE_CACHE = {};      // id -> {at, payload}
+const PAGE_INFLIGHT = {};   // id -> promise (fast double-tap = one fetch)
+let ACTIVE_PAGE = null;
+let BOARD_BOOTED = false;
+
+function pageSkeleton(){
+  let s = "";
+  for(let i=0;i<3;i++){
+    s += '<div class="skel"><div class="sl w40"></div><div class="sl w90"></div><div class="sl w70"></div><div class="sl tall"></div></div>';
+  }
+  return s;
+}
+
+async function fetchPage(id){
+  const reg = PAGE_REGISTRY[id];
+  const c = PAGE_CACHE[id];
+  if(c && (Date.now() - c.at) < (reg.ttlMs || 5*60*1000)) return c.payload;
+  if(PAGE_INFLIGHT[id]) return PAGE_INFLIGHT[id];
+  const p = (async () => {
+    try{
+      const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&page=" + encodeURIComponent(id));
+      if(r.status === 401) throw new Error("link expired");
+      if(r.status === 403 || r.status === 404) throw new Error("not available on this link");
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const payload = await r.json();
+      PAGE_CACHE[id] = { at: Date.now(), payload };
+      return payload;
+    } finally {
+      delete PAGE_INFLIGHT[id];
+    }
+  })();
+  PAGE_INFLIGHT[id] = p;
+  return p;
+}
+
+function openPage(id, opts){
+  opts = opts || {};
+  const reg = PAGE_REGISTRY[id];
+  if(!reg){ console.error("unknown page:", id); return; }
+  ACTIVE_PAGE = id;
+  const layer = document.getElementById("pageLayer");
+  document.getElementById("pageTitle").textContent = reg.title;
+  document.getElementById("pageBody").innerHTML = pageSkeleton();
+  layer.classList.add("open");
+  layer.scrollTop = 0;
+  if(!opts.noHistory){
+    const u = new URL(location.href); u.searchParams.set("p", reg.route);
+    if(opts.deeplink){
+      // Deep link boot: seed a board entry UNDER the page entry so the phone
+      // back button lands on the board instead of exiting the app.
+      const b = new URL(location.href); b.searchParams.delete("p"); b.searchParams.delete("view");
+      history.replaceState({ board: true }, "", b);
+      history.pushState({ page: id }, "", u);
+    } else {
+      history.pushState({ page: id }, "", u);
+    }
+  }
+  fetchPage(id).then(function(payload){
+    if(ACTIVE_PAGE !== id) return;
+    const body = document.getElementById("pageBody");
+    body.innerHTML = sect(function(){ return reg.render(payload); });
+    if(reg.after){ try{ reg.after(body, payload); }catch(e){ console.error("page after-hook error:", e); } }
+  }).catch(function(e){
+    if(ACTIVE_PAGE !== id) return;
+    document.getElementById("pageBody").innerHTML =
+      '<div class="errbox">' + esc("Could not load this page: " + (e && e.message ? e.message : e)) + '</div>';
+  });
+}
+window.openPage = openPage;
+
+function hidePageLayer(){
+  ACTIVE_PAGE = null;
+  document.getElementById("pageLayer").classList.remove("open");
+  if(!BOARD_BOOTED) bootBoard();   // deep-linked session: board loads on first close
+}
+function closePage(){ history.back(); }   // popstate below does the actual hide
+window.closePage = closePage;
+window.addEventListener("popstate", function(ev){
+  const st = ev.state;
+  if(st && st.page && PAGE_REGISTRY[st.page]) openPage(st.page, { noHistory: true });
+  else hidePageLayer();
+});
+
+/* =========================================================================
+   Q3 BONUS — shared formatting + the ranker page + the home tile.
+   Full $ transparency (owner decision): every manager token sees all 12 GM
+   names + dollars. RO/guest links never reach here (server 403s the page and
+   never gathers bonus_home). Watermarked PRELIMINARY on BOTH surfaces.
+   ========================================================================= */
+function bnsMoney(n){
+  const v = Number(n) || 0;
+  const cents = Math.round(v * 100) % 100 !== 0;
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 });
+}
+function bnsMd(iso){   // '2026-06-30' -> '6/30'
+  if(!iso || String(iso).length < 10) return String(iso || "");
+  return Number(String(iso).slice(5,7)) + "/" + Number(String(iso).slice(8,10));
+}
+const BNS_CLS = { HIT:"b-hit", MISS:"b-miss", HELD:"b-held", PENDING:"b-pend" };
+function bnsMetricVal(c){
+  if(c.status === "HIT") return "✓ " + bnsMoney(c.amount);
+  if(c.status === "MISS") return (c.metric_value != null ? (Math.round(Number(c.metric_value)*10)/10) + " · " : "") + "MISS";
+  if(c.status === "HELD") return "HELD †";
+  return "PENDING";
+}
+
+/* ---- the GM BONUS RANKER page (reference implementation) ---- */
+function rkComps(components){
+  let h = "";
+  for(const c of (components || [])){
+    const cls = BNS_CLS[c.status] || "b-pend";
+    h += '<div class="rk-cc ' + cls + '" title="' + esc(c.why || "") + '">'
+       + '<div class="rk-cl">' + esc(c.label) + '</div>'
+       + '<div class="rk-cv">' + esc(bnsMetricVal(c)) + '</div>'
+       + (c.status !== "HIT" && c.why ? '<div class="rk-cw">' + esc(c.why) + '</div>' : "")
+       + '</div>';
+  }
+  return h;
+}
+function rkToggle(el){ el.classList.toggle("open"); }
+window.rkToggle = rkToggle;
+function rkJumpYou(){
+  const el = document.querySelector("#pageBody .you");
+  if(el) el.scrollIntoView({ behavior:"smooth", block:"center" });   // scrolls the page layer, its own scroller
+}
+window.rkJumpYou = rkJumpYou;
+
+function renderBonusRankerPage(payload){
+  const p = (payload && payload.page) || {};
+  const st = p.standings || [];
+  if(!st.length){
+    return '<div class="errbox">No bonus run loaded yet. The ranker lights up when the first monthly run lands.</div>';
+  }
+  const maxT = Math.max(Number(st[0].total) || 0, 1);
+  const vid = p.viewer ? p.viewer.manager_id : null;
+  const vrank = p.viewer ? p.viewer.rank : null;
+  const ribbon = new Array(48).join("PRELIMINARY · ");
+  let h = '<div class="rkx">'
+    + '<div class="rk-ribbon" aria-hidden="true">' + ribbon + '</div>'
+    + '<div class="rk-kicker">' + esc(p.is_shadow ? "Shadow preview" : "Standings") + ' · 12 stores</div>'
+    + '<div class="rk-title">GM Bonus Ranker — ' + esc(p.period_label || "") + '</div>'
+    + '<div class="rk-thru">operations data thru <b>' + esc(p.op_data_through || "—") + '</b> · profit ' + esc(p.profit_data_through || "—") + '</div>'
+    + '<div class="rk-wm">⚠ ' + esc(p.watermark || "PRELIMINARY — not yet payable") + '</div>';
+  if(vrank != null){
+    h += '<div class="rk-sticky" onclick="rkJumpYou()">You are <b>#' + esc(vrank) + ' of ' + st.length + '</b> · '
+       + esc(bnsMoney(p.viewer.total)) + ' — tap to jump to your row</div>';
+  }
+  // PODIUM — top 3 medal tiles (tap to expand the component strip)
+  h += '<div class="rk-podium">';
+  for(let i = 0; i < Math.min(3, st.length); i++){
+    const s = st[i];
+    const isYou = vid != null && s.manager_id === vid;
+    h += '<div class="rk-med m' + (i+1) + (isYou ? " you" : "") + '" onclick="rkToggle(this)">'
+       + '<div class="rk-medal">' + (i+1) + '</div>'
+       + '<div class="rk-store">' + esc(s.store_name || "") + '</div>'
+       + '<div class="rk-gm">' + esc(s.gm_name || "") + '</div>'
+       + '<div class="rk-amt" data-rk-count="' + esc(s.total) + '">' + esc(bnsMoney(s.total)) + '</div>'
+       + '<div class="rk-gm">' + s.hits_n + ' of ' + (s.components ? s.components.length : 11) + ' hit</div>'
+       + (isYou ? '<span class="rk-youchip">You · #' + (i+1) + '</span>' : "")
+       + '<div class="rk-comps">' + rkComps(s.components) + '</div>'
+       + '</div>';
+  }
+  h += '</div>';
+  // ROWS 4-12 — bar width proportional to the leader (tap to expand)
+  h += '<div class="rk-rows">';
+  for(let i = 3; i < st.length; i++){
+    const s = st[i];
+    const isYou = vid != null && s.manager_id === vid;
+    const w = Math.max(2, Math.round(100 * (Number(s.total) || 0) / maxT));
+    h += '<div class="rk-row' + (isYou ? " you" : "") + '" onclick="rkToggle(this)">'
+       + '<div class="rk-rowtop">'
+       + '<div class="rk-rank">' + s.rank + '</div>'
+       + '<div class="rk-who"><div class="rk-store">' + esc(s.store_name || "") + (isYou ? ' <span class="rk-youchip">You</span>' : "") + '</div>'
+       + '<div class="rk-gm">' + esc(s.gm_name || "") + ' · ' + s.hits_n + ' of ' + (s.components ? s.components.length : 11) + ' hit</div></div>'
+       + '<div class="rk-total" data-rk-count="' + esc(s.total) + '">' + esc(bnsMoney(s.total)) + '</div>'
+       + '</div>'
+       + '<div class="rk-bar"><i style="width:' + w + '%"></i></div>'
+       + '<div class="rk-comps">' + rkComps(s.components) + '</div>'
+       + '</div>';
+  }
+  h += '</div>';
+  const org = p.org || {};
+  h += '<div class="rk-foot">' + esc(p.ranking_note || "")
+     + '<br>GM blocks ' + esc(bnsMoney(org.total)) + ' · top ' + esc(bnsMoney(org.top_total)) + ' · average ' + esc(bnsMoney(org.avg_total))
+     + ' · whole run (all roles) ' + esc(bnsMoney(org.all_roles_total)) + ' · ' + esc(org.held_count != null ? org.held_count : "—") + ' components held'
+     + '<br>' + esc(p.note || "")
+     + '</div>';
+  h += '</div>';
+  return h;
+}
+
+// after-hook: count-up the $ figures (transform/text only; skipped under
+// prefers-reduced-motion — the numbers are already painted as the final value).
+function rkAfterRender(root){
+  if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  root.querySelectorAll("[data-rk-count]").forEach(function(el){
+    const target = Number(el.getAttribute("data-rk-count")) || 0;
+    if(target <= 0) return;
+    const t0 = performance.now(), dur = 850;
+    function step(t){
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = bnsMoney(target * e);
+      if(k < 1) requestAnimationFrame(step); else el.textContent = bnsMoney(target);
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+/* ---- the Q3 BONUS home tile (TODAY lane, all manager roles) ---- */
+// v2-0.37 (feature 2): richer tile — per-component TARGET + earned/potential $,
+// hero "earned $X of $Y possible", earned-progress bar, status pills, tinted
+// chips. Every target/potential figure comes from the Fn (parsed server-side
+// from bonus_payouts.inputs — bonusTargetPotential) so the tile ties to the
+// engine to the cent; NOTHING is computed client-side beyond display math.
+// All new fields are null-guarded, so the tile still renders against an older
+// Fn payload that lacks them (back-compat both ways).
+function bhFmtVal(v){
+  if(v == null) return null;
+  return String(Math.round(Number(v) * 10) / 10);
+}
+function bhChip(m){
+  const cls = BNS_CLS[m.status] || "b-pend";
+  const act = bhFmtVal(m.metric_value);
+  const hasPot = m.potential != null;
+  let money = "", detail = "";
+  if(m.status === "HIT"){
+    money = "✓ " + bnsMoney(m.amount)
+      + (hasPot && Number(m.amount) < Number(m.potential) ? " of " + bnsMoney(m.potential) : "");
+    detail = (act != null ? act : "") + (m.target ? (act != null ? " · " : "") + "target " + m.target : "");
+  } else if(m.status === "MISS"){
+    money = hasPot ? "$0 of " + bnsMoney(m.potential) : "MISS";
+    detail = (act != null && m.target) ? act + " vs " + m.target
+           : (m.target ? "target " + m.target : (act != null ? act : ""));
+  } else if(m.status === "HELD"){
+    money = "HELD" + (hasPot ? " · up to " + bnsMoney(m.potential) : "");
+    detail = (act != null ? act : "") + (m.target ? (act != null ? " · " : "") + "target " + m.target : "");
+  } else {
+    money = "PENDING" + (hasPot ? " · up to " + bnsMoney(m.potential) : "");
+    detail = m.target ? "target " + m.target : "";
+  }
+  const tip = (m.why ? m.why : "") + (m.tiers ? (m.why ? " — " : "") + "tiers: " + m.tiers : "");
+  return '<div class="bhc ' + cls + '" title="' + esc(tip) + '">'
+    + '<div class="bhtop"><span class="bhl">' + esc(m.label) + '</span><span class="bhpill ' + cls + '">' + esc(m.status) + '</span></div>'
+    + '<div class="bhs">' + esc(money) + '</div>'
+    + (detail ? '<div class="bht">' + esc(detail) + '</div>' : "")
+    + '</div>';
+}
+function bhProgress(earned, possible){
+  const e = Number(earned) || 0, p = Number(possible) || 0;
+  if(p <= 0) return "";
+  const w = Math.max(0, Math.min(100, Math.round(100 * e / p)));
+  return '<div class="bhbar"><i style="width:' + w + '%"></i></div>';
+}
+function renderBonusHomeTile(data){
+  const bh = data.bonus_home;
+  if(!bh) return "";   // RO/guest token, or the slice failed — no tile
+  const info = "op thru " + bnsMd(bh.op_data_through) + " · profit " + (bh.profit_data_through || "").replace(" (open/preliminary)", " prelim");
+  let body = '<div class="bhwm">⚠ ' + esc(bh.watermark || "PRELIMINARY — not yet payable") + '</div>';
+  if(bh.mode === "store" && bh.store){
+    const s = bh.store;
+    const metrics = s.metrics || [];
+    const hitsN = s.hits_n != null ? s.hits_n : metrics.filter(function(m){ return m.status === "HIT"; }).length;
+    body += '<div class="bhhero"><span class="bhv">' + esc(bnsMoney(s.total)) + '</span>'
+      + (s.potential_total != null ? '<span class="bhof">of ' + esc(bnsMoney(s.potential_total)) + ' possible</span>' : "")
+      + '<span class="bhrank">#' + esc(s.rank) + ' of ' + esc(s.of) + '</span></div>'
+      + bhProgress(s.total, s.potential_total)
+      + '<div class="bhsub2">' + esc(bh.period_label || "") + ' · ' + esc(hitsN) + ' of ' + metrics.length + ' hit'
+      + ' · top store ' + esc(bnsMoney(bh.org_top_total)) + '</div>';
+    body += '<div class="bhgrid">';
+    for(const m of metrics){ body += bhChip(m); }
+    body += '</div>';
+  } else if(bh.mode === "org" && bh.org){
+    const o = bh.org;
+    body += '<div class="bhhero"><span class="bhv">' + esc(bnsMoney(o.all_roles_total)) + '</span>'
+      + '<span class="bhsub">' + esc(o.recipients) + ' recipients · ' + esc(o.held_count) + ' held'
+      + (o.top ? ' · top ' + esc(o.top.store_name || "") + ' ' + esc(bnsMoney(o.top.total)) : "") + '</span></div>';
+    // GM-block progress: gm_total vs gm_potential_total share the SAME basis
+    // (GM rows only) — never mixed with the all-roles hero figure above.
+    if(o.gm_potential_total != null){
+      body += bhProgress(o.gm_total, o.gm_potential_total)
+        + '<div class="bhsub2">GM blocks ' + esc(bnsMoney(o.gm_total)) + ' of ' + esc(bnsMoney(o.gm_potential_total)) + ' possible</div>';
+    } else {
+      body += '<div class="bhsub2">GM blocks ' + esc(bnsMoney(o.gm_total)) + '</div>';
+    }
+    body += '<div class="bhgrid">';
+    for(const m of (o.metrics || [])){
+      // 0 hits stays NEUTRAL gray (an all-PENDING metric like PAC-vs-target is
+      // not a red org miss); any hits amber; a clean sweep green.
+      const cls = (m.of > 0 && m.hits >= m.of) ? "b-hit" : m.hits > 0 ? "b-held" : "b-pend";
+      body += '<div class="bhc ' + cls + '">'
+        + '<div class="bhtop"><span class="bhl">' + esc(m.label) + '</span><span class="bhpill ' + cls + '">' + esc(m.hits) + '/' + esc(m.of) + '</span></div>'
+        + '<div class="bhs">' + esc(bnsMoney(m.paid_total))
+        + (m.potential_total != null ? ' of ' + esc(bnsMoney(m.potential_total)) : "") + '</div>'
+        + '</div>';
+    }
+    body += '</div>';
+  } else {
+    body += emptyState("💰", "No bonus run yet", "The tile lights up when the first monthly run lands.");
+  }
+  // Monthly framing: the tile shows the latest single monthly run (e.g. "June
+  // 2026"), so title by the month, not the containing quarter. Payout cadence
+  // (pays at Q3 close) stays in the watermark/info — accurate, just not the header.
+  const tileTitle = (bh.period_label ? bh.period_label + " " : "") + "Bonus — Preliminary";
+  return card(tileTitle, body,
+    { icon:"💰", info: info, newBadge:true, drill:{ kind:"page:bonus_ranker" } });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
   // pinned contest motivators (plan §2 "pinned to the top of TODAY").
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
+  // v2-0.36: Q3 bonus tile (all manager roles; render self-gates on data.bonus_home
+  // which the Fn never sends to RO/guest tokens). Whole card taps into the
+  // bonus_ranker PAGE ("page:" drill prefix -> openPage). v2-0.37: richer tile —
+  // per-component target + earned/potential $, "earned X of Y possible" hero.
+  { id:"today_bonus",      lane:"TODAY", title:"Monthly Bonus (Preliminary)",  render: renderBonusHomeTile,   newBadge:true },
   { id:"home_roundup",     lane:"TODAY", title:"Portfolio roundup",       render: renderHomeRoundup     },
   { id:"home_sales_rank",  lane:"TODAY", title:"Sales ranker",            render: renderHomeSalesRanker },
   { id:"home_sales_trend", lane:"TODAY", title:"Sales trend",             render: renderHomeSalesTrend  },
@@ -3553,6 +4236,9 @@ const MANIFEST = [
   // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
   // noise; re-enable when the Q3 LIVE bonus engine launches. renderTeamBonus kept.
   // { id:"team_bonus",     lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
+  // v2-0.35 Q3 bonus payouts — OWNER-ONLY READ-ONLY shadow surface. The render fn
+  // self-gates to owner (returns "" for non-owners), so no manifest gating is needed.
+  { id:"team_bonus_payouts", lane:"TEAM", title:"Bonus payouts (Q3 shadow)", render: renderTeamBonusPayouts, newBadge:true },
   // v2-0.30 Jolt cards (spec docs/plans/jolt-v2-cards/plan-spec.md): checklist
   // execution + RTS temps from the live Jolt feed, ahead of the older
   // pre-shift-only Operations card.
@@ -3563,6 +4249,9 @@ const MANIFEST = [
   // MORE — Owner-Hub overflow (GM-relevant subset; owner/sup tools render dark).
   { id:"more_campaigns",    lane:"MORE", title:"Submission campaigns",    render: renderMoreCampaigns,     newBadge:true },
   { id:"more_rgr",          lane:"MORE", title:"RGR prep checklist",      render: renderMoreRgr          },
+  // v2 launch spec §1: contacts VIEW widened to AM+ (Owner/Sup/GM/Department).
+  // Self-gates on data.contacts (null for RO/guest — PII); read-only for all.
+  { id:"more_contacts",     lane:"MORE", title:"Contacts",                render: renderMoreContacts,      newBadge:true },
   { id:"more_ownertools",   lane:"MORE", title:"Owner-Hub tools",         render: renderMoreOwnerTools   },
 ];
 
@@ -3610,6 +4299,9 @@ function renderBoard(payload){
       const kind = c.getAttribute("data-card-drill");
       const id = c.getAttribute("data-card-id");
       try{
+        // v2-0.36: "page:<id>" drills route to the page framework (full-screen
+        // page layer), everything else keeps the sheet behavior unchanged.
+        if(kind && kind.indexOf("page:") === 0){ openPage(kind.slice(5)); return; }
         // NUMBERS drills go to openNumbersSheet; GUESTS/TEAM drills to openLaneSheet.
         if(LANE_DRILL_KINDS.has(kind)) openLaneSheet(kind, id!=null ? { store_id: Number(id) } : {});
         else openNumbersSheet(kind, id!=null ? { store_id: Number(id) } : {});
@@ -3629,15 +4321,39 @@ window.renderBoard = renderBoard;
    RO/view-as tokens are rejected server-side before dispatch (plan §7) — the
    Edge Fn returns the error in result, surfaced here. No new endpoint.
    ========================================================================= */
+/* v2-0.36: LANE-SCOPED POST repaint (the single biggest measured win — a full
+   no-lane POST re-gather ran ~17s on an owner token; the lean lanes run ~1.7s).
+   The Edge Fn has honored ?lane= on POST since v2-0.2; only the shell never sent
+   it. We ask for TODAY,NUMBERS (the verdict + financials always repaint — a
+   projection save needs fresh financials) plus the ACTIVE lane so the slice the
+   user is looking at (and just wrote to) refreshes. The response is then merged
+   through mergePostPayload — NEVER a wholesale STATE swap, which would null
+   every loaded lane the lane-scoped response did not carry. */
+const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
+                           "financials","cleanliness_race","osat_incentive","bonus_home","_meta"];
+function mergePostPayload(payload, askedLanes){
+  if(!STATE || !STATE.data){ STATE = payload; return STATE; }
+  const incoming = (payload && payload.data) || {};
+  const keys = new Set(ALWAYS_MERGE_KEYS);
+  for(const ln of (askedLanes || [])){ for(const k of (LANE_KEYS[ln] || [])) keys.add(k); }
+  for(const k of keys){ if(k in incoming) STATE.data[k] = incoming[k]; }
+  STATE.result = payload ? payload.result : null;
+  return { result: STATE.result, data: STATE.data };
+}
 async function v2CallApi(body){
-  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
+  const lanes = ["TODAY","NUMBERS"];
+  if(LANE_KEYS[ACTIVE_LANE] && lanes.indexOf(ACTIVE_LANE) < 0) lanes.push(ACTIVE_LANE);
+  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&lane=" + lanes.join(","), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body || {}),
   });
   if(r.status === 401) throw new Error("link expired");
   if(!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
+  const payload = await r.json();
+  const merged = mergePostPayload(payload, lanes);
+  saveSnapshot();
+  return merged;
 }
 function v2FindRow(el, cls){ while(el && !el.classList.contains(cls)) el=el.parentElement; return el; }
 
@@ -3892,7 +4608,34 @@ function initTheme(){
 
 /* =========================================================================
    init() — token auth + fetch the deployed v2 Edge Fn + skeleton->data paint.
+   v2-0.36: (a) PAGE-FIRST deep links: &p=<route> (alias &view=) boots the page
+   alone; the board is not fetched until the page closes. (b) sessionStorage
+   STALE-WHILE-REVALIDATE: a <10-min snapshot paints instantly, then the fresh
+   fetch MERGES over it (never a wholesale swap, which would null the
+   snapshot's loaded lanes) and repaints.
    ========================================================================= */
+const SNAP_KEY = "mp2-snap-" + (TOKEN ? TOKEN.slice(0, 10) : "anon");
+const SNAP_TTL_MS = 10 * 60 * 1000;
+function saveSnapshot(){
+  try{
+    if(!STATE || !STATE.data) return;
+    sessionStorage.setItem(SNAP_KEY, JSON.stringify({
+      shell: SHELL_VERSION, at: Date.now(),
+      lanes: Array.from(LOADED_LANES), data: STATE.data,
+    }));
+  }catch(_e){ /* quota or private mode — snapshotting is best-effort */ }
+}
+function readSnapshot(){
+  try{
+    const raw = sessionStorage.getItem(SNAP_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || s.shell !== SHELL_VERSION || !s.data) return null;          // version-keyed
+    if((Date.now() - (s.at || 0)) > SNAP_TTL_MS) return null;            // 10-min TTL
+    return s;
+  }catch(_e){ return null; }
+}
+
 async function init(){
   initTheme();
   buildTabBar();
@@ -3900,7 +4643,24 @@ async function init(){
     showError("Missing token. This link should include ?t=<token>.");
     return;
   }
+  // PAGE-FIRST boot for deep links (&p=ranker; &view= accepted as the v1-style alias).
+  const pRoute = QS.get("p") || QS.get("view");
+  const pid = pRoute && PAGE_BY_ROUTE[pRoute];
+  if(pid){ openPage(pid, { deeplink: true }); return; }   // board boots on first close
+  bootBoard();
+}
+
+async function bootBoard(){
+  if(BOARD_BOOTED) return;
+  BOARD_BOOTED = true;
   paintSkeleton();
+  // stale-while-revalidate: instant paint from a recent same-session snapshot.
+  const snap = readSnapshot();
+  if(snap){
+    STATE = { result: null, data: snap.data };
+    for(const l of (snap.lanes || [])) LOADED_LANES.add(l);
+    renderBoard();
+  }
   try{
     // LEAN first paint (plan §6.2): TODAY + NUMBERS only. Heavy lanes lazy-load
     // on first tab open. ?lane= is honored by the Edge Fn (v2-0.2); an older Fn
@@ -3917,9 +4677,15 @@ async function init(){
         if(laneDataPresent(payload.data, ln)) LOADED_LANES.add(ln);
       }
     }
-    renderBoard(payload);
+    if(STATE && STATE.data){
+      renderBoard(mergePostPayload(payload, ["TODAY","NUMBERS"]));   // snapshot painted: merge fresh over it
+    } else {
+      renderBoard(payload);
+    }
+    saveSnapshot();
   }catch(e){
-    showError("Could not load board: " + (e && e.message));
+    if(STATE && STATE.data){ console.error("board refresh failed (stale snapshot kept):", e && (e.message||e)); }
+    else showError("Could not load board: " + (e && e.message));
   }
 }
 
@@ -3981,6 +4747,7 @@ async function ensureLane(lane){
         STATE = payload;
       }
       LOADED_LANES.add(lane);
+      saveSnapshot();   // v2-0.36: keep the stale-while-revalidate snapshot current
       return true;
     }catch(e){
       console.error("lazy lane load failed (" + lane + "):", e && (e.message||e));
