@@ -892,7 +892,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.36";
+const SHELL_VERSION = "v2-0.38";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1463,15 +1463,18 @@ function renderPinnedRace(data){
     { icon:"🧽", info: "VOICE · "+contestVoiceLabel(race) });
 }
 
-// MODULE — pinned $100 June OSAT Incentive (in-money status + gap to threshold).
+// MODULE — pinned OSAT Bonus (v2-0.38: graduated $50/$75/$100 monthly engine tiers;
+// legacy single-threshold payloads — no tiers[] — still render the old June shape).
 function renderPinnedOsat(data){
   const oi = data.osat_incentive;
   if(!oi || !Array.isArray(oi.standings) || !oi.standings.length){
-    return card("$100 June OSAT Incentive", '<div class="empline">No OSAT scores posted yet this month.</div>', { icon:"💯" });
+    return card((oi && oi.title) || "OSAT Bonus", '<div class="empline">No OSAT scores posted yet this month.</div>', { icon:"💯" });
   }
-  return card(esc(oi.title||"$100 June OSAT Incentive"),
+  return card(esc(oi.title||"OSAT Bonus"),
     contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
-      threshold: oi.threshold, amount: oi.amount||"$100" }),
+      threshold: oi.threshold, amount: oi.amount||"$100",
+      tiers: Array.isArray(oi.tiers) && oi.tiers.length ? oi.tiers : null,
+      status: oi.status || "final", monthLabel: oi.month_label || "" }),
     { icon:"💯", info: "VOICE · "+contestVoiceLabel(oi) });
 }
 
@@ -1490,7 +1493,11 @@ function contestBody(c, data, opts){
     const leader = standings[0];
     const lead = leader ? '<div class="contestsub">Leading: <b>'+esc(leader.store_name)+'</b> at '+leader.score.toFixed(1)+'%</div>' : '';
     const sum = opts.kind==="osat"
-      ? '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores ≥ '+opts.threshold+'% '+opts.amount+'</div>'
+      ? (opts.tiers
+        ? '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores '
+          +(opts.status==="mtd"?"earning":"earned")+' · '
+          +opts.tiers.map(t=>esc(t.amount)+' ≥'+t.threshold+'%').join(' · ')+'</div>'
+        : '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores ≥ '+opts.threshold+'% '+opts.amount+'</div>')
       : '<div class="contestsub">Top 3 win '+(opts.prizes||[]).join(" / ")+'</div>';
     return '<div>'+lead+sum+'</div>'+note+fullStandings;
   }
@@ -1498,13 +1505,29 @@ function contestBody(c, data, opts){
   return mine.map(s => {
     let medalCls = "", medalTxt = "#"+s.rank, line = "", barPct = 0, barCol = "var(--accent)";
     if(opts.kind==="osat"){
-      const inMoney = opts.threshold!=null ? s.score >= opts.threshold : !!s.in_money;
+      const graduated = !!opts.tiers;
+      const earned = graduated ? (s.earned||null) : null;
+      const inMoney = graduated ? !!earned
+        : (opts.threshold!=null ? s.score >= opts.threshold : !!s.in_money);
       medalCls = inMoney ? "win" : "miss"; medalTxt = inMoney ? "✓" : "✗";
       barCol = inMoney ? "var(--good)" : "var(--bad)";
-      barPct = opts.threshold ? Math.max(4, Math.min(100, (s.score/opts.threshold)*100)) : 0;
-      line = inMoney
-        ? '<div class="contestsub">Finished at <b>'+s.score.toFixed(1)+'%</b> — earned the <span class="prizepill">'+esc(opts.amount)+'</span> for June.</div>'
-        : '<div class="contestsub">Finished <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'%) — missed the '+esc(opts.amount)+' for June.</div>';
+      // Graduated bar runs to the TOP tier (74) so a $50 store still sees headroom.
+      const barThr = graduated ? opts.tiers[opts.tiers.length-1].threshold : opts.threshold;
+      barPct = barThr ? Math.max(4, Math.min(100, (s.score/barThr)*100)) : 0;
+      if(graduated){
+        const mtd = opts.status==="mtd";
+        const at = (mtd ? esc(opts.monthLabel||"")+' MTD at ' : 'Finished at ')
+          +'<b>'+s.score.toFixed(1)+'%</b>';
+        line = inMoney
+          ? '<div class="contestsub">'+at+' — '+(mtd?'earning':'earned')+' <span class="prizepill">'+esc(earned)+'</span>'
+            +(s.next_amount ? ' · <b>'+Number(s.next_gap).toFixed(1)+' pts</b> to '+esc(s.next_amount) : ' — top tier')+'.</div>'
+          : '<div class="contestsub">'+at+' — <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '
+            +opts.threshold+'% line'+(mtd?' — no OSAT bonus yet.':' — missed the OSAT bonus.')+'</div>';
+      } else {
+        line = inMoney
+          ? '<div class="contestsub">Finished at <b>'+s.score.toFixed(1)+'%</b> — earned the <span class="prizepill">'+esc(opts.amount)+'</span> for June.</div>'
+          : '<div class="contestsub">Finished <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'%) — missed the '+esc(opts.amount)+' for June.</div>';
+      }
     } else {
       const podium = s.rank <= 3;
       medalCls = podium ? "win" : ""; medalTxt = podium ? (s.rank===1?"🥇":s.rank===2?"🥈":"🥉") : "#"+s.rank;
@@ -1539,13 +1562,18 @@ function contestStandings(c, myIds, opts){
   const num = v => v==null ? "—" : (Math.round(Number(v)*10)/10).toFixed(1)+"%";
   const isOsat = opts.kind==="osat";
   const thr = opts.threshold;
+  const graduated = isOsat && !!opts.tiers;   // v2-0.38: per-store earned $ column
   const head = '<tr><th>#</th><th>Store</th><th class="num">'+(isOsat?"OSAT":"Score")+'</th>'
-    + (isOsat ? '<th class="num">'+(thr!=null?thr:72)+'%+</th>' : '<th class="num">Rank</th>')+'</tr>';
+    + (graduated ? '<th class="num">Bonus</th>'
+       : isOsat ? '<th class="num">'+(thr!=null?thr:72)+'%+</th>' : '<th class="num">Rank</th>')+'</tr>';
   const rows = st.map(s=>{
     const mine = myIds.has(s.store_id);
-    const inMoney = isOsat ? (thr!=null ? s.score>=thr : !!s.in_money) : false;
+    const inMoney = isOsat ? (graduated ? !!s.earned : (thr!=null ? s.score>=thr : !!s.in_money)) : false;
     const cls = mine ? "you" : (inMoney ? "win" : "");
-    const last = isOsat
+    const last = graduated
+      ? (s.earned ? '<span class="slwin">'+esc(s.earned)+'</span>'
+                  : (thr!=null ? '+'+(thr-s.score).toFixed(1) : ''))
+      : isOsat
       ? (inMoney ? '<span class="slwin">$</span>' : (thr!=null ? '+'+(thr-s.score).toFixed(1) : ''))
       : '#'+s.rank;
     return '<tr'+(cls?' class="'+cls+'"':'')+'><td>'+s.rank+'</td>'
@@ -2893,11 +2921,11 @@ function renderTeamBonus(data){
 // matrix ($ amounts) + a SHADOW/not-payable watermark + the data-through label +
 // a "Why $0 / held" list so no $0 is ever a bare number. NO write path.
 // Column order mirrors build_renee_bonus_xlsx.py.
-var BX_COMPONENT_ORDER = ["osat","b2b","fob","turnover","onboarded",
+var BX_COMPONENT_ORDER = ["osat","b2b","ead","fob","turnover","onboarded",
   "oepe_breakfast","oepe_lunch","oepe_dinner","labor",
   "operational_share","pac_growth","pac_vs_target","profit_share"];
 var BX_COMPONENT_LABEL = {
-  osat:"OSAT", b2b:"B2B", fob:"FOB", turnover:"Turnover", onboarded:"Onboarded",
+  osat:"OSAT", b2b:"B2B", ead:"EAD %", fob:"FOB", turnover:"Turnover", onboarded:"Onboarded",
   oepe_breakfast:"OEPE-bkf", oepe_lunch:"OEPE-lun", oepe_dinner:"OEPE-din",
   labor:"Labor", operational_share:"Op share", pac_growth:"PAC$ growth",
   pac_vs_target:"PAC% vs tgt", profit_share:"Profit share"
