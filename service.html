@@ -146,8 +146,8 @@ function benchPill(b,unit,dec){
 function buildCards(d){
   const cards=[], g=d.goals||{};
   const through = d.monthName;          // monthly cross-store numbers run through this (last-complete) month
-  const lm = d.liveMtd||null;           // current-month (June MTD) live drive-thru
-  const ytd = d.ytd||null;              // 2026 calendar YTD
+  const lm = d.liveMtd||null;           // current-month MTD live drive-thru (month rolls itself, CT)
+  const ytd = d.ytd||null;              // calendar YTD
 
   // 0) AUTO WINNER ANNOUNCEMENT — for the first d.winnerWindowDays of each new month, LEAD with a
   // celebratory "last month's contest winner" card (the guest-experience champion of the just-ended
@@ -169,7 +169,7 @@ function buildCards(d){
       '<div class="fine">guest-experience contest (OSAT + Accuracy + Friendliness) · '+esc(w.month)+' final standings · higher is better</div>'});
   }
 
-  // 1) JUNE MTD LIVE — current-month drive-thru speed (the freshest source), leads the rotation.
+  // 1) CURRENT-MONTH MTD LIVE — drive-thru speed (the freshest source), leads the rotation.
   // Framed prominently as MONTH-TO-DATE; the actual coverage (days / through-date) is fine print below.
   if(lm){
     const lb=lm.bench||{};
@@ -192,8 +192,8 @@ function buildCards(d){
       '<div class="title2">Our year so far</div>'+
       '<div class="tiles">'+
       '<div class="tile"><div class="tlab">OEPE</div><div class="tval">'+fmt(ytd.oepe_s)+'<span class="u">s</span></div><div class="tgoal">w/ parked · faster is better</div>'+benchPill((ytd.bench||{}).oepe,"s",0)+'</div>'+
-      (ytd.r2p_s!=null?'<div class="tile"><div class="tlab">R2P</div><div class="tval">'+fmt(ytd.r2p_s)+'<span class="u">s</span></div><div class="tgoal">Jan–'+esc(through)+'</div></div>':"")+
-      (ytd.kvs_s!=null?'<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(ytd.kvs_s)+'<span class="u">s</span></div><div class="tgoal">Jan–'+esc(through)+'</div></div>':"")+
+      (ytd.r2p_s!=null?'<div class="tile"><div class="tlab">R2P</div><div class="tval">'+fmt(ytd.r2p_s)+'<span class="u">s</span></div><div class="tgoal">'+esc(ytd.monthly_label||('Jan–'+through))+'</div></div>':"")+
+      (ytd.kvs_s!=null?'<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(ytd.kvs_s)+'<span class="u">s</span></div><div class="tgoal">'+esc(ytd.monthly_label||('Jan–'+through))+'</div></div>':"")+
       (ytd.park_pct!=null?'<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(ytd.park_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div></div>':"")+
       '</div>'});
   }
