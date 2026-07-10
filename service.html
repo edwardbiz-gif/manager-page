@@ -1,9 +1,13 @@
 <!doctype html>
-<!-- service.html v5 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v6 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store; default below is also 3444)
      Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
      full-screen cards. Crew-facing: store-level only, no names/pay. Every number states its data-through date.
+     v6 (2026-07-10): TRUE OEPE + REAL R2P (pairs with fn v7). The MTD headline now reads calibrated
+     OEPE w/o parked (line+win1+win2 × park calibration — was windows-only, ~50s low); the "FC R2P"
+     stat is replaced by true R2P from the QSRSoft 3-peak monthly labeled with ITS month (DataPass
+     cannot reconstruct DT R2P); the daily card's front-counter tile is relabeled "Front counter".
      v5 (2026-06-29): MTD-ONLY + AUTO WINNER ANNOUNCEMENT. The screen now reflects the CURRENT month only —
      the live MTD drive-thru figures lead, and the cross-store Board is the live MTD OEPE speed race (mtdRace,
      all 12, current month). The old last-full-month cards (guest-experience headline race, OEPE-by-peak,
@@ -173,14 +177,14 @@ function buildCards(d){
   // Framed prominently as MONTH-TO-DATE; the actual coverage (days / through-date) is fine print below.
   if(lm){
     const lb=lm.bench||{};
-    cards.push({a:"gold",h:'<div class="kicker">'+esc(lm.month)+' — Month to Date · live drive-thru · OEPE w/ parked</div>'+
+    cards.push({a:"gold",h:'<div class="kicker">'+esc(lm.month)+' — Month to Date · live drive-thru · OEPE w/o parked</div>'+
       '<div class="title">'+esc(d.loc)+'</div>'+
       '<div class="huge" style="color:'+(oepeTone(lm.oepe_s,g)==="good"?"#46e07a":oepeTone(lm.oepe_s,g)==="bad"?"#ff7a6b":"#FFC72C")+'">'+fmt(lm.oepe_s)+'<span class="of">s OEPE</span></div>'+
       '<div class="sub">'+esc(lm.month)+' month-to-date drive-thru speed · faster is better</div>'+
       benchLine(lb.oepe,"s",0)+
-      '<div class="score">FC R2P '+fmt(lm.fc_r2p_s)+'s &nbsp;·&nbsp; Parked '+fmt(lm.park_pct,1)+'%</div>'+
-      ((lb.fc_r2p||lb.parked)?'<div class="bench" style="font-size:2.1vh">'+
-        (lb.fc_r2p?'<span>FC R2P org '+fmt(lb.fc_r2p.org_avg,1)+'s · '+ord(lb.fc_r2p.rank)+'/'+lb.fc_r2p.total+'</span>':"")+
+      '<div class="score">'+(lm.r2p_s!=null?'R2P '+fmt(lm.r2p_s)+'s'+(lm.r2p_month?' ('+esc(lm.r2p_month)+' 3-peak)':'')+' &nbsp;·&nbsp; ':'')+'Parked '+fmt(lm.park_pct,1)+'%</div>'+
+      ((lb.r2p||lb.parked)?'<div class="bench" style="font-size:2.1vh">'+
+        (lb.r2p?'<span>R2P org '+fmt(lb.r2p.org_avg,1)+'s · '+ord(lb.r2p.rank)+'/'+lb.r2p.total+'</span>':"")+
         (lb.parked?'<span>Parked org '+fmt(lb.parked.org_avg,1)+'% · '+ord(lb.parked.rank)+'/'+lb.parked.total+'</span>':"")+
       '</div>':"")+
       '<div class="fine">data through '+esc(lm.through||"")+' · '+fmt(lm.days)+' day'+(lm.days===1?"":"s")+' available · '+fmt(lm.cars)+' cars · org avg = all '+(lb.oepe?lb.oepe.total:12)+' stores, same window</div>'});
@@ -191,7 +195,7 @@ function buildCards(d){
     cards.push({a:"teal",h:'<div class="kicker">'+esc(ytd.label)+' · drive-thru · through '+esc(ytd.through||"")+'</div>'+
       '<div class="title2">Our year so far</div>'+
       '<div class="tiles">'+
-      '<div class="tile"><div class="tlab">OEPE</div><div class="tval">'+fmt(ytd.oepe_s)+'<span class="u">s</span></div><div class="tgoal">w/ parked · faster is better</div>'+benchPill((ytd.bench||{}).oepe,"s",0)+'</div>'+
+      '<div class="tile"><div class="tlab">OEPE</div><div class="tval">'+fmt(ytd.oepe_s)+'<span class="u">s</span></div><div class="tgoal">w/o parked · faster is better</div>'+benchPill((ytd.bench||{}).oepe,"s",0)+'</div>'+
       (ytd.r2p_s!=null?'<div class="tile"><div class="tlab">R2P</div><div class="tval">'+fmt(ytd.r2p_s)+'<span class="u">s</span></div><div class="tgoal">'+esc(ytd.monthly_label||('Jan–'+through))+'</div></div>':"")+
       (ytd.kvs_s!=null?'<div class="tile"><div class="tlab">KVS / GC</div><div class="tval">'+fmt(ytd.kvs_s)+'<span class="u">s</span></div><div class="tgoal">'+esc(ytd.monthly_label||('Jan–'+through))+'</div></div>':"")+
       (ytd.park_pct!=null?'<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(ytd.park_pct,1)+'<span class="u">%</span></div><div class="tgoal">avoidable waits</div></div>':"")+
@@ -224,7 +228,7 @@ function buildCards(d){
     cards.push({a:"gold",h:'<div class="kicker">Live drive-thru · '+dlab+'</div><div class="title2">Yesterday\'s drive-thru</div>'+
       '<div class="tiles">'+
       '<div class="tile '+oepeTone(ld.oepe_s,g)+'"><div class="tlab">OEPE</div><div class="tval">'+fmt(ld.oepe_s,0)+'<span class="u">s</span></div><div class="tgoal">'+fmt(ld.dt_cars)+' cars</div></div>'+
-      '<div class="tile"><div class="tlab">FC R2P</div><div class="tval">'+fmt(ld.fc_r2p_s,0)+'<span class="u">s</span></div><div class="tgoal">front-counter ready-to-present</div></div>'+
+      '<div class="tile"><div class="tlab">Front counter</div><div class="tval">'+fmt(ld.fc_r2p_s,0)+'<span class="u">s</span></div><div class="tgoal">avg service time · front counter</div></div>'+
       '<div class="tile"><div class="tlab">Parked %</div><div class="tval">'+fmt(ld.park_pct,1)+'<span class="u">%</span></div><div class="tgoal">pull-forwards</div></div>'+
       '</div>'});
   }

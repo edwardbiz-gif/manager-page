@@ -1,8 +1,12 @@
 <!doctype html>
-<!-- kitchen.html v5 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v6 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v6 (2026-07-10, Eddie): (1) BILINGUAL — every card now renders English + Spanish (crew-facing;
+     editable kitchen_screen_cards render as authored — author them bilingual with // line breaks).
+     (2) NEW MTD KVS RACE card (fn v8 `kvs` payload): current-month make-line speed, all 12 stores,
+     screens 1+2, calibrated ×1.08 to QSRSoft, faster = better, with days/through coverage stated.
      v5 (2026-06-24): race already runs on the current month; trend card now shows the data-through month
      + a 2026 YTD average. Page reloads every 10 min + re-queries each load (daily-fresh).
      Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
@@ -19,21 +23,25 @@
   .card.red{background:radial-gradient(circle at 50% 30%,#7a1a12,#101010 75%)}
   .card.yellow{background:radial-gradient(circle at 50% 30%,#3a3000,#101010 75%)}
   .kicker{color:#FFC72C;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
+  .kicker .es{display:block;letter-spacing:.08em;color:#e0ad1f;font-size:2.2vh;margin-top:.4vh}
   .title{font-size:7vh;font-weight:900}.title2{font-size:5.5vh;font-weight:900;color:#FFC72C}
+  .t-es{font-size:3.2vh;font-weight:800;color:#e0ad1f;margin-top:-.8vh}
   .huge{font-size:22vh;font-weight:900;line-height:.9;color:#FFC72C}
   .huge .of{font-size:6vh;color:#fff;font-weight:700}
   .sub{font-size:4.2vh;font-weight:700;max-width:80vw}.score{font-size:3.4vh;color:#ddd}
-  .board{width:72vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:3vh}
+  .sub-es{font-size:3.4vh;font-weight:700;max-width:80vw;color:#e8c766}
+  .board{width:72vw;max-height:66vh;display:flex;flex-direction:column;gap:.7vh;font-size:3vh}
   .row{display:flex;align-items:center;gap:1.5vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
   .row.me{background:#DA291C;font-weight:900}
   .row .rk{width:4vw;color:#FFC72C;font-weight:900}.row.me .rk{color:#fff}
-  .row .nm{flex:1;text-align:left}.row .vl{font-weight:800}
+  .row .nm{flex:1;text-align:left}.row .vl{font-weight:800}.row .un{font-size:2.2vh;color:#ccc;font-weight:700}
   .quotes{display:flex;flex-direction:column;gap:2.4vh;max-width:84vw}.q{font-size:4vh;font-style:italic}
   .body{display:flex;flex-direction:column;gap:2.2vh;max-width:82vw}.ln{font-size:4.6vh;font-weight:700}
   .bars{display:flex;align-items:flex-end;gap:2.5vw;height:48vh}
   .bar{width:11vw;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
   .fill{width:100%;background:linear-gradient(#FFC72C,#DA291C);border-radius:1vh 1vh 0 0;min-height:2vh}
   .bv{font-size:2.6vh;font-weight:800;margin-top:1vh}.bm{font-size:2.4vh;color:#bbb}
+  .fine{font-size:2.2vh;color:#999}
   #foot{position:fixed;bottom:1.5vh;width:100%;text-align:center;color:#777;font-size:2vh}
   #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#FFC72C;text-align:center;padding:6vw}
 </style></head><body>
@@ -43,48 +51,77 @@ const FN = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/kitchen-screen
 const qs = new URLSearchParams(location.search);
 const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const ord = n => { const s=["th","st","nd","rd"],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+// Spanish month names (the fn sends English month labels)
+const MES = {January:"enero",February:"febrero",March:"marzo",April:"abril",May:"mayo",June:"junio",
+  July:"julio",August:"agosto",September:"septiembre",October:"octubre",November:"noviembre",December:"diciembre"};
+const mes = m => MES[m]||m;
+// two-line bilingual kicker + title helpers
+const kick2 = (en,es) => '<div class="kicker">'+en+'<span class="es">'+es+'</span></div>';
+const title2es = (en,es) => '<div class="title2">'+en+'</div>'+(es?'<div class="t-es">'+es+'</div>':'');
 
 function buildCards(d){
   const cards=[];
-  // 1) THE RACE
+  const mtd = d.isCurrentMonth===false;
+  // 1) THE RACE (bilingual)
   const big = d.rank===1
-    ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' leads '+esc(d.monthName)+' on food quality. Hold the lead!</div>'
-    : '<div class="huge">'+(d.rank?ord(d.rank):"—")+'<span class="of"> of '+d.total+'</span></div><div class="sub">'+(d.gap!=null?d.gap+' points from #1 — let\'s climb.':"Let's climb the board.")+'</div>';
-  // "month-to-date" ONLY when the board really is the current CT month (d.isCurrentMonth,
-  // fn v7) — a board still on a prior month says "final" instead of the old contradictory
-  // "June … month-to-date" in July. Missing flag (older fn) keeps the current-month wording.
-  const mtdTag = d.isCurrentMonth===false ? ' · final' : ' · month-to-date';
-  cards.push({a:"red",h:'<div class="kicker">'+esc(d.monthName)+' Kitchen Quality Race'+mtdTag+'</div><div class="title">'+esc(d.loc)+'</div>'+big+(d.score!=null?'<div class="score">Quality score: <b>'+esc(d.score)+'</b>'+(d.qualityYtd!=null?' &nbsp;·&nbsp; YTD <b>'+esc(d.qualityYtd)+'</b>':"")+'</div>':"")});
-  // 2) BOARD
-  cards.push({a:"yellow",h:'<div class="kicker">The Board · '+esc(d.monthName)+'</div><div class="title2">Food quality — all '+d.total+'</div><div class="board">'+
+    ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' leads '+esc(d.monthName)+' on food quality. Hold the lead!</div>'+
+      '<div class="sub-es">¡'+esc(d.loc)+' lidera '+esc(mes(d.monthName))+' en calidad de comida — mantengan la delantera!</div>'
+    : '<div class="huge">'+(d.rank?ord(d.rank):"—")+'<span class="of"> of '+d.total+'</span></div>'+
+      '<div class="sub">'+(d.gap!=null?d.gap+' points from #1 — time to climb.':"Time to climb the board.")+'</div>'+
+      '<div class="sub-es">'+(d.gap!=null?'A '+d.gap+' puntos del #1 — ¡a subir!':'¡A subir en la tabla!')+'</div>';
+  // "month-to-date" ONLY when the board really is the current CT month (fn v7 isCurrentMonth).
+  cards.push({a:"red",h:kick2(
+      esc(d.monthName)+' Kitchen Quality Race'+(mtd?' · final':' · month-to-date'),
+      'Carrera de calidad de cocina · '+esc(mes(d.monthName))+(mtd?' · final':' · mes en curso'))+
+    '<div class="title">'+esc(d.loc)+'</div>'+big+
+    (d.score!=null?'<div class="score">Quality score / Puntuación: <b>'+esc(d.score)+'</b>'+(d.qualityYtd!=null?' &nbsp;·&nbsp; YTD / año a la fecha <b>'+esc(d.qualityYtd)+'</b>':"")+'</div>':"")});
+  // 2) BOARD (bilingual)
+  cards.push({a:"yellow",h:kick2('The Board · '+esc(d.monthName),'La Tabla · '+esc(mes(d.monthName)))+
+    title2es('Food quality — all '+d.total,'Calidad de comida — las '+d.total+' tiendas')+
+    '<div class="board">'+
     d.standings.map((r,i)=>'<div class="row '+(r.store_number===d.store?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.score)+'</span></div>').join("")+'</div>'});
-  // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (last 60 days), ★ = guest complaint
+  // 2b) MTD KVS RACE (fn v8) — make-line speed, all 12, faster = better (bilingual)
+  if(d.kvs&&d.kvs.standings&&d.kvs.standings.length){
+    const k=d.kvs;
+    cards.push({a:"red",h:kick2(
+        esc(k.month)+' KVS Race · month-to-date','Carrera KVS · '+esc(mes(k.month))+' · mes en curso')+
+      title2es('Make-line speed — seconds per order · faster is better',
+               'Velocidad de línea — segundos por orden · más rápido es mejor')+
+      (k.rank!=null?'<div class="sub">'+esc(d.loc)+': <b>'+ord(k.rank)+' of '+k.total+'</b> · '+esc(k.mine_s)+'s</div>':'')+
+      '<div class="board" style="max-height:52vh">'+
+      k.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.kvs_s)+'<span class="un">s</span></span></div>').join("")+'</div>'+
+      '<div class="fine">through / hasta '+esc(k.through||"")+' · '+esc(k.days)+' days · make-line screens 1+2, calibrated to QSRSoft / pantallas 1+2, calibrado a QSRSoft</div>'});
+  }
+  // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (bilingual header; quotes as written)
   (d.feedback||[]).forEach(g=>{
     cards.push({a:(g.tone==="good"?"yellow":"red"),h:
-      '<div class="kicker">Guest feedback · food quality · last 90 days</div>'+
-      '<div class="title2">'+esc(g.label)+'</div>'+
+      kick2('Guest feedback · food quality · last 90 days','Comentarios de clientes · últimos 90 días')+
+      title2es(esc(g.label),esc(g.label_es||''))+
       '<div class="quotes">'+(g.items||[]).map(it=>
         '<div class="q">'+(it.star?'<span style="color:#FFC72C">★ </span>':'')+'“'+esc(it.text)+'”'+
         '<div class="score" style="margin-top:.5vh">'+(it.name?esc(it.name)+' · ':'')+esc(it.when)+(it.star?' · guest complaint':'')+'</div>'+
         '</div>').join("")+'</div>'});
   });
-  // 4) TREND
+  // 4) TREND (bilingual)
   if(d.trend&&d.trend.length>=2){ const mx=Math.max.apply(null,d.trend.map(t=>t.v).concat([1]));
-    cards.push({a:"yellow",h:'<div class="kicker">Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · YTD '+esc(d.qualityYtd):"")+'</div><div class="title2">Overall quality</div><div class="bars">'+
+    cards.push({a:"yellow",h:kick2(
+        'Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · YTD '+esc(d.qualityYtd):""),
+        'Nuestra tendencia de calidad'+(d.qualityYtd!=null?' · año a la fecha '+esc(d.qualityYtd):""))+
+      title2es('Overall quality','Calidad general')+'<div class="bars">'+
       d.trend.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+t.v+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'}); }
-  // 5..N) EDITABLE CARDS
+  // 5..N) EDITABLE CARDS (rendered as authored — author bilingual via // line breaks)
   (d.cards||[]).forEach(c=>cards.push({a:(c.section==="contest"?"yellow":"red"),h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
   return cards;
 }
 function render(d){
   const cards=buildCards(d), stage=document.getElementById("stage");
   stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
-  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+(d.isCurrentMonth===false?" final":" month-to-date")+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from last month's VOICE — updates when this month's lands)":"");
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+" / "+esc(mes(d.monthName))+(d.isCurrentMonth===false?" final":" month-to-date · mes en curso")+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from last month's VOICE — updates when this month's lands)":"");
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
   setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
 }
 fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
-  .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Kitchen screen: '+esc(d.error||"unavailable")+'. Check the link.</div>';return;} render(d); })  // store default 3444 below
-  .catch(e=>{document.body.innerHTML='<div id="err">Kitchen screen offline — retrying…</div>';setTimeout(()=>location.reload(),30000);});
+  .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Kitchen screen: '+esc(d.error||"unavailable")+'. Check the link. / Pantalla no disponible — revisa el enlace.</div>';return;} render(d); })  // store default 3444 below
+  .catch(e=>{document.body.innerHTML='<div id="err">Kitchen screen offline — retrying… / Sin conexión — reintentando…</div>';setTimeout(()=>location.reload(),30000);});
 setTimeout(()=>location.reload(),600000); // refresh data every 10 min
 </script></body></html>
