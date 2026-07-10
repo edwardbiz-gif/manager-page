@@ -9,6 +9,11 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.40 — VOICE card: the dead "Exec. as Designed" tile (Pull Forward EAD —
+  the feed stopped shipping store rows: 0 in July, tile was a permanent dash)
+  is now "Greeted by Name" (Digital feed, EAD driver). LABELS map swap only;
+  "Digital %EAD" remains the real EAD tile. Lockstep with fn v2-0.40.
+
   v2-0.39 — SHIFT LEADER OEPE RANKER (MTD) page + home tile (fn + shell
   lockstep, SHELL_VERSION and FN_VERSION both v2-0.39). (1) NEW PAGE
   (?p=sl-oepe, Fn ?page=sl_oepe) via the v2-0.36 page framework: month-to-date
@@ -936,7 +941,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.39";
+const SHELL_VERSION = "v2-0.40";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -3902,7 +3907,7 @@ function renderHomeVoice(data){
     const strong = Math.abs(cell.june - cell.bu) >= 5;
     return {v:f1(cell.june), cls:(good?"fav":"unfav"), strong, ok:good};
   };
-  const LABELS = {"Overall Satisfaction":"OSAT","Accuracy":"Accuracy","Digital - % EAD":"Digital %EAD","Overall Cleanliness":"Cleanliness","Pull Forward - Executed as Designed (Yes)":"Exec. as Designed"};
+  const LABELS = {"Overall Satisfaction":"OSAT","Accuracy":"Accuracy","Digital - % EAD":"Digital %EAD","Overall Cleanliness":"Cleanliness","Digital - Greeted by Name":"Greeted by Name"};
   const osatC = c("Overall Satisfaction");
   const rankChip = (osatC && osatC.rank!=null && osatC.rank_of!=null)
     ? ' · <b>#'+osatC.rank+'/'+osatC.rank_of+'</b> org rank' : '';

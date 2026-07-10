@@ -1,5 +1,9 @@
 <!doctype html>
-<!-- service.html v6 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v7 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+     v7 (2026-07-10, Eddie): EAD MTD card (pairs with fn v8 `ead` payload) — EAD % + rank of
+     reporting stores + gap to #1 + org avg, Greeted-by-Name / Asked-if-App driver tiles, and
+     a ranked bar graphic of all reporting stores (this store highlighted). Bonus-tier colored
+     (55/65/75). States n, month, and how many stores have no surveys yet.
      https://edwardbiz-gif.github.io/manager-page/service.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store; default below is also 3444)
      Service-side sibling of kitchen.html. Fetches the service-screen Edge Function (JSON) and rotates
@@ -264,6 +268,28 @@ function buildCards(d){
     const tr=v.dt_osat.trend, mx=Math.max.apply(null,tr.map(t=>t.v).concat([1]));
     cards.push({a:"teal",h:'<div class="kicker">Our trend · DT Overall Satisfaction</div><div class="title2">Beat our best</div><div class="bars">'+
       tr.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+fmt(t.v,0)+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'});
+  }
+
+  // 7c) EAD — Executed as Designed, MTD (fn v8 `ead` payload): % + rank + gap to #1,
+  // the two drivers (Greeted by Name / Asked if using App), and a ranked bar graphic.
+  if(d.ead&&d.ead.ead&&d.ead.ead.v!=null){
+    const E=d.ead, e=E.ead;
+    const tone = e.v>=75?"#46e07a":(e.v>=55?"#FFC72C":"#ff7a6b"); // July bonus tiers 55/65/75
+    const mx = Math.max.apply(null, E.standings.map(s=>s.v).concat([1]));
+    cards.push({a:"gold",h:'<div class="kicker">Executed as Designed · '+esc(E.month)+' — month to date</div>'+
+      '<div class="huge" style="color:'+tone+'">'+fmt(e.v,1)+'<span class="of">% EAD</span></div>'+
+      '<div class="sub">'+(e.rank!=null?ord(e.rank)+' of '+e.of+' reporting':'')+
+        (e.gap_to_1!=null&&e.gap_to_1>0?' · '+fmt(e.gap_to_1,1)+' pts behind #1':(e.rank===1?' · leading the org':''))+
+        (e.org!=null?' · org avg '+fmt(e.org,1)+'%':'')+'</div>'+
+      '<div class="tiles">'+
+      (E.greeted.v!=null?'<div class="tile"><div class="tlab">Greeted by name</div><div class="tval">'+fmt(E.greeted.v,1)+'<span class="u">%</span></div><div class="tgoal">'+(E.greeted.rank!=null?ord(E.greeted.rank)+'/'+E.greeted.of+' · ':'')+'org '+fmt(E.greeted.org,1)+'%</div></div>':'')+
+      (E.app.v!=null?'<div class="tile"><div class="tlab">Asked if using app</div><div class="tval">'+fmt(E.app.v,1)+'<span class="u">%</span></div><div class="tgoal">'+(E.app.rank!=null?ord(E.app.rank)+'/'+E.app.of+' · ':'')+'org '+fmt(E.app.org,1)+'%</div></div>':'')+
+      '</div>'+
+      '<div class="board" style="max-height:32vh;font-size:2.2vh;gap:.4vh">'+
+      E.standings.map((s,i)=>'<div class="row '+(s.me?"me":"")+'" style="padding:.4vh 2vw;position:relative;overflow:hidden">'+
+        '<div style="position:absolute;left:0;top:0;bottom:0;width:'+Math.round(s.v/mx*100)+'%;background:rgba(255,199,44,.16)"></div>'+
+        '<span class="rk">'+(i+1)+'</span><span class="nm">'+esc(s.location_name)+'</span><span class="vl">'+fmt(s.v,1)+'<span class="un">%</span></span></div>').join("")+'</div>'+
+      '<div class="fine">'+(e.n!=null?'n='+e.n+' surveys · ':'')+'digital orders executed as designed · July bonus pays $20/$35/$50 at 55/65/75'+(E.no_survey_n>0?' · '+E.no_survey_n+' stores no '+esc(E.month)+' surveys yet':'')+' · SMG VOICE Digital · '+esc(E.month)+' MTD</div>'});
   }
 
   // 8) PRAISE quotes
