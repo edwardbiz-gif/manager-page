@@ -9,6 +9,19 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.39 — SHIFT LEADER OEPE RANKER (MTD) page + home tile (fn + shell
+  lockstep, SHELL_VERSION and FN_VERSION both v2-0.39). (1) NEW PAGE
+  (?p=sl-oepe, Fn ?page=sl_oepe) via the v2-0.36 page framework: month-to-date
+  per-shift-leader drive-thru OEPE ("OEPE w/o parked", dt-transaction-weighted,
+  peak windows only) ranked ascending — faster is better — at 3+ shifts MTD;
+  smaller samples listed dimmed/unranked as "building sample". Scope-shaped by
+  the Fn: Owner sees every supervisor patch grouped (+ "Owner stores"), a
+  Supervisor sees their patch, a GM their store. Names arrive pre-minimized
+  ("First L."); no GEIDs. RO/guest tokens are 403d server-side. (2) TODAY home
+  tile (data.sl_oepe_home, added to ALWAYS_MERGE_KEYS like bonus_home): the
+  viewer scope fastest ranked leader + ranked/building counts + data-through;
+  whole card taps into the page via the "page:" drill prefix.
+
   v2-0.36 — PAGE FRAMEWORK + GM BONUS RANKER + PERF (STAGED; Eddie publishes
   via push-pages). (1) PAGE FRAMEWORK: PAGE_REGISTRY + openPage/closePage +
   #pageLayer + PAGE_CACHE (TTL + in-flight dedupe) + popstate history — a page
@@ -846,6 +859,37 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
  cursor:pointer;text-align:center}
 .rk-sticky b{color:var(--rk-gold)}
 @media(prefers-reduced-motion:reduce){.rkx *{animation:none!important;transition:none!important}}
+
+/* ---- SHIFT LEADER OEPE page (v2-0.39, ?p=sl-oepe) + its TODAY home tile ---- */
+.slrx{padding:4px 2px 10px}
+.slr-kicker{font-size:9.5px;font-weight:800;letter-spacing:2.2px;text-transform:uppercase;color:var(--accent);text-align:center}
+.slr-title{font-size:20px;font-weight:900;letter-spacing:-.3px;text-align:center;margin-top:4px;line-height:1.15}
+.slr-thru{font-size:9.5px;color:var(--ink-muted);font-weight:700;text-align:center;margin-top:5px;line-height:1.5}
+.slr-thru b{color:var(--ink)}
+.slr-sec{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-top:12px}
+.slr-schead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.slr-sname{font-size:13px;font-weight:900}
+.slr-scount{font-size:9.5px;color:var(--ink-muted);font-weight:700;white-space:nowrap}
+.slr-row{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)}
+.slr-schead+.slr-row{border-top:0}
+.slr-rank{flex:none;width:22px;text-align:center;font-size:11.5px;font-weight:900;color:var(--ink-muted)}
+.slr-rank.top{color:var(--accent)}
+.slr-who{flex:1;min-width:0}
+.slr-nm{font-size:12.5px;font-weight:800;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slr-st{font-size:9px;color:var(--ink-muted);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slr-bar{height:4px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:4px}
+.slr-bar>i{display:block;height:100%;border-radius:999px;background:var(--good)}
+.slr-right{flex:none;text-align:right}
+.slr-oepe{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
+.slr-sh{font-size:9px;color:var(--ink-muted);font-weight:700}
+.slr-dim{opacity:.55}
+.slr-bhead{font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-muted);margin-top:9px;border-top:1px dashed var(--line-2);padding-top:9px}
+.slr-none{font-size:11px;color:var(--ink-muted);font-weight:600;padding:6px 0}
+.slr-foot{margin-top:12px;font-size:9.5px;color:var(--ink-muted);font-weight:600;line-height:1.6;text-align:center}
+.slh-hero{font-size:15px;font-weight:900;line-height:1.2}
+.slh-val{color:var(--good);font-variant-numeric:tabular-nums}
+.slh-sub{font-size:10.5px;color:var(--ink-2);font-weight:700;margin-top:3px}
+.slh-sub2{font-size:9.5px;color:var(--ink-muted);font-weight:600;margin-top:5px}
 </style>
 </head>
 <body>
@@ -892,7 +936,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.38";
+const SHELL_VERSION = "v2-0.39";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -3895,6 +3939,7 @@ function renderHomeVoice(data){
    ========================================================================= */
 const PAGE_REGISTRY = {
   bonus_ranker: { route:"ranker", title:"GM Bonus Ranker", render: renderBonusRankerPage, after: rkAfterRender, ttlMs: 5*60*1000 },
+  sl_oepe:      { route:"sl-oepe", title:"Shift Leader OEPE — MTD", render: renderSlOepePage, ttlMs: 5*60*1000 },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -4205,6 +4250,91 @@ function renderBonusHomeTile(data){
     { icon:"💰", info: info, newBadge:true, drill:{ kind:"page:bonus_ranker" } });
 }
 
+/* =========================================================================
+   SHIFT LEADER OEPE — MTD (v2-0.39): the sl_oepe page + its TODAY home tile.
+   Data = qsr_shift_manager_stats peak rows, aggregated + scope-shaped by the
+   Fn (?page=sl_oepe): Owner/org = one section per supervisor patch (+ Owner
+   stores), Supervisor = their patch, GM/Department = their store. Names
+   arrive pre-minimized ("First L.") — no GEIDs, no full last names. Ranked
+   ascending (faster = better) at min_shifts+; the rest render dimmed and
+   unranked as "building sample". RO/guest tokens never reach here (server
+   403s the page and never gathers sl_oepe_home).
+   ========================================================================= */
+function slrSecs(v){ return v == null ? "—" : (Math.round(Number(v) * 10) / 10) + "s"; }
+
+// One leader row. `best` = the group leader OEPE (bar width = best/oepe, so a
+// longer bar = faster). Unranked rows render dimmed with a dot for the rank.
+function slrRow(x, best, showStores){
+  const stLine = (showStores && x.stores && x.stores.length) ? x.stores.join(", ") : "";
+  const w = (x.rank && x.oepe_s != null && best != null && Number(x.oepe_s) > 0)
+    ? Math.max(6, Math.min(100, Math.round(100 * best / Number(x.oepe_s)))) : 0;
+  return '<div class="slr-row' + (x.rank ? "" : " slr-dim") + '">'
+    + '<div class="slr-rank' + (x.rank && x.rank <= 3 ? " top" : "") + '">' + (x.rank ? esc(x.rank) : "·") + '</div>'
+    + '<div class="slr-who"><div class="slr-nm">' + esc(x.name) + '</div>'
+    + (stLine ? '<div class="slr-st">' + esc(stLine) + '</div>' : "")
+    + (w ? '<div class="slr-bar"><i style="width:' + w + '%"></i></div>' : "")
+    + '</div>'
+    + '<div class="slr-right"><div class="slr-oepe">' + esc(slrSecs(x.oepe_s)) + '</div>'
+    + '<div class="slr-sh">' + esc(x.shifts) + (Number(x.shifts) === 1 ? " shift" : " shifts") + '</div></div>'
+    + '</div>';
+}
+
+function renderSlOepePage(payload){
+  const p = (payload && payload.page) || {};
+  const groups = p.groups || [];
+  const any = groups.some(function(g){ return ((g.ranked || []).length + (g.building || []).length) > 0; });
+  if(!any){
+    return '<div class="errbox">No shift leader data loaded yet for ' + esc(p.month_label || "this month")
+      + '. The ranker lights up when the QSRSoft shift-manager pull lands.</div>';
+  }
+  const minSh = p.min_shifts != null ? p.min_shifts : 3;
+  let h = '<div class="slrx">'
+    + '<div class="slr-kicker">Month-to-date · faster is better</div>'
+    + '<div class="slr-title">Shift Leader OEPE — ' + esc(p.month_label || "") + '</div>'
+    + '<div class="slr-thru">' + esc(p.metric_label || "OEPE w/o parked") + ' · data thru <b>' + esc(p.data_through || "—") + '</b>'
+    + ' · ranked at ' + esc(minSh) + '+ shifts</div>';
+  for(const g of groups){
+    const ranked = g.ranked || [], building = g.building || [];
+    const showStores = Number(g.stores_n || 0) > 1;
+    const best = ranked.length ? Number(ranked[0].oepe_s) : null;
+    h += '<div class="slr-sec">'
+      + '<div class="slr-schead"><span class="slr-sname">' + esc(g.title || "") + '</span>'
+      + '<span class="slr-scount">' + esc(g.stores_n) + (Number(g.stores_n) === 1 ? " store" : " stores")
+      + ' · ' + ranked.length + ' ranked</span></div>';
+    if(!ranked.length && !building.length){
+      h += '<div class="slr-none">No shifts recorded this month.</div>';
+    }
+    for(const x of ranked){ h += slrRow(x, best, showStores); }
+    if(building.length){
+      h += '<div class="slr-bhead">Building sample — fewer than ' + esc(minSh) + ' shifts MTD (unranked)</div>';
+      for(const x of building){ h += slrRow(x, best, showStores); }
+    }
+    h += '</div>';
+  }
+  h += '<div class="slr-foot">' + esc(p.note || "") + '</div></div>';
+  return h;
+}
+
+/* ---- the SHIFT LEADER OEPE home tile (TODAY lane, all manager roles) ---- */
+function renderSlOepeHomeTile(data){
+  const so = data.sl_oepe_home;
+  if(!so) return "";   // RO/guest token, no data yet, or the slice failed — no tile
+  let body;
+  if(so.fastest){
+    body = '<div class="slh-hero">' + esc(so.fastest.name)
+      + ' <span class="slh-val">' + esc(slrSecs(so.fastest.oepe_s)) + '</span></div>'
+      + '<div class="slh-sub">fastest ' + esc(so.metric_label || "OEPE w/o parked") + ' in ' + esc(so.scope_label || "your scope")
+      + ' · ' + esc(so.fastest.shifts) + ' shifts</div>'
+      + '<div class="slh-sub2">' + esc(so.ranked_n) + ' leaders ranked · ' + esc(so.building_n)
+      + ' building sample · ' + esc(so.month_label || "") + '</div>';
+  } else {
+    body = emptyState("⏱", "No ranked leaders yet",
+      "Leaders appear once they reach " + (so.min_shifts != null ? so.min_shifts : 3) + " shifts this month.");
+  }
+  return card("Shift Leader OEPE — MTD", body,
+    { icon:"⏱️", through: so.data_through, newBadge:true, drill:{ kind:"page:sl_oepe" } });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -4226,6 +4356,10 @@ const MANIFEST = [
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
   { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
   { id:"today_osat",       lane:"TODAY", title:"$100 June OSAT Incentive",render: renderPinnedOsat      },
+  // v2-0.39: Shift Leader OEPE home tile (all manager roles; render self-gates
+  // on data.sl_oepe_home which the Fn never sends to RO/guest tokens). Whole
+  // card taps into the sl_oepe PAGE ("page:" drill prefix -> openPage).
+  { id:"today_sl_oepe",    lane:"TODAY", title:"Shift Leader OEPE (MTD)", render: renderSlOepeHomeTile,  newBadge:true },
   // NUMBERS — the P&L / money tab (plan §5 NUMBERS lane, §9 ledger, §10 drill,
   // §11 DoorDash). Order: money BLUF → owner/sup store rollup → up-to-PAC ledger
   // → Sales→PAC waterfall → cost-% bullets → MTD invoice tracker → DoorDash
@@ -4358,7 +4492,7 @@ window.renderBoard = renderBoard;
    through mergePostPayload — NEVER a wholesale STATE swap, which would null
    every loaded lane the lane-scoped response did not carry. */
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
-                           "financials","cleanliness_race","osat_incentive","bonus_home","_meta"];
+                           "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home","_meta"];
 function mergePostPayload(payload, askedLanes){
   if(!STATE || !STATE.data){ STATE = payload; return STATE; }
   const incoming = (payload && payload.data) || {};

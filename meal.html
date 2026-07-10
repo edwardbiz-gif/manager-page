@@ -1,0 +1,298 @@
+<!doctype html>
+<!-- meal.html v1 (2026-07-10) - shift-leader Employee Meal / Promo logging.
+     Served from GH Pages because the Supabase gateway rewrites Edge Fn
+     text/html to text/plain (house rule: an Edge Fn never serves a page).
+     API: the meal-log Edge Function (capability token ?t=, JSON + CORS).
+     NOTE: keep every JS string apostrophe-safe - a raw apostrophe in a
+     single-quoted string once bricked a whole board shell. -->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex"><title>Meal &amp; Promo Log</title>
+<style>
+  :root{--bg:#101010;--card:#1c1c1c;--line:#333;--ink:#f4f4f4;--mut:#9aa0a6;--gold:#FFC72C;--red:#DA291C;--ok:#2eae4f}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:460px;margin:0 auto}
+  h1{font-size:21px;margin:4px 0 2px;letter-spacing:.3px}
+  h1 .accent{color:var(--gold)}
+  .store{color:var(--mut);font-size:13px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .big{display:block;width:100%;padding:22px 14px;margin:10px 0;border:none;border-radius:14px;font-size:19px;font-weight:800;cursor:pointer;text-align:left}
+  .big small{display:block;font-weight:400;font-size:13px;margin-top:4px;opacity:.85}
+  .big.meal{background:var(--gold);color:#111}
+  .big.promo{background:var(--red);color:#fff}
+  .big.storepick{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:14px;font-size:16px}
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:14px 0 5px;font-weight:700}
+  select,textarea,input{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:70px;resize:vertical}
+  .photo-btn{display:block;width:100%;padding:26px 14px;border:2px dashed var(--gold);border-radius:14px;background:transparent;color:var(--gold);font-size:17px;font-weight:800;cursor:pointer;text-align:center}
+  .photo-btn.have{border-style:solid;padding:10px}
+  .photo-btn img{max-width:100%;max-height:240px;border-radius:8px;display:block;margin:0 auto}
+  .photo-btn .retake{display:block;font-size:12px;color:var(--mut);font-weight:400;margin-top:6px}
+  input[type=file]{display:none}
+  .amt-row{display:flex;align-items:center;gap:8px}
+  .amt-row .dollar{font-size:26px;font-weight:800;color:var(--gold)}
+  .amt-row input{font-size:24px;font-weight:800;letter-spacing:.5px}
+  .warn{display:none;background:rgba(255,199,44,.12);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px;font-size:13px;margin-top:8px}
+  .submit{width:100%;margin-top:18px;padding:15px 0;border:none;border-radius:12px;background:var(--gold);color:#111;font-size:17px;font-weight:800;cursor:pointer}
+  .submit:disabled{opacity:.45}
+  .back{background:none;border:none;color:var(--mut);font-size:14px;cursor:pointer;padding:8px 0;margin-top:4px}
+  .err{display:none;background:rgba(218,41,28,.14);border:1px solid var(--red);color:#ff8d81;border-radius:10px;padding:10px;font-size:14px;margin-top:12px;word-break:break-word}
+  .ok-card{text-align:center;padding:34px 14px}
+  .ok-card .tick{font-size:52px;line-height:1}
+  .ok-card h2{margin:10px 0 4px;font-size:20px}
+  .sum{margin:14px auto 0;max-width:320px;text-align:left;font-size:14px;color:var(--mut)}
+  .sum b{color:var(--ink)}
+  .sum .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .flagged{color:var(--gold);font-weight:700;text-align:center;margin-top:10px;font-size:13px}
+  .dead{text-align:center;padding:44px 12px;color:var(--mut)}
+  .loading{text-align:center;padding:44px 12px;color:var(--mut)}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+</style></head><body>
+<div class="wrap">
+  <h1><span class="accent">Meal</span> &amp; Promo Log</h1>
+  <p class="store" id="storeline">&nbsp;</p>
+
+  <div id="scr-loading" class="card loading">Loading&hellip;</div>
+
+  <div id="scr-dead" class="card dead" style="display:none">This link is not valid or has expired. Please ask your GM or supervisor for a fresh link.</div>
+
+  <div id="scr-store" style="display:none">
+    <div class="card"><b>Which store are you logging for?</b><div id="storebtns"></div></div>
+  </div>
+
+  <div id="scr-home" style="display:none">
+    <button class="big meal" id="btn-meal">&#127869;&#65039; Employee Meal<small>Receipt photo + who is eating</small></button>
+    <button class="big promo" id="btn-promo">&#127873; Promo / Comp<small>Receipt photo + the reason</small></button>
+    <p class="hint">Every meal and promo gets logged with its receipt. Takes about 20 seconds.</p>
+  </div>
+
+  <div id="scr-form" style="display:none">
+    <div class="card">
+      <b id="form-title"></b>
+      <label>1. Receipt photo</label>
+      <button type="button" class="photo-btn" id="photo-btn">&#128247; Take receipt photo</button>
+      <input type="file" id="photo" accept="image/*" capture="environment">
+      <label>2. Receipt total</label>
+      <div class="amt-row"><span class="dollar">$</span><input type="text" id="amt" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="warn" id="warn15">Employee meals must be under $15 &mdash; this will be flagged for review. You can still log it.</div>
+      <div id="meal-fields" style="display:none">
+        <label>3. Who is the meal for?</label>
+        <select id="emp"><option value="">Select employee&hellip;</option></select>
+        <p class="hint">People scheduled right now are at the top.</p>
+      </div>
+      <div id="promo-fields" style="display:none">
+        <label>3. Reason for the promo</label>
+        <select id="reason"><option value="">Select reason&hellip;</option></select>
+        <div id="note-wrap" style="display:none">
+          <label>Add a note (what and why)</label>
+          <textarea id="note" maxlength="1000" placeholder="e.g. remade a large fries order that was dropped"></textarea>
+        </div>
+      </div>
+      <button class="submit" id="go">Log it</button>
+      <div class="err" id="err"></div>
+      <button class="back" id="cancel">&larr; Cancel</button>
+    </div>
+  </div>
+
+  <div id="scr-done" class="card ok-card" style="display:none">
+    <div class="tick">&#9989;</div>
+    <h2>Logged</h2>
+    <div class="sum" id="summary"></div>
+    <div class="flagged" id="flagline" style="display:none">Flagged: $15 or more &mdash; a DM will review this one.</div>
+    <button class="submit" id="again">Log another</button>
+  </div>
+</div>
+
+<script>
+var FN = 'https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/meal-log';
+var MAX_EDGE = 1600;      // client-side downscale target (longest edge, px)
+var JPEG_Q = 0.85;
+
+var params = new URLSearchParams(location.search);
+var tok = params.get('t') || '';
+var storePick = params.get('store') || '';
+var boot = null;          // bootstrap payload
+var mode = '';            // 'meal' | 'promo'
+var photoB64 = null;
+
+function el(id){ return document.getElementById(id); }
+function show(id){
+  ['scr-loading','scr-dead','scr-store','scr-home','scr-form','scr-done'].forEach(function(x){
+    el(x).style.display = (x === id) ? 'block' : 'none';
+  });
+}
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+
+// ---- bootstrap ------------------------------------------------------------
+function loadBoot(){
+  show('scr-loading');
+  var u = FN + '?t=' + encodeURIComponent(tok) + (storePick ? '&store=' + encodeURIComponent(storePick) : '');
+  fetch(u).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) { show('scr-dead'); return; }
+    if (res.j.needs_store) { renderStorePick(res.j.stores || []); return; }
+    boot = res.j;
+    el('storeline').textContent = '📍 ' + boot.store.name + ' · #' + boot.store.number + ' — ' + boot.business_date;
+    fillEmployees();
+    fillReasons();
+    show('scr-home');
+  })
+  .catch(function(){ show('scr-dead'); });
+}
+function renderStorePick(stores){
+  var box = el('storebtns'); box.innerHTML = '';
+  stores.forEach(function(s){
+    var b = document.createElement('button');
+    b.className = 'big storepick';
+    b.textContent = s.name + ' · #' + s.number;
+    b.onclick = function(){ storePick = String(s.number); loadBoot(); };
+    box.appendChild(b);
+  });
+  show('scr-store');
+}
+function fillEmployees(){
+  var sel = el('emp');
+  sel.innerHTML = '<option value="">Select employee&hellip;</option>';
+  function group(label, list){
+    if (!list || !list.length) return;
+    var og = document.createElement('optgroup'); og.label = label;
+    list.forEach(function(e){
+      var o = document.createElement('option');
+      o.value = e.geid; o.textContent = e.name;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
+  group('Working now', boot.employees_scheduled_now);
+  group('All crew', boot.employees_other);
+}
+function fillReasons(){
+  var sel = el('reason');
+  sel.innerHTML = '<option value="">Select reason&hellip;</option>';
+  (boot.promo_reasons || []).forEach(function(r){
+    var o = document.createElement('option'); o.value = r; o.textContent = r;
+    sel.appendChild(o);
+  });
+}
+
+// ---- photo capture + downscale ---------------------------------------------
+el('photo-btn').onclick = function(){ el('photo').click(); };
+el('photo').onchange = function(){
+  var f = el('photo').files[0];
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+      var cw = Math.round(w * scale), ch = Math.round(h * scale);
+      var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      var dataUrl = cv.toDataURL('image/jpeg', JPEG_Q);
+      photoB64 = dataUrl.split(',')[1];
+      var btn = el('photo-btn');
+      btn.classList.add('have');
+      btn.innerHTML = '<img src="' + dataUrl + '" alt="receipt"><span class="retake">Tap to retake</span>';
+    };
+    img.onerror = function(){ showErr('Could not read that photo. Please try again.'); };
+    img.src = rd.result;
+  };
+  rd.onerror = function(){ showErr('Could not read that photo. Please try again.'); };
+  rd.readAsDataURL(f);
+};
+
+// ---- flow -------------------------------------------------------------------
+el('btn-meal').onclick = function(){ openForm('meal'); };
+el('btn-promo').onclick = function(){ openForm('promo'); };
+function openForm(m){
+  mode = m;
+  photoB64 = null;
+  el('photo').value = '';
+  var btn = el('photo-btn');
+  btn.classList.remove('have');
+  btn.innerHTML = '&#128247; Take receipt photo';
+  el('amt').value = '';
+  el('warn15').style.display = 'none';
+  el('emp').value = '';
+  el('reason').value = '';
+  el('note').value = '';
+  el('note-wrap').style.display = 'none';
+  el('err').style.display = 'none';
+  el('form-title').textContent = (m === 'meal') ? 'Employee Meal' : 'Promo / Comp';
+  el('meal-fields').style.display = (m === 'meal') ? 'block' : 'none';
+  el('promo-fields').style.display = (m === 'promo') ? 'block' : 'none';
+  el('go').disabled = false;
+  el('go').textContent = 'Log it';
+  show('scr-form');
+}
+el('cancel').onclick = function(){ show('scr-home'); };
+el('again').onclick = function(){ show('scr-home'); };
+
+function amtVal(){
+  var v = parseFloat(String(el('amt').value).replace(/[^0-9.]/g, ''));
+  return isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+}
+el('amt').addEventListener('input', function(){
+  var v = amtVal();
+  el('warn15').style.display = (mode === 'meal' && isFinite(v) && v >= 15) ? 'block' : 'none';
+});
+el('reason').addEventListener('change', function(){
+  var other = el('reason').value.indexOf('Other') === 0;
+  el('note-wrap').style.display = other ? 'block' : 'none';
+});
+
+function showErr(msg){ var e = el('err'); e.textContent = msg; e.style.display = 'block'; }
+
+el('go').onclick = function(){
+  el('err').style.display = 'none';
+  if (!photoB64) { showErr('Take the receipt photo first &mdash; it is the evidence.'.replace('&mdash;','-')); return; }
+  var amt = amtVal();
+  if (!isFinite(amt) || amt < 0) { showErr('Enter the receipt total (numbers only, like 7.49).'); return; }
+  var body = { t: tok, kind: mode, amount_usd: amt, photo_b64: photoB64, photo_mime: 'image/jpeg' };
+  if (storePick) body.store = storePick;
+  var empName = '';
+  if (mode === 'meal') {
+    var g = el('emp').value;
+    if (!g) { showErr('Pick the employee the meal is for.'); return; }
+    body.geid = g;
+    empName = el('emp').options[el('emp').selectedIndex].text;
+    body.employee_name = empName;
+  } else {
+    var r = el('reason').value;
+    if (!r) { showErr('Pick a reason for the promo.'); return; }
+    body.promo_reason = r;
+    var n = el('note').value.trim();
+    if (r.indexOf('Other') === 0 && !n) { showErr('Add a short note describing the promo.'); return; }
+    if (n) body.note = n;
+  }
+  var btn = el('go'); btn.disabled = true; btn.textContent = 'Logging…';
+  fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) throw new Error(res.j && res.j.error ? res.j.error : 'HTTP error');
+    var s = '';
+    s += '<div class="row"><span>Type</span><b>' + (mode === 'meal' ? 'Employee meal' : 'Promo / comp') + '</b></div>';
+    if (mode === 'meal') s += '<div class="row"><span>Employee</span><b>' + esc(empName) + '</b></div>';
+    else s += '<div class="row"><span>Reason</span><b>' + esc(el('reason').value) + '</b></div>';
+    s += '<div class="row"><span>Amount</span><b>$' + amt.toFixed(2) + '</b></div>';
+    s += '<div class="row"><span>Store</span><b>' + esc(boot.store.name) + ' #' + esc(boot.store.number) + '</b></div>';
+    s += '<div class="row"><span>Date</span><b>' + esc(res.j.business_date) + '</b></div>';
+    s += '<div class="row"><span>Log id</span><b>#' + esc(res.j.id) + '</b></div>';
+    el('summary').innerHTML = s;
+    el('flagline').style.display = (mode === 'meal' && amt >= 15) ? 'block' : 'none';
+    show('scr-done');
+  })
+  .catch(function(ex){
+    showErr('Could not log it: ' + ex.message + ' — please try again or tell your GM.');
+    btn.disabled = false; btn.textContent = 'Log it';
+  });
+};
+
+if (!tok) { show('scr-dead'); } else { loadBoot(); }
+</script></body></html>
