@@ -9,6 +9,13 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.43 — Supervisor GPS check-in PORTED from v1 to the TOP of the sup
+  TODAY home (the v2 shell never rendered the fn check_in slice — sups lost
+  the button in the v1-to-v2 link move). Server-side geofence unchanged; POST
+  spine actions check_in/check_out; check_in gathers on TODAY for sups (fn)
+  and joins ALWAYS_MERGE_KEYS. Lockstep with fn v2-0.43. (v2-0.42 carried the
+  Employee Meals & Promos link tile + the contacts repair-vendors lockdown.)
+
   v2-0.41 — GRILL MIN-TEMPS MOVED TO HOME (fn + shell lockstep, SHELL_VERSION
   and FN_VERSION both v2-0.41). The Jolt grill min-temps module — per meat
   product, the MINIMUM cooked-product temp on that product's LATEST food-safety
@@ -499,6 +506,19 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .meallog-btn .mlb-plus{font-size:26px;font-weight:900;color:#FFC72C;line-height:1}
 .meallog-btn .mlb-txt{flex:1;display:flex;flex-direction:column;gap:2px}
 .meallog-btn .mlb-sub{font-size:12px;opacity:.75}
+.ci-open-card{border:1px solid #46e07a;border-radius:10px;padding:12px 14px;background:rgba(70,224,122,.06)}
+.ci-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.ci-hd b{font-size:14px}
+.ci-sub{font-size:11.5px;opacity:.7}
+.ci-stores{display:flex;flex-wrap:wrap;gap:7px}
+.ci-btn{appearance:none;border:1px solid rgba(255,199,44,.5);background:transparent;color:#FFC72C;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer}
+.ci-btn:disabled{opacity:.5}
+.ci-btn.ci-out{width:100%;margin-top:10px;background:#FFC72C;color:#101010;border-color:#FFC72C}
+.ci-arr{margin-top:4px}
+.ci-grp{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#FFC72C;margin:9px 0 3px}
+.ci-row{font-size:13px;padding:5px 0;border-top:1px solid rgba(255,255,255,.1);line-height:1.35}
+.ci-hi{color:#ff7a6b;font-weight:700;font-size:11px;text-transform:uppercase}
+.ci-clear{font-size:12.5px;opacity:.7;padding:4px 0}
 
 /* foot */
 .foot{padding:6px 16px 0;font-size:9px;color:var(--ink-muted);line-height:1.5;text-align:center}
@@ -968,7 +988,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.42";
+const SHELL_VERSION = "v2-0.43";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4440,6 +4460,74 @@ function renderGrillHomeTile(data){
     { icon:"🔥", newBadge:true, info:"Jolt data thru "+fmtCT(gh.data_through) });
 }
 
+// v2-0.43: Supervisor GPS check-in — PORTED from the v1 board (v65) to the TOP
+// of the sup TODAY home (Eddie 2026-07-11: sups lost the button when their
+// links moved to v2 — the fn gathered check_in but the v2 shell never rendered
+// it). Geofence stays SERVER-side; the client only sends coordinates. Payload
+// (Supervisors only, null otherwise): { open, on_arrival, eligible_stores }.
+function renderSupCheckIn(data){
+  const ci = data.check_in, mgr = data.manager || {};
+  if(!ci || mgr.role !== "Supervisor") return "";
+  if(ci.open){
+    const o = ci.open;
+    let t=""; try{ t=new Date(o.checked_in_at).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }catch(_e){}
+    const dist = (o.in_distance_m!=null) ? (" - "+Math.round(o.in_distance_m)+"m") : "";
+    const body = '<div class="ci-open-card"><div class="ci-hd"><b>On site - '+esc(o.store_name||"")+'</b>'
+      + '<span class="ci-sub">Checked in '+esc(t)+esc(dist)+'</span></div>'
+      + ciOnArrival(ci.on_arrival)
+      + '<button class="ci-btn ci-out" onclick="ciCheckOut(this)">Check out</button></div>';
+    return card("Store check-in", body, { info:"GPS-verified on site", newBadge:true });
+  }
+  const stores = Array.isArray(ci.eligible_stores) ? ci.eligible_stores : [];
+  if(!stores.length) return "";
+  const body = '<div class="ci-hd"><span class="ci-sub">Tap when you arrive - you must be at the store (GPS-verified).</span></div>'
+    + '<div class="ci-stores">'
+    + stores.map(function(st){ return '<button class="ci-btn" onclick="ciCheckIn('+Number(st.id)+',this)">'+esc(st.name)+'</button>'; }).join("")
+    + '</div>';
+  return card("Store check-in", body, { info:"geofence enforced server-side", newBadge:true });
+}
+function ciOnArrival(oa){
+  if(!oa) return "";
+  const tasks=oa.tasks||[], overdue=oa.overdue||[], complaints=oa.complaints||[];
+  if(!tasks.length && !overdue.length && !complaints.length)
+    return '<div class="ci-clear">Nothing flagged for this store right now.</div>';
+  const row = function(t){ return '<div class="ci-row">'+esc(t.title||"(untitled)")
+    + (String(t.priority||"").match(/urgent|high/i) ? ' <span class="ci-hi">'+esc(t.priority)+'</span>' : '')+'</div>'; };
+  const cmp = function(c){ return '<div class="ci-row">'+esc(c.issue_category||c.issue_reason||c.comment||("Case "+(c.case_number||c.id||"")))
+    + (c.customer_name ? ' - '+esc(c.customer_name) : '')+'</div>'; };
+  let h='<div class="ci-arr">';
+  if(tasks.length) h += '<div class="ci-grp">Priority tasks</div>'+tasks.map(row).join("");
+  if(overdue.length) h += '<div class="ci-grp">Overdue</div>'+overdue.map(row).join("");
+  if(complaints.length) h += '<div class="ci-grp">Open complaints</div>'+complaints.map(cmp).join("");
+  return h+'</div>';
+}
+async function ciCheckIn(storeId, btn){
+  if(!navigator.geolocation){ alert("This phone cannot share location, so check-in is not available."); return; }
+  if(btn) btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(async function(pos){
+    try{
+      const c = pos.coords;
+      const payload = await v2CallApi({ action:"check_in", store_id:storeId, lat:c.latitude, lng:c.longitude, accuracy:c.accuracy });
+      if(payload && payload.result && payload.result.ok === false){
+        if(btn) btn.disabled = false; alert(payload.result.msg || "Check-in failed."); return;
+      }
+      renderBoard(payload);
+    }catch(e){ if(btn) btn.disabled = false; alert("Check-in failed: "+(e && e.message)); }
+  }, function(){ if(btn) btn.disabled = false;
+    alert("Location is required to check in. Please allow location access and try again.");
+  }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+}
+async function ciCheckOut(btn){
+  if(btn) btn.disabled = true;
+  try{
+    const payload = await v2CallApi({ action:"check_out" });
+    if(payload && payload.result && payload.result.ok === false){
+      if(btn) btn.disabled = false; alert(payload.result.msg || "Check-out failed."); return;
+    }
+    renderBoard(payload);
+  }catch(e){ if(btn) btn.disabled = false; alert("Check-out failed: "+(e && e.message)); }
+}
+
 // v2-0.42: Employee Meals & Promos — a pure LINK tile to the standalone logger
 // (meal.html on GH Pages root; ABSOLUTE path — this shell lives under /v2/).
 // No role gating: meal-log accepts manager_page AND manager_page_ro tokens
@@ -4461,6 +4549,9 @@ const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
   // pinned contest motivators (plan §2 "pinned to the top of TODAY").
+  // v2-0.43: Supervisor GPS check-in — FIRST on the sup home (self-gates:
+  // fn sends check_in to Supervisors only; everyone else renders nothing).
+  { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
@@ -4626,7 +4717,7 @@ window.renderBoard = renderBoard;
    every loaded lane the lane-scoped response did not carry. */
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
                            "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home",
-                           "grill_temps_home","_meta"];
+                           "grill_temps_home","check_in","_meta"];
 function mergePostPayload(payload, askedLanes){
   if(!STATE || !STATE.data){ STATE = payload; return STATE; }
   const incoming = (payload && payload.data) || {};
