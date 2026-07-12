@@ -1,8 +1,16 @@
 <!doctype html>
-<!-- meal.html v1 (2026-07-10) - shift-leader Employee Meal / Promo logging.
+<!-- meal.html v2 (2026-07-10) - shift-leader Employee Meal / Promo logging.
+     v2: (a) MANAGEMENT MEALS - the employee picker gains a fourth group
+     "Management (off-shift meal benefit)" (GMs/AMs/Sups/Eddie/Ed Jr from the
+     managers directory, this store first); picking one sends
+     meal_class=management + manager_id and shows the benefit note; the >=15
+     warning does NOT show for management meals (value-meal benefit, exempt).
+     (b) PICKER REGROUP - top group is now "On the clock - no meal yet"
+     (punch-based, schedule fallback server-side), then "Already logged today"
+     (still selectable - NEVER block a log), then "All crew".
      Served from GH Pages because the Supabase gateway rewrites Edge Fn
      text/html to text/plain (house rule: an Edge Fn never serves a page).
-     API: the meal-log Edge Function (capability token ?t=, JSON + CORS).
+     API: the meal-log Edge Function v2 (capability token ?t=, JSON + CORS).
      NOTE: keep every JS string apostrophe-safe - a raw apostrophe in a
      single-quoted string once bricked a whole board shell. -->
 <html><head><meta charset="utf-8">
@@ -34,6 +42,7 @@
   .amt-row .dollar{font-size:26px;font-weight:800;color:var(--gold)}
   .amt-row input{font-size:24px;font-weight:800;letter-spacing:.5px}
   .warn{display:none;background:rgba(255,199,44,.12);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:10px;font-size:13px;margin-top:8px}
+  .mgmt-note{display:none;background:rgba(46,174,79,.12);border:1px solid var(--ok);color:var(--ok);border-radius:10px;padding:10px;font-size:13px;margin-top:8px}
   .submit{width:100%;margin-top:18px;padding:15px 0;border:none;border-radius:12px;background:var(--gold);color:#111;font-size:17px;font-weight:800;cursor:pointer}
   .submit:disabled{opacity:.45}
   .back{background:none;border:none;color:var(--mut);font-size:14px;cursor:pointer;padding:8px 0;margin-top:4px}
@@ -78,8 +87,9 @@
       <div class="warn" id="warn15">Employee meals must be under $15 &mdash; this will be flagged for review. You can still log it.</div>
       <div id="meal-fields" style="display:none">
         <label>3. Who is the meal for?</label>
-        <select id="emp"><option value="">Select employee&hellip;</option></select>
-        <p class="hint">People scheduled right now are at the top.</p>
+        <select id="emp"><option value="">Select person&hellip;</option></select>
+        <div class="mgmt-note" id="mgmtnote">GM/AM benefit: two free value meals per week when off shift.</div>
+        <p class="hint">People on the clock with no meal logged yet are at the top. Management is at the bottom.</p>
       </div>
       <div id="promo-fields" style="display:none">
         <label>3. Reason for the promo</label>
@@ -157,7 +167,7 @@ function renderStorePick(stores){
 }
 function fillEmployees(){
   var sel = el('emp');
-  sel.innerHTML = '<option value="">Select employee&hellip;</option>';
+  sel.innerHTML = '<option value="">Select person&hellip;</option>';
   function group(label, list){
     if (!list || !list.length) return;
     var og = document.createElement('optgroup'); og.label = label;
@@ -168,8 +178,22 @@ function fillEmployees(){
     });
     sel.appendChild(og);
   }
-  group('Working now', boot.employees_scheduled_now);
+  // v2 groups; falls back to the v1 payload keys if an old fn answers.
+  group('On the clock - no meal yet', boot.employees_on_clock_no_meal || boot.employees_scheduled_now);
+  group('Already logged today', boot.employees_already_logged);
   group('All crew', boot.employees_other);
+  var mg = boot.management || [];
+  if (mg.length) {
+    var og = document.createElement('optgroup');
+    og.label = 'Management (off-shift meal benefit)';
+    mg.forEach(function(m){
+      var o = document.createElement('option');
+      o.value = 'm:' + m.manager_id;                 // m: prefix = management pick
+      o.textContent = m.name + ' · ' + m.role + (m.store ? ' · ' + m.store : '');
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
 }
 function fillReasons(){
   var sel = el('reason');
@@ -219,6 +243,7 @@ function openForm(m){
   btn.innerHTML = '&#128247; Take receipt photo';
   el('amt').value = '';
   el('warn15').style.display = 'none';
+  el('mgmtnote').style.display = 'none';
   el('emp').value = '';
   el('reason').value = '';
   el('note').value = '';
@@ -238,10 +263,18 @@ function amtVal(){
   var v = parseFloat(String(el('amt').value).replace(/[^0-9.]/g, ''));
   return isFinite(v) ? Math.round(v * 100) / 100 : NaN;
 }
-el('amt').addEventListener('input', function(){
+function isMgmtPick(){ return String(el('emp').value).indexOf('m:') === 0; }
+// Soft, informative notes only - NOTHING here ever prevents a submit.
+// The >= $15 warning is CREW-ONLY (management value-meal benefit is exempt);
+// the green benefit note shows for a management pick.
+function refreshMealNotes(){
   var v = amtVal();
-  el('warn15').style.display = (mode === 'meal' && isFinite(v) && v >= 15) ? 'block' : 'none';
-});
+  var mg = (mode === 'meal') && isMgmtPick();
+  el('mgmtnote').style.display = mg ? 'block' : 'none';
+  el('warn15').style.display = (mode === 'meal' && !mg && isFinite(v) && v >= 15) ? 'block' : 'none';
+}
+el('amt').addEventListener('input', refreshMealNotes);
+el('emp').addEventListener('change', refreshMealNotes);
 el('reason').addEventListener('change', function(){
   var other = el('reason').value.indexOf('Other') === 0;
   el('note-wrap').style.display = other ? 'block' : 'none';
@@ -259,10 +292,17 @@ el('go').onclick = function(){
   var empName = '';
   if (mode === 'meal') {
     var g = el('emp').value;
-    if (!g) { showErr('Pick the employee the meal is for.'); return; }
-    body.geid = g;
+    if (!g) { showErr('Pick who the meal is for.'); return; }
     empName = el('emp').options[el('emp').selectedIndex].text;
-    body.employee_name = empName;
+    if (g.indexOf('m:') === 0) {
+      body.meal_class = 'management';
+      body.manager_id = g.slice(2);
+      // no employee_name: the fn fills it from the managers directory
+      // (the naming source of truth).
+    } else {
+      body.geid = g;
+      body.employee_name = empName;
+    }
   } else {
     var r = el('reason').value;
     if (!r) { showErr('Pick a reason for the promo.'); return; }
@@ -276,16 +316,18 @@ el('go').onclick = function(){
   .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
   .then(function(res){
     if (!res.ok || !res.j.ok) throw new Error(res.j && res.j.error ? res.j.error : 'HTTP error');
+    var mgmt = (mode === 'meal') && isMgmtPick();
     var s = '';
-    s += '<div class="row"><span>Type</span><b>' + (mode === 'meal' ? 'Employee meal' : 'Promo / comp') + '</b></div>';
-    if (mode === 'meal') s += '<div class="row"><span>Employee</span><b>' + esc(empName) + '</b></div>';
+    s += '<div class="row"><span>Type</span><b>' + (mode === 'meal' ? (mgmt ? 'Management meal' : 'Employee meal') : 'Promo / comp') + '</b></div>';
+    if (mode === 'meal') s += '<div class="row"><span>' + (mgmt ? 'Manager' : 'Employee') + '</span><b>' + esc(empName) + '</b></div>';
     else s += '<div class="row"><span>Reason</span><b>' + esc(el('reason').value) + '</b></div>';
     s += '<div class="row"><span>Amount</span><b>$' + amt.toFixed(2) + '</b></div>';
     s += '<div class="row"><span>Store</span><b>' + esc(boot.store.name) + ' #' + esc(boot.store.number) + '</b></div>';
     s += '<div class="row"><span>Date</span><b>' + esc(res.j.business_date) + '</b></div>';
     s += '<div class="row"><span>Log id</span><b>#' + esc(res.j.id) + '</b></div>';
     el('summary').innerHTML = s;
-    el('flagline').style.display = (mode === 'meal' && amt >= 15) ? 'block' : 'none';
+    // $15 flag line is crew-only (management value-meal benefit is exempt).
+    el('flagline').style.display = (mode === 'meal' && !mgmt && amt >= 15) ? 'block' : 'none';
     show('scr-done');
   })
   .catch(function(ex){
