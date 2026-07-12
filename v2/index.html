@@ -994,7 +994,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.45";
+const SHELL_VERSION = "v2-0.46";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4579,6 +4579,24 @@ function renderGuestThemes(data){
     { through: ft.data_through || undefined, info: ft.data_through ? undefined : "last " + (ft.window_days||30) + " days", newBadge: true });
 }
 
+// v2-0.46: Supervisor Meal-Break Tracker — per-store unrecorded meal breaks,
+// trailing 7 days. Renders only when data.meal_break_tracker is present (fn
+// sends it to Supervisor/Owner during the 5-week spotlight, else null -> hidden).
+function renderMealBreakTracker(data){
+  const mb = data.meal_break_tracker;
+  if(!mb || !(mb.stores||[]).length) return "";
+  const rows = mb.stores.map(function(r){
+    return '<div class="row"><span class="nm">'+esc(r.location_name)+'</span>'
+      + '<span class="vl">'+esc(r.total_meal_gaps)+'<span class="un"> gaps</span></span>'
+      + '<span class="mut" style="font-size:11px;margin-left:8px">'+esc(r.employees_affected)+' staff'
+      + (Number(r.meal_late)? ' · '+esc(r.meal_late)+' late':'')+'</span></div>';
+  }).join("");
+  const body = '<div class="cap" style="margin-bottom:6px">Shifts over 7.5h with no recorded 20-min break, last 7 days. Review items — punch-hygiene or a real missed break; drive the huddle.</div>'
+    + '<div class="board">'+rows+'</div>';
+  return card("Meal breaks not recorded", body,
+    { through: mb.data_through || undefined, newBadge: true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -4586,6 +4604,8 @@ const MANIFEST = [
   // v2-0.43: Supervisor GPS check-in — FIRST on the sup home (self-gates:
   // fn sends check_in to Supervisors only; everyone else renders nothing).
   { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
+  // v2-0.46: supervisor meal-break spotlight (5 weeks; self-removes when fn returns null).
+  { id:"today_mealbreak",  lane:"TODAY", title:"Meal breaks not recorded", render: renderMealBreakTracker, newBadge:true },
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
