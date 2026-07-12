@@ -9,6 +9,28 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.41 — GRILL MIN-TEMPS MOVED TO HOME (fn + shell lockstep, SHELL_VERSION
+  and FN_VERSION both v2-0.41). The Jolt grill min-temps module — per meat
+  product, the MINIMUM cooked-product temp on that product's LATEST food-safety
+  check (Module D, operations.grill_temps) — MOVES out of the Jolt section onto
+  the TODAY home for Owner/Supervisor/GM (Eddie 2026-07-10). (1) NEW today_grill
+  MANIFEST tile (renderGrillHomeTile, data.grill_temps_home — a new want(TODAY)
+  Fn slice the Fn sends ONLY to those roles; added to ALWAYS_MERGE_KEYS so POST
+  repaints keep it): per-product jgrid with the UNCHANGED grillFlag thresholds
+  (>=155 in range / 130-154 watch / <130 below safe), per-product session
+  timestamp + card-level "Jolt data thru" (fmtCT); sup/owner get per-store
+  expanders, worst first. (2) REMOVED (role-gated via grillMovedHome — a MOVE,
+  not a copy) from the three Jolt-section surfaces for Owner/Sup/GM: the
+  "Grill products" optile on the Operations (Jolt) TEAM card, the "Grill
+  min-cook temps" rows in the operations lane sheet, and the "Grill min-temps"
+  Module D section + grill verdict flags in the Jolt Ops full view (captions
+  adjusted; the Jolt Ops entry-card caption drops "grill temps" from its list).
+  Department (any other role) KEEPS the Jolt-section placement — the Fn still
+  ships operations.grill_temps on the TEAM lane unchanged. NOTE: these are real
+  probe readings entered on the food-safety check, NOT the inferred
+  (TEMPERATURE_SIMULATED) fridge/freezer sensor temps — that labeling stays on
+  the Fridge & Freezer Temps card, untouched.
+
   v2-0.40 — VOICE card: the dead "Exec. as Designed" tile (Pull Forward EAD —
   the feed stopped shipping store rows: 0 in July, tile was a permanent dash)
   is now "Greeted by Name" (Digital feed, EAD driver). LABELS map swap only;
@@ -941,7 +963,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.40";
+const SHELL_VERSION = "v2-0.41";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -3185,9 +3207,10 @@ function renderTeamOperations(data){
   const sens = op.sensors||[];
   const sFunc = sens.reduce((a,s)=>a+(s.sensors_functioning||0),0), sTot = sens.reduce((a,s)=>a+(s.sensors_total||0),0);
   body += '<div class="optile"><div class="opl">Sensors OK</div><div class="opv '+(sTot&&sFunc<sTot?"warn":"fav")+'">'+sFunc+'/'+sTot+'</div><div class="ops">functioning</div></div>';
-  // grill min-temps headline (count of products read).
-  const grill = op.grill_temps||[];
-  body += '<div class="optile"><div class="opl">Grill products</div><div class="opv">'+grill.length+'</div><div class="ops">min-temp logged</div></div></div>';
+  // grill min-temps headline (count of products read). v2-0.41: gated out for
+  // Owner/Sup/GM — the module moved to the TODAY home tile (today_grill).
+  const grill = grillMovedHome(data) ? null : (op.grill_temps||[]);
+  body += (grill ? '<div class="optile"><div class="opl">Grill products</div><div class="opv">'+grill.length+'</div><div class="ops">min-temp logged</div></div>' : '')+'</div>';
   // latest pre-shift per daypart.
   const ps = (op.preshift_latest||[]).slice().sort((a,b)=>String(a.daypart).localeCompare(String(b.daypart)));
   if(ps.length){
@@ -3195,7 +3218,9 @@ function renderTeamOperations(data){
       + '<span class="dprate">'+(p.submit_person?esc(p.submit_person):(p.completed?"done":"—"))+'</span>'
       + '<span class="statedot '+(p.completed?(p.on_time===false?"sd-miss":"sd-ok"):"sd-miss")+'">'+(p.completed?(p.on_time===false?"late":"on time"):"missed")+'</span></div>').join("");
   }
-  body += '<div class="cap">Pre-shift checklist completion + sensor health + grill min-cook temps. '+esc(op.sensor_note||"")+' Tap for product temps + sensor problem list. From the Jolt feed.</div>';
+  body += '<div class="cap">Pre-shift checklist completion + sensor health'+(grill?' + grill min-cook temps':'')+'. '+esc(op.sensor_note||"")
+    + ' Tap for '+(grill?'product temps + ':'')+'the sensor problem list.'
+    + (grill?'':' Grill min-temps now live on the Today home.')+' From the Jolt feed.</div>';
   return card("Operations (Jolt)", body, { icon:"✅", through: op.data_through?fmtDate(op.data_through):null, newBadge:true, drill:{kind:"operations"} });
 }
 
@@ -3218,6 +3243,11 @@ function renderTeamOperations(data){
 // grill flag, McD cooked-hold guidance (mockup): >=155 in range, 130..154 watch,
 // <130 below safe. Null temp renders "—" and takes the watch border.
 function grillFlag(t){ if(t==null||isNaN(t)) return "warn"; if(t>=155) return "good"; if(t>=130) return "warn"; return "bad"; }
+// v2-0.41: the grill min-temps module MOVED to the TODAY home for Owner/Sup/GM
+// (Eddie 2026-07-10) — those roles get the today_grill tile (data.grill_temps_home)
+// and the Jolt-section grill renders below gate OUT on this. Department (any
+// other role) keeps the original Jolt-section placement. A MOVE, not a copy.
+function grillMovedHome(data){ const r = data.manager && data.manager.role; return r==="Owner"||r==="Supervisor"||r==="GM"; }
 const JOLT_DP_ORD = { "Breakfast":0, "Lunch":1, "Dinner":2 };
 function maxTs(a,b){ if(!a) return b||null; if(!b) return a; return String(a)>String(b)?a:b; }
 
@@ -3250,8 +3280,10 @@ function renderTodayJolt(data){
     }).join("");
     body += '<div class="cap">Worst first. Every store drills in the full view.</div>';
   }
+  // v2-0.41: for Owner/Sup/GM the grill min-temps live on the Today home tile,
+  // not in the full Jolt Ops view — the tap-for list must not promise them.
   body += '<div class="cap">Checklist statuses vs the last Jolt sync per store (twice daily pull). '
-    + 'Tap for the full Jolt Ops view: checklists, pre-shift readiness, grill temps, fridge and freezer temps, sensor health.</div>';
+    + 'Tap for the full Jolt Ops view: checklists, pre-shift readiness, '+(grillMovedHome(data)?'':'grill temps, ')+'fridge and freezer temps, sensor health.</div>';
   const thru = maxTs(jc && jc.data_through, jt && jt.data_through);
   return card("Jolt Ops", body,
     { icon:"🧾", newBadge:true, info:"Jolt data thru "+fmtCT(thru), drill:{kind:"jolt_ops"} });
@@ -3318,7 +3350,10 @@ function joltOpsPaint(){
       .slice().sort((a,b)=>((JOLT_DP_ORD[a.daypart]??9)-(JOLT_DP_ORD[b.daypart]??9))) : [];
   const psR = ops ? (ops.preshift_rate||[]).filter(r=>r.store_id===sid) : [];
   const psM = ops ? (ops.preshift_misses||[]).filter(r=>r.store_id===sid && r.top_misser) : [];
-  const grill = ops ? (ops.grill_temps||[]).filter(r=>r.store_id===sid) : [];
+  // v2-0.41: grill min-temps moved to the TODAY home tile for Owner/Sup/GM —
+  // gated out of this view (verdict flags + Module D below) for those roles.
+  const grillHome = grillMovedHome(data);
+  const grill = (!grillHome && ops) ? (ops.grill_temps||[]).filter(r=>r.store_id===sid) : [];
   const sh = ops ? ((ops.sensors||[]).find(r=>r.store_id===sid) || null) : null;
 
   // ---- verdict (BLUF): readiness today ----
@@ -3408,20 +3443,24 @@ function joltOpsPaint(){
   }
 
   // ---- Grill min-temps (Module D) ----
-  h += '<div class="dsub">Grill min-temps</div>';
-  if(grill.length){
-    const gThru = grill.reduce((m,r)=>{ const t2=r.completion_ts; return t2&&String(t2)>m?String(t2):m; },"");
-    h += '<div class="jgrid">'+grill.slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category))).map(g=>{
-      const f = grillFlag(g.min_cook_temp_f);
-      return '<div class="jgt g-'+f+'"><div class="jgl">'+esc(g.product_category)+'</div>'
-        + '<div class="jgv">'+(g.min_cook_temp_f!=null? Number(g.min_cook_temp_f).toFixed(1):"—")+'<span class="jdeg">°F</span></div>'
-        + '<div class="jgs">min of '+(g.cook_reading_count||0)+' cook reads · '+esc(fmtCT(g.completion_ts))+'</div></div>';
-    }).join("")+'</div>';
-    h += '<div class="cap">Lowest cooked product temp on the latest food safety check per product. '
-      + '<b style="color:var(--good)">≥155°F in range</b> · <b style="color:var(--warn)">130 to 154°F watch</b> · <b style="color:var(--bad)">&lt;130°F below safe</b>. '
-      + 'YES/NO and N/A items excluded. Jolt data thru '+esc(gThru?fmtCT(gThru):"—")+'.</div>';
-  } else if(ops){
-    h += '<div class="empline">No grill cook-temp reads for this store yet.</div>';
+  // v2-0.41: SKIPPED entirely for Owner/Sup/GM — the module moved to the
+  // Today home tile (today_grill). Department keeps it here.
+  if(!grillHome){
+    h += '<div class="dsub">Grill min-temps</div>';
+    if(grill.length){
+      const gThru = grill.reduce((m,r)=>{ const t2=r.completion_ts; return t2&&String(t2)>m?String(t2):m; },"");
+      h += '<div class="jgrid">'+grill.slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category))).map(g=>{
+        const f = grillFlag(g.min_cook_temp_f);
+        return '<div class="jgt g-'+f+'"><div class="jgl">'+esc(g.product_category)+'</div>'
+          + '<div class="jgv">'+(g.min_cook_temp_f!=null? Number(g.min_cook_temp_f).toFixed(1):"—")+'<span class="jdeg">°F</span></div>'
+          + '<div class="jgs">min of '+(g.cook_reading_count||0)+' cook reads · '+esc(fmtCT(g.completion_ts))+'</div></div>';
+      }).join("")+'</div>';
+      h += '<div class="cap">Lowest cooked product temp on the latest food safety check per product. '
+        + '<b style="color:var(--good)">≥155°F in range</b> · <b style="color:var(--warn)">130 to 154°F watch</b> · <b style="color:var(--bad)">&lt;130°F below safe</b>. '
+        + 'YES/NO and N/A items excluded. Jolt data thru '+esc(gThru?fmtCT(gThru):"—")+'.</div>';
+    } else if(ops){
+      h += '<div class="empline">No grill cook-temp reads for this store yet.</div>';
+    }
   }
 
   // ---- Fridge & freezer temps (latest reading per sensor, with age) ----
@@ -3737,13 +3776,14 @@ function openLaneSheet(kind, arg){
       + '<div class="cap">Ranked by sales-per-labor-hour over '+esc(sl.window||"")+'. From the shift-leader scorecard. Data thru '+esc(sl.data_through?fmtDate(sl.data_through):"—")+'.</div>';
   } else if(kind==="operations"){
     const op = data.operations || {}; title="Operations (Jolt) · detail"; crumb="Team › <b>Operations</b>";
-    const grill = (op.grill_temps||[]).slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category)));
+    // v2-0.41: grill rows gated out for Owner/Sup/GM — moved to the Today home tile.
+    const grill = grillMovedHome(data) ? null : (op.grill_temps||[]).slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category)));
     const sens = op.sensors||[];
     body = '<div class="crumb">'+crumb+'</div>'
       + '<div class="dsub">Pre-shift completion rate (MTD) by daypart</div>'
       + (op.preshift_rate||[]).map(r=>dr(esc(r.daypart)+(op.multi_store?" <small style='color:var(--ink-muted)'>"+esc(r.store_name||"")+"</small>":""), (r.completion_rate_pct!=null?Number(r.completion_rate_pct).toFixed(0)+"%":"—")+" ("+(r.completed_total||0)+"/"+(r.assigned_total||0)+")")).join("")
-      + '<div class="dsub">Grill min-cook temps (latest)</div>'
-      + grill.map(g=>dr(esc(g.product_category), (g.min_cook_temp_f!=null?Number(g.min_cook_temp_f).toFixed(1)+"°F":"—")+" · "+(g.cook_reading_count||0)+" reads")).join("")
+      + (grill ? '<div class="dsub">Grill min-cook temps (latest)</div>'
+          + grill.map(g=>dr(esc(g.product_category), (g.min_cook_temp_f!=null?Number(g.min_cook_temp_f).toFixed(1)+"°F":"—")+" · "+(g.cook_reading_count||0)+" reads")).join("") : "")
       + '<div class="dsub">Sensor health</div>'
       + sens.map(s=>dr(esc(s.store_name||"Sensors"), (s.sensors_functioning||0)+"/"+(s.sensors_total||0)+" OK"+((s.sensors_with_problem||0)?" · "+s.sensors_with_problem+" problem":""))).join("")
       + (sens.some(s=>(s.problem_list||[]).length) ? '<div class="dsub">Sensor problems</div>'
@@ -4340,6 +4380,61 @@ function renderSlOepeHomeTile(data){
     { icon:"⏱️", through: so.data_through, newBadge:true, drill:{ kind:"page:sl_oepe" } });
 }
 
+/* ---- the GRILL MIN-TEMPS home tile (TODAY lane; Owner/Sup/GM — v2-0.41) ----
+   MOVED from the Jolt section (Jolt Ops full-view Module D + the Operations
+   (Jolt) card optile + its lane sheet): per meat product, the MINIMUM
+   cooked-product temp on that product's LATEST food-safety check
+   (data.grill_temps_home, v_jolt_grill_min_temp_latest). Pass/fail colors =
+   the UNCHANGED grillFlag thresholds (>=155 in range / 130-154 watch /
+   <130 below safe). These are REAL probe readings entered on the food-safety
+   check — NOT the inferred (TEMPERATURE_SIMULATED) fridge/freezer sensor
+   temps, which keep their own card + labeling. Self-gates on
+   data.grill_temps_home (the Fn sends it only to Owner/Sup/GM — Department
+   keeps the Jolt-section placement). GM = their store's product grid;
+   sup/owner = per-store expanders, worst first. Each product tile carries its
+   session timestamp; the card carries the scope-wide Jolt data-through. */
+function renderGrillHomeTile(data){
+  const gh = data.grill_temps_home;
+  if(!gh || !(gh.products||[]).length) return "";   // Department / other roles or no data — no tile
+  const rows = gh.products||[];
+  const tile = g => {
+    const f = grillFlag(g.min_cook_temp_f);
+    return '<div class="jgt g-'+f+'"><div class="jgl">'+esc(g.product_category)+'</div>'
+      + '<div class="jgv">'+(g.min_cook_temp_f!=null? Number(g.min_cook_temp_f).toFixed(1):"—")+'<span class="jdeg">°F</span></div>'
+      + '<div class="jgs">min of '+(g.cook_reading_count||0)+' cook reads · '+esc(fmtCT(g.completion_ts))+'</div></div>';
+  };
+  const grid = list => '<div class="jgrid">'
+    + list.slice().sort((a,b)=>String(a.product_category).localeCompare(String(b.product_category))).map(tile).join("")+'</div>';
+  let body;
+  if(gh.multi_store){
+    // per-store expanders, worst store first (below-safe count, then watch count).
+    const byStore = {};
+    for(const r of rows){ (byStore[r.store_id]=byStore[r.store_id]||{name:r.store_name||("Store "+r.store_id),list:[]}).list.push(r); }
+    const stores = Object.values(byStore).map(s=>({ ...s,
+      bad: s.list.filter(g=>grillFlag(g.min_cook_temp_f)==="bad").length,
+      warn: s.list.filter(g=>g.min_cook_temp_f!=null && grillFlag(g.min_cook_temp_f)==="warn").length,
+    })).sort((a,b)=>(b.bad-a.bad)||(b.warn-a.warn)||String(a.name).localeCompare(String(b.name)));
+    const badTot = stores.reduce((a,s)=>a+s.bad,0), warnTot = stores.reduce((a,s)=>a+s.warn,0);
+    body = '<div class="vflags">'
+      + (badTot? '<span class="flag warn">'+badTot+' below safe</span>' : '')
+      + (warnTot? '<span class="flag warn">'+warnTot+' on watch</span>' : '')
+      + ((!badTot && !warnTot)? '<span class="flag good">all products in range</span>' : '')
+      + '</div>'
+      + stores.map(s=>'<details class="stexp"><summary>'+esc(s.name)
+        + ' · '+(s.bad? ('<b>'+s.bad+' below safe</b>') : (s.warn? (s.warn+' on watch') : 'in range'))
+        + '</summary>'+grid(s.list)+'</details>').join("")
+      + '<div class="cap">Worst first. Tap a store for its products.</div>';
+  } else {
+    body = grid(rows);
+  }
+  body += '<div class="cap">Lowest cooked product temp on each product&rsquo;s latest food safety check. '
+    + '<b style="color:var(--good)">≥155°F in range</b> · <b style="color:var(--warn)">130 to 154°F watch</b> · <b style="color:var(--bad)">&lt;130°F below safe</b>. '
+    + 'Real probe readings entered on the check &mdash; not the inferred fridge/freezer sensor temps. '
+    + 'YES/NO and N/A items excluded. From the Jolt feed (twice daily pull).</div>';
+  return card("Grill Min-Temps — Food Safety", body,
+    { icon:"🔥", newBadge:true, info:"Jolt data thru "+fmtCT(gh.data_through) });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -4357,6 +4452,11 @@ const MANIFEST = [
   // v2-0.34: Jolt Ops entry module — compact checklist/food-safety + temp-alert
   // summary; tap opens the FULL Jolt Ops view (drill sheet, mockup jolt-ops.html).
   { id:"today_jolt",       lane:"TODAY", title:"Jolt Ops",                render: renderTodayJolt,       newBadge:true },
+  // v2-0.41: Grill min-temps HOME tile — MOVED out of the Jolt section for
+  // Owner/Sup/GM (Eddie 2026-07-10). Render self-gates on data.grill_temps_home,
+  // which the Fn sends only to those roles; Department keeps the Jolt-section
+  // placement (Operations card + operations sheet + Jolt Ops full view).
+  { id:"today_grill",      lane:"TODAY", title:"Grill min-temps",         render: renderGrillHomeTile,   newBadge:true },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
   { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
@@ -4497,7 +4597,8 @@ window.renderBoard = renderBoard;
    through mergePostPayload — NEVER a wholesale STATE swap, which would null
    every loaded lane the lane-scoped response did not carry. */
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
-                           "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home","_meta"];
+                           "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home",
+                           "grill_temps_home","_meta"];
 function mergePostPayload(payload, askedLanes){
   if(!STATE || !STATE.data){ STATE = payload; return STATE; }
   const incoming = (payload && payload.data) || {};
