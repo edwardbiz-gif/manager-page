@@ -494,6 +494,11 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .drow:last-child{border-bottom:0} .drow .dk{color:var(--ink-muted);font-weight:600} .drow .dv{font-weight:800;font-variant-numeric:tabular-nums}
 .dsub{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent);margin:12px 0 4px}
 .drillcard{cursor:pointer} .drillcard:active{transform:translateY(1px)}
+.meallog-btn{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,199,44,.45);border-radius:10px;background:rgba(255,199,44,.07);text-decoration:none;color:inherit}
+.meallog-btn:active{transform:translateY(1px)}
+.meallog-btn .mlb-plus{font-size:26px;font-weight:900;color:#FFC72C;line-height:1}
+.meallog-btn .mlb-txt{flex:1;display:flex;flex-direction:column;gap:2px}
+.meallog-btn .mlb-sub{font-size:12px;opacity:.75}
 
 /* foot */
 .foot{padding:6px 16px 0;font-size:9px;color:var(--ink-muted);line-height:1.5;text-align:center}
@@ -963,7 +968,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.41";
+const SHELL_VERSION = "v2-0.42";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4435,11 +4440,34 @@ function renderGrillHomeTile(data){
     { icon:"🔥", newBadge:true, info:"Jolt data thru "+fmtCT(gh.data_through) });
 }
 
+// v2-0.42: Employee Meals & Promos — a pure LINK tile to the standalone logger
+// (meal.html on GH Pages root; ABSOLUTE path — this shell lives under /v2/).
+// No role gating: meal-log accepts manager_page AND manager_page_ro tokens
+// (shift-leader shared QRs are the primary loggers). Single-store scopes pass
+// &store= so the page skips its store picker.
+function renderMealLogTile(data){
+  const stores = (data && data.stores) || [];
+  let url = "https://edwardbiz-gif.github.io/manager-page/meal.html?t=" + encodeURIComponent(TOKEN);
+  if (stores.length === 1 && stores[0].number != null) url += "&store=" + encodeURIComponent(stores[0].number);
+  const body = '<a class="meallog-btn" href="'+url+'" target="_blank" rel="noopener">'
+    + '<span class="mlb-plus">+</span><span class="mlb-txt"><b>Log an employee meal or promo</b>'
+    + '<span class="mlb-sub">Photo, person, amount — about 30 seconds. Every receipt is photo-archived.</span></span>'
+    + '<span class="chev">›</span></a>';
+  return card("Employee Meals & Promos", body,
+    { info: "meals under $15 - promos need a reason - rules flag in reporting, never block", newBadge: true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
   // pinned contest motivators (plan §2 "pinned to the top of TODAY").
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
+  // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
+  // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
+  // THIS board's token (meal-log accepts manager_page AND manager_page_ro —
+  // shift-leader shared QRs are the primary loggers, so NO role gating here;
+  // single-store scopes pass &store= so the page skips its picker).
+  { id:"today_meal_log",   lane:"TODAY", title:"Employee Meals & Promos", render: renderMealLogTile,     newBadge:true },
   // v2-0.36: Q3 bonus tile (all manager roles; render self-gates on data.bonus_home
   // which the Fn never sends to RO/guest tokens). Whole card taps into the
   // bonus_ranker PAGE ("page:" drill prefix -> openPage). v2-0.37: richer tile —
