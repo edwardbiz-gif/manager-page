@@ -506,6 +506,12 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .meallog-btn .mlb-plus{font-size:26px;font-weight:900;color:#FFC72C;line-height:1}
 .meallog-btn .mlb-txt{flex:1;display:flex;flex-direction:column;gap:2px}
 .meallog-btn .mlb-sub{font-size:12px;opacity:.75}
+.thm-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid rgba(128,128,128,.15)}
+.thm-name{flex:0 0 34%;font-size:13px}
+.thm-bar{flex:1;height:8px;border-radius:5px;background:rgba(128,128,128,.15);overflow:hidden}
+.thm-fill{display:block;height:100%;border-radius:5px;background:#FFC72C}
+.thm-n{flex:0 0 auto;font-size:12.5px;font-weight:700}
+.thm-neg{font-weight:400;opacity:.7}
 .ci-open-card{border:1px solid #46e07a;border-radius:10px;padding:12px 14px;background:rgba(70,224,122,.06)}
 .ci-hd{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .ci-hd b{font-size:14px}
@@ -988,7 +994,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.43";
+const SHELL_VERSION = "v2-0.45";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4545,6 +4551,34 @@ function renderMealLogTile(data){
     { info: "meals under $15 - promos need a reason - rules flag in reporting, never block", newBadge: true });
 }
 
+// v2-0.45: Guest feedback THEMES — the "so what" over the raw comment stream.
+// Spikes first (theme count >= median+2 this week), then the 30-day top themes.
+// Renders from data.feedback_themes (GUESTS lane slice); hides itself when absent.
+function renderGuestThemes(data){
+  const ft = data.feedback_themes;
+  if(!ft || ((ft.spikes||[]).length === 0 && (ft.top||[]).length === 0)) return "";
+  const nice = t => String(t||"").replace(/_/g," ").replace(/\w/g, c=>c.toUpperCase());
+  let h = "";
+  const spikes = (ft.spikes||[]).filter(s => Number(s.prior_weeks) >= 1);
+  if(spikes.length){
+    h += '<div class="vflags">' + spikes.slice(0,4).map(s =>
+      '<span class="flag warn">' + esc(nice(s.theme)) + ' spike - ' + esc(s.store_name||'') + ': '
+      + esc(s.this_week_count) + ' this wk vs ' + esc(s.trailing_median) + ' typical'
+      + (Number(s.negative_mentions) ? ' (' + esc(s.negative_mentions) + ' negative)' : '') + '</span>').join("") + '</div>';
+  }
+  if((ft.top||[]).length){
+    const mx = Math.max.apply(null, ft.top.map(t=>Number(t.mentions)||0).concat([1]));
+    h += ft.top.map(t => {
+      const pct = Math.round((Number(t.mentions)||0)/mx*100);
+      return '<div class="thm-row"><span class="thm-name">' + esc(nice(t.theme)) + '</span>'
+        + '<span class="thm-bar"><span class="thm-fill" style="width:' + pct + '%"></span></span>'
+        + '<span class="thm-n">' + esc(t.mentions) + '<span class="thm-neg">' + (Number(t.negative)? ' / '+esc(t.negative)+' neg':'') + '</span></span></div>';
+    }).join("");
+  }
+  return card("Feedback themes", h,
+    { through: ft.data_through || undefined, info: ft.data_through ? undefined : "last " + (ft.window_days||30) + " days", newBadge: true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -4599,6 +4633,8 @@ const MANIFEST = [
   { id:"numbers_lto",      lane:"NUMBERS", title:"LTO leaderboard",      render: renderNumbersLto      },
   // GUESTS — feedback · complaints SLA · polarity-aware voice (plan §5). Order:
   // needs-response feedback first, then the SLA resolve list, then the trend.
+  // v2-0.45: theme analysis FIRST in the guest section (Eddie 2026-07-12).
+  { id:"guests_themes",     lane:"GUESTS", title:"Feedback themes",       render: renderGuestThemes,     newBadge:true },
   { id:"guests_feedback",   lane:"GUESTS", title:"Guest feedback",        render: renderGuestsFeedback,  newBadge:true },
   { id:"guests_complaints", lane:"GUESTS", title:"Open complaints",       render: renderGuestsComplaints },
   { id:"guests_voice",      lane:"GUESTS", title:"Voice / SMG trend",     render: renderGuestsVoice      },
