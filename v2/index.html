@@ -9,6 +9,32 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.47 — BRAIN-MODULE BOARD SWEEP (fn + shell lockstep v2-0.47, Eddie
+  approved 2026-07-12). Four new cards, each reading a small persisted table
+  (persist-for-REST — no live heavy aggregates):
+    • Today's Brief (TODAY, all manager tiers) — renderTodaysBrief on
+      data.todays_brief (operator_brief top-3 {headline, why, lever, citation,
+      severity}); the fn returns null when there is no brief for today (the
+      engine ships in parallel), so the card self-removes. ALWAYS_MERGE_KEYS.
+    • Temp watch (TODAY, Owner/Sup/GM) — renderTempWatch on data.temp_watch
+      (v_temp_watch_open): open refrigeration excursions worst-first + an
+      explicit all-clear. EVERY reading is an INFERRED product temp
+      (TEMPERATURE_SIMULATED) and is labeled "inferred" — same convention as
+      the grill tile's real-probe-vs-inferred note. ALWAYS_MERGE_KEYS.
+    • Food Cost AvT (NUMBERS, Owner/Sup/GM) — renderAvtFoodCost on
+      data.food_cost_avt (avt_variance_daily, v2 r365-keyed rows only):
+      theoretical vs actual food % (actual = R365 month, PRELIMINARY while
+      open), variance pts + $/day, 7-day sparkline, $-coverage; stores ranked
+      worst variance first; all-ingredient-costs-are-estimates footnote.
+      ALWAYS_MERGE_KEYS.
+    • Crew flight risk (TEAM, Owner/Sup/GM; RO excluded) — renderFlightRisk on
+      data.flight_risk (v_crew_flight_risk_store/_current): high/watch counts +
+      probability-weighted forward $ exposure per store + top at-risk crew as
+      "First L." with their top risk driver. LANE_KEYS.TEAM.
+    (fn-only sibling: advisor_briefing.turnover_line + advisor-refresh metrics
+    carry the turnover-$ line from v_advisor_turnover_line, cited — no v2 shell
+    render; the advisor panel surfaces consume it.)
+
   v2-0.43 — Supervisor GPS check-in PORTED from v1 to the TOP of the sup
   TODAY home (the v2 shell never rendered the fn check_in slice — sups lost
   the button in the v1-to-v2 link move). Server-side geofence unchanged; POST
@@ -994,7 +1020,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.46";
+const SHELL_VERSION = "v2-0.47";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1042,7 +1068,10 @@ const LANE_KEYS = {
            // v2-0.35 owner-only bonus (Q3 shadow). Owner-gated + null for non-owners,
            // so it's kept OUT of LANE_DISTINCTIVE (can't prove a TEAM load). Listed
            // here so a lazy TEAM fetch actually copies data.bonus into STATE.
-           "bonus"],
+           "bonus",
+           // v2-0.47 crew flight risk (Owner/Sup/GM, RO excluded → role-gated,
+           // so NOT in LANE_DISTINCTIVE; listed so the lazy TEAM fetch copies it).
+           "flight_risk"],
   MORE:   ["campaigns", "rgr", "check_in", "meeting", "contacts", "owner_pulse", "manual_reports",
            "advisor_briefing", "key_dates", "hazel"],
 };
@@ -4597,6 +4626,167 @@ function renderMealBreakTracker(data){
     { through: mb.data_through || undefined, newBadge: true });
 }
 
+/* =========================================================================
+   v2-0.47 BRAIN-MODULE SWEEP — four render fns, ADDED ADDITIVELY (render fns
+   + MANIFEST rows; no other module's code touched). Each self-gates on its
+   data slice (the fn role-gates server-side and returns null otherwise), so
+   an older fn or an out-of-scope role simply renders nothing.
+   ========================================================================= */
+
+// severity -> exception-row classes (shared by the brief + temp watch rows).
+function brainSev(s){
+  const v = String(s||"").toLowerCase();
+  if(v==="high"||v==="bad"||v==="critical"||v==="urgent") return "sev-bad";
+  if(v==="medium"||v==="warn"||v==="watch") return "sev-warn";
+  return "sev-info";
+}
+
+// MODULE — Today's Brief (TODAY, all manager tiers): top-3 items for this
+// viewer's scope from the operator_brief engine. The fn returns null when
+// there is no brief for today (engine ships in parallel) — card self-removes.
+function renderTodaysBrief(data){
+  const b = data.todays_brief;
+  if(!b || !(b.items||[]).length) return "";
+  const rows = b.items.slice(0,3).map(function(it){
+    const sc = brainSev(it.severity);
+    return '<div class="exrow '+sc+'" style="cursor:default">'
+      + '<div><span class="exsev '+sc+'">'+esc(String(it.severity||"info").toUpperCase())+'</span> '
+      + '<b>'+esc(it.headline||"")+'</b></div>'
+      + (it.why?'<div class="mut" style="font-size:12px;margin-top:2px">'+esc(it.why)+'</div>':'')
+      + (it.lever?'<div style="font-size:12px;margin-top:2px">Do: <b>'+esc(it.lever)+'</b></div>':'')
+      + (it.citation?'<div class="mut" style="font-size:11px;margin-top:2px">source: '+esc(it.citation)+'</div>':'')
+      + '</div>';
+  }).join("");
+  return card("Today’s Brief", rows
+    + '<div class="cap">Top 3 for your scope from the operator brief engine. Every item cites its source.</div>',
+    { icon:"🧠", through: b.data_through || b.brief_date || undefined, newBadge:true });
+}
+
+// MODULE — Temp watch (TODAY, Owner/Sup/GM): open refrigeration excursions
+// from the temp_watch state, worst first, + an explicit all-clear. EVERY
+// reading is an INFERRED product temp (TEMPERATURE_SIMULATED) and is labeled
+// "inferred" — the same convention the grill tile uses to distinguish real
+// probe reads. Inferred readings never page; this is a watch surface.
+function renderTempWatch(data){
+  const tw = data.temp_watch;
+  if(!tw) return "";
+  const open = tw.open||[];
+  let body;
+  if(!open.length){
+    body = '<div class="vflags"><span class="flag good">all clear — no open temp excursions</span></div>';
+  } else {
+    body = open.map(function(r){
+      const sc = (r.band==="critical"||r.kind==="silent") ? "sev-bad" : "sev-warn";
+      const lab = r.kind==="silent" ? "SILENT" : String(r.band||"watch").toUpperCase();
+      return '<div class="exrow '+sc+'" style="cursor:default">'
+        + '<div><span class="exsev '+sc+'">'+lab+'</span> <b>'+esc(r.store_name)+'</b> · '+esc(r.sensor_name||"sensor")
+        + (r.unit_kind?' <span class="mut">('+esc(r.unit_kind)+')</span>':'')+'</div>'
+        + '<div style="font-size:12px;margin-top:2px">'
+        + (r.reading_f!=null
+            ? '<b>'+Number(r.reading_f).toFixed(1)+'&deg;F</b> <span class="flag warn" style="font-size:9px;padding:1px 5px">inferred</span> at '+esc(fmtCT(r.reading_ts))
+            : 'sensor stopped reporting')
+        + (r.open_hours!=null?' <span class="mut">· open '+esc(r.open_hours)+'h</span>':'')
+        + '</div>'
+        + (r.threshold_note?'<div class="mut" style="font-size:11px;margin-top:2px">'+esc(r.threshold_note)+'</div>':'')
+        + '</div>';
+    }).join("");
+  }
+  body += '<div class="cap">'+esc(tw.source_note||"")+'</div>';
+  return card("Temp watch", body,
+    { icon:"🌡️", through: tw.data_through ? fmtCT(tw.data_through) : undefined, newBadge:true });
+}
+
+// MODULE — Food Cost AvT (NUMBERS, Owner/Sup/GM): actual vs theoretical food %
+// per store, ranked worst variance first (server-sorted). Honest about the
+// two big caveats: actual is the PRELIMINARY open-month R365 %, and every
+// ingredient cost in the theoretical is an estimate.
+function renderAvtFoodCost(data){
+  const av = data.food_cost_avt;
+  if(!av || !(av.stores||[]).length) return "";
+  const pf = function(v){ return v==null ? "—" : Number(v).toFixed(1)+"%"; };
+  const money = function(v){ return v==null ? "—" : "$"+Math.round(Math.abs(Number(v))).toLocaleString(); };
+  const vTxt = function(v){ return v==null ? "—" : (v>0?"+":"")+Number(v).toFixed(1); };
+  let body = "";
+  if(av.multi_store){
+    body += av.stores.map(function(s){
+      const spark = sparkline((s.trend||[]).map(function(t){ return t.pts; }), {w:84,h:18});
+      return '<div class="row"><span class="nm">'+esc(s.store_name)
+        + (s.actual_is_preliminary?' <span class="flag prelim" style="font-size:9px;padding:1px 5px">prelim</span>':'')+'</span>'
+        + '<span class="vl">'+vTxt(s.variance_pct)+'<span class="un"> pt</span></span>'
+        + '<span class="mut" style="font-size:11px;margin-left:8px">'+pf(s.theoretical_food_pct)+' theo → '+pf(s.actual_food_pct)+' act · '
+        + money(s.variance_usd)+'/day · cov '+pf(s.coverage_pct)+'</span>'
+        + (spark?'<span style="margin-left:auto">'+spark+'</span>':'')
+        + '</div>';
+    }).join("");
+    body = '<div class="board">'+body+'</div>'
+      + '<div class="cap">Worst variance first. “prelim” = the actual % is the open R365 month.</div>';
+  } else {
+    const s = av.stores[0];
+    body += glanceTrio([
+      { label:"Theoretical", value: pf(s.theoretical_food_pct) },
+      { label:"Actual"+(s.actual_is_preliminary?" (prelim)":""), value: pf(s.actual_food_pct) },
+      { label:"Variance", value: vTxt(s.variance_pct)+"pt", cls:(s.variance_pct!=null && s.variance_pct>=3?"bad":"") },
+    ]);
+    const spark = sparkline((s.trend||[]).map(function(t){ return t.pts; }), {w:160,h:24});
+    body += '<div class="row"><span class="mut" style="font-size:12px">'+money(s.variance_usd)+'/day est. variance · map covers '+pf(s.coverage_pct)+' of product sales</span>'
+      + (spark?'<span style="margin-left:auto">'+spark+'</span>':'')+'</div>';
+  }
+  body += '<div class="cap">'+esc(av.footnote||"All ingredient costs are estimates.")+'</div>';
+  return card("Food Cost AvT", body,
+    { icon:"🍔", through: av.data_through || undefined, newBadge:true });
+}
+
+// MODULE — Crew flight risk (TEAM, Owner/Sup/GM; fn never sends it to RO/
+// guest tokens): forward-looking attrition risk. High/watch counts + the
+// probability-weighted forward $ exposure per store, then the top at-risk
+// crew ("First L." labels only — GEIDs never reach the client) with each
+// person's top risk driver.
+function renderFlightRisk(data){
+  const fr = data.flight_risk;
+  if(!fr || !(fr.stores||[]).length) return "";
+  const money = function(v){ return v==null ? "—" : "$"+Math.round(Number(v)).toLocaleString(); };
+  let body = "";
+  const hero = fr.org || (fr.stores.length===1 ? {
+    high_count: fr.stores[0].high_count, watch_count: fr.stores[0].watch_count,
+    forward_exposure_usd: fr.stores[0].forward_exposure_usd,
+  } : null);
+  if(hero){
+    body += '<div class="vflags">'
+      + (Number(hero.high_count)? '<span class="flag warn">'+esc(hero.high_count)+' high risk</span>':'')
+      + (Number(hero.watch_count)? '<span class="flag warn">'+esc(hero.watch_count)+' watch</span>':'')
+      + ((!Number(hero.high_count) && !Number(hero.watch_count))? '<span class="flag good">no crew flagged</span>':'')
+      + '<span class="flag recon">'+money(hero.forward_exposure_usd)+' forward exposure</span>'
+      + '</div>';
+  }
+  if(fr.multi_store){
+    body += '<div class="board">'+fr.stores.map(function(s){
+      return '<div class="row"><span class="nm">'+esc(s.store_name)+'</span>'
+        + '<span class="vl">'+esc(s.high_count||0)+'<span class="un"> high</span></span>'
+        + '<span class="mut" style="font-size:11px;margin-left:8px">'+esc(s.watch_count||0)+' watch · '
+        + money(s.forward_exposure_usd)+' exposure · '+esc(s.scored||0)+' scored</span></div>';
+    }).join("")+'</div>';
+  }
+  const tc = fr.top_crew||[];
+  if(tc.length){
+    body += '<div class="mut" style="font-size:11px;font-weight:700;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em">Top at-risk crew</div>'
+      + tc.map(function(c){
+          const sc = c.risk_band==="high" ? "sev-bad" : "sev-warn";
+          return '<div class="exrow '+sc+'" style="cursor:default">'
+            + '<div><span class="exsev '+sc+'">'+esc(String(c.risk_band||"").toUpperCase())+'</span> <b>'+esc(c.crew_label)+'</b> '
+            + '<span class="mut" style="font-size:11px">'+esc(c.store_name)
+            + (c.tenure_days!=null?' · day '+esc(c.tenure_days):'')
+            + (c.risk_score!=null?' · score '+esc(Math.round(Number(c.risk_score))):'')+'</span></div>'
+            + (c.top_signal_detail?'<div class="mut" style="font-size:11px;margin-top:2px">'+esc(c.top_signal_detail)+'</div>':'')
+            + '</div>';
+        }).join("");
+  }
+  body += '<div class="cap">Forward exposure = '+esc(fr.exposure_basis||"high + probability-weighted watch")
+    + ' at '+money(fr.cost_per_exit_usd)+' per exit. '+esc(fr.coverage_note||"")
+    + ' Names show as first name + last initial.</div>';
+  return card("Crew flight risk", body,
+    { icon:"🚪", through: fr.data_through || undefined, newBadge:true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -4606,6 +4796,9 @@ const MANIFEST = [
   { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
   // v2-0.46: supervisor meal-break spotlight (5 weeks; self-removes when fn returns null).
   { id:"today_mealbreak",  lane:"TODAY", title:"Meal breaks not recorded", render: renderMealBreakTracker, newBadge:true },
+  // v2-0.47: Today's Brief — top-3 brain items for this scope (all manager
+  // tiers; self-removes while the operator_brief engine has no row for today).
+  { id:"today_brief",      lane:"TODAY", title:"Today’s Brief",           render: renderTodaysBrief,     newBadge:true },
   { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
@@ -4625,6 +4818,9 @@ const MANIFEST = [
   // v2-0.34: Jolt Ops entry module — compact checklist/food-safety + temp-alert
   // summary; tap opens the FULL Jolt Ops view (drill sheet, mockup jolt-ops.html).
   { id:"today_jolt",       lane:"TODAY", title:"Jolt Ops",                render: renderTodayJolt,       newBadge:true },
+  // v2-0.47: refrigeration temp watch — open excursions + all-clear; every
+  // reading labeled INFERRED (TEMPERATURE_SIMULATED). Owner/Sup/GM (fn-gated).
+  { id:"today_tempwatch",  lane:"TODAY", title:"Temp watch",              render: renderTempWatch,       newBadge:true },
   // v2-0.41: Grill min-temps HOME tile — MOVED out of the Jolt section for
   // Owner/Sup/GM (Eddie 2026-07-10). Render self-gates on data.grill_temps_home,
   // which the Fn sends only to those roles; Department keeps the Jolt-section
@@ -4648,6 +4844,9 @@ const MANIFEST = [
   { id:"numbers_ledger",   lane:"NUMBERS", title:"Up-to-PAC P&L",        render: renderPacLedger,       newBadge:true },
   { id:"numbers_waterfall",lane:"NUMBERS", title:"Sales → PAC",          render: renderNumbersWaterfall },
   { id:"numbers_bullets",  lane:"NUMBERS", title:"Cost discipline",      render: renderNumbersBullets  },
+  // v2-0.47: Food Cost AvT — theoretical vs actual food %, worst variance
+  // first; PRELIMINARY-labeled actuals + all-costs-are-estimates footnote.
+  { id:"numbers_avt",      lane:"NUMBERS", title:"Food Cost AvT",        render: renderAvtFoodCost,     newBadge:true },
   { id:"numbers_invoices", lane:"NUMBERS", title:"MTD Invoice Tracker",  render: renderNumbersInvoices, newBadge:true },
   { id:"numbers_doordash", lane:"NUMBERS", title:"DoorDash rates",       render: renderNumbersDoorDash, newBadge:true },
   { id:"numbers_lto",      lane:"NUMBERS", title:"LTO leaderboard",      render: renderNumbersLto      },
@@ -4669,6 +4868,9 @@ const MANIFEST = [
   { id:"team_floor",        lane:"TEAM", title:"Floor — who's on now",    render: renderTeamFloor,         newBadge:true },
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
+  // v2-0.47: crew flight risk — forward-looking attrition risk (Owner/Sup/GM;
+  // fn never sends it to RO/guest tokens; First L. labels only).
+  { id:"team_flightrisk",   lane:"TEAM", title:"Crew flight risk",        render: renderFlightRisk,      newBadge:true },
   // v2-0.26 (task #24): QSRSoft manager_rank card = the v1 original with ALL
   // designated leaders + R2P — the PRIMARY scorecard candidate. The two cards
   // after it stay mounted until Eddie decides swap-vs-keep (§2A handoff).
@@ -4773,7 +4975,9 @@ window.renderBoard = renderBoard;
    every loaded lane the lane-scoped response did not carry. */
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
                            "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home",
-                           "grill_temps_home","check_in","_meta"];
+                           "grill_temps_home","check_in","_meta",
+                           // v2-0.47 brain slices that ride the lean TODAY/NUMBERS gather:
+                           "todays_brief","temp_watch","food_cost_avt"];
 function mergePostPayload(payload, askedLanes){
   if(!STATE || !STATE.data){ STATE = payload; return STATE; }
   const incoming = (payload && payload.data) || {};
