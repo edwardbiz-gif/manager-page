@@ -1,8 +1,13 @@
 <!doctype html>
-<!-- kitchen.html v6 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v7 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v7 (2026-07-12, Eddie): SHIFT SHOWDOWN card (fn v10 `shiftShowdown` payload) — the store's own
+     dayparts ranked by current-month MTD guest OSAT (SMG VOICE daypart feeds), medal podium rows,
+     crown on the leading shift, delta-vs-org-same-daypart pill + trend arrow vs prior month,
+     bilingual EN/ES. A daypart whose feed is delayed (registry is_fresh=false) renders a dimmed
+     "Data delayed" row — never a stale number as current. Data-through date stated on the card.
      v6 (2026-07-10, Eddie): (1) BILINGUAL — every card now renders English + Spanish (crew-facing;
      editable kitchen_screen_cards render as authored — author them bilingual with // line breaks).
      (2) NEW MTD KVS RACE card (fn v8 `kvs` payload): current-month make-line speed, all 12 stores,
@@ -44,6 +49,21 @@
   .fill{width:100%;background:linear-gradient(#FFC72C,#DA291C);border-radius:1vh 1vh 0 0;min-height:2vh}
   .bv{font-size:2.6vh;font-weight:800;margin-top:1vh}.bm{font-size:2.4vh;color:#bbb}
   .fine{font-size:2.2vh;color:#999}
+  /* v7 Shift Showdown — podium rows */
+  .sdrow{display:flex;align-items:center;gap:1.4vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
+  .sdrow.lead{background:linear-gradient(90deg,#6e5600,#1c1c1c 70%);box-shadow:inset 0 0 0 .35vh #FFC72C}
+  .sdrow.dim{opacity:.5}
+  .sdrow .md{font-size:4.4vh;width:5.5vw;text-align:center}
+  .sdrow .shift{flex:1;text-align:left;display:flex;flex-direction:column;gap:.2vh}
+  .sdrow .sn{font-size:3.4vh;font-weight:900}
+  .sdrow .sn .es{color:#e0ad1f;font-weight:800;font-size:2.7vh}
+  .sdrow .sw{font-size:2vh;color:#aaa;font-weight:600}
+  .sdrow .osat{font-size:5.2vh;font-weight:900;color:#FFC72C;min-width:13vw;text-align:right;line-height:1}
+  .sdrow .osat .u{font-size:2.6vh;color:#fff;font-weight:700}
+  .sdrow .pills{display:flex;flex-direction:column;align-items:flex-end;gap:.5vh;min-width:17vw}
+  .sdpill{font-size:2vh;font-weight:800;border-radius:1vh;padding:.3vh 1.2vw;background:#262626;color:#ccc}
+  .sdpill.up{color:#46e07a}.sdpill.dn{color:#ff7a6b}
+  .sdrow .dly{font-size:2.5vh;font-weight:800;color:#bbb;text-align:right;flex:1}
   #foot{position:fixed;bottom:1.5vh;width:100%;text-align:center;color:#777;font-size:2vh}
   #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#FFC72C;text-align:center;padding:6vw}
 </style></head><body>
@@ -93,6 +113,43 @@ function buildCards(d){
       '<div class="board compact">'+
       k.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.kvs_s)+'<span class="un">s</span></span></div>').join("")+'</div>'+
       '<div class="fine">through / hasta '+esc(k.through||"")+' · '+esc(k.days)+' days · make-line screens 1+2, calibrated to QSRSoft / pantallas 1+2, calibrado a QSRSoft</div>'});
+  }
+  // 2c) SHIFT SHOWDOWN (fn v10) — dayparts ranked by MTD guest OSAT; crown the leader (bilingual)
+  if(d.shiftShowdown&&d.shiftShowdown.dayparts&&d.shiftShowdown.dayparts.some(p=>p.rank!=null)){
+    const sd=d.shiftShowdown, MD=["🥇","🥈","🥉","🏅"];
+    const rows=sd.dayparts.filter(p=>p.rank!=null).slice().sort((a,b)=>a.rank-b.rank);
+    const out=sd.dayparts.filter(p=>p.rank==null);
+    const tail=rows.length>1?rows[rows.length-1]:null;
+    const cheer=tail?(tail.key==="base_4p_12a"
+      ?'Beat the dinner slump — the crown is up for grabs!'
+      :esc(tail.label_en)+' crew — the crown is up for grabs!'):'';
+    const cheerEs=tail?(tail.key==="base_4p_12a"
+      ?'¡A vencer el bajón de la cena — la corona está en juego!'
+      :'¡Equipo de '+esc(tail.label_es.toLowerCase())+' — la corona está en juego!'):'';
+    const pills=p=>{
+      let h='';
+      if(p.delta!=null) h+='<span class="sdpill '+(p.delta>=0?'up':'dn')+'">'+(p.delta>=0?'+':'−')+Math.abs(p.delta).toFixed(1)+' vs org · same shift / mismo turno</span>';
+      if(p.arrow==='up') h+='<span class="sdpill up">▲ up vs '+esc(sd.prev_month)+' / sube vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='down') h+='<span class="sdpill dn">▼ down vs '+esc(sd.prev_month)+' / baja vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='flat') h+='<span class="sdpill">▬ even vs '+esc(sd.prev_month)+' / igual vs '+esc(mes(sd.prev_month))+'</span>';
+      return h;
+    };
+    const rowH=rows.map(p=>'<div class="sdrow'+(p.rank===1?' lead':'')+'">'+
+      '<span class="md">'+(MD[p.rank-1]||p.rank)+'</span>'+
+      '<span class="shift"><span class="sn">'+(p.rank===1?'👑 ':'')+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span>'+
+      '<span class="sw">'+esc(p.window)+(p.n!=null?' · '+p.n+' surveys / encuestas':'')+(p.org!=null?' · org '+p.org.toFixed(1)+'%':'')+'</span></span>'+
+      '<span class="osat">'+p.osat.toFixed(1)+'<span class="u">%</span></span>'+
+      '<span class="pills">'+pills(p)+'</span></div>').join("");
+    const outH=out.map(p=>'<div class="sdrow dim"><span class="md">⏳</span>'+
+      '<span class="shift"><span class="sn">'+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span><span class="sw">'+esc(p.window)+'</span></span>'+
+      '<span class="dly">'+(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados')+'</span></div>').join("");
+    cards.push({a:"red",h:kick2(
+        'Shift Showdown · '+esc(sd.month)+' — month to date'+(sd.data_through?' · data through '+esc(sd.data_through):''),
+        'Duelo de turnos · '+esc(mes(sd.month))+' — mes en curso'+(sd.data_through?' · datos hasta '+esc(sd.data_through):''))+
+      title2es('Which shift wins our guests?','¿Qué turno conquista a nuestros clientes?')+
+      (cheer?'<div class="sub" style="font-size:3.3vh">'+cheer+'</div><div class="sub-es" style="font-size:2.7vh">'+cheerEs+'</div>':'')+
+      '<div class="board" style="width:82vw">'+rowH+outH+'</div>'+
+      '<div class="fine">MTD guest OSAT by shift vs the same shift org-wide · SMG VOICE daypart feeds / OSAT del mes por turno vs el mismo turno en toda la organización</div>'});
   }
   // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (bilingual header; quotes as written)
   (d.feedback||[]).forEach(g=>{

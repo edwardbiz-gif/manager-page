@@ -1,5 +1,11 @@
 <!doctype html>
-<!-- service.html v7 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v8 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+     v8 (2026-07-12, Eddie): SHIFT SHOWDOWN card (fn v10 `shiftShowdown` payload) — the store's own
+     dayparts ranked by current-month MTD guest OSAT (SMG VOICE daypart feeds), medal podium rows,
+     crown on the leading shift, delta-vs-org-same-daypart pill + trend arrow vs prior month.
+     BILINGUAL EN/ES (kitchen.html's i18n pattern — kick2/title2es/mes helpers now here too).
+     A daypart whose feed is delayed (registry is_fresh=false) renders a dimmed "Data delayed"
+     row — never a stale number as current. Data-through date stated on the card.
      v7 (2026-07-10, Eddie): EAD MTD card (pairs with fn v8 `ead` payload) — EAD % + rank of
      reporting stores + gap to #1 + org avg, Greeted-by-Name / Asked-if-App driver tiles, and
      a ranked bar graphic of all reporting stores (this store highlighted). Bonus-tier colored
@@ -50,8 +56,11 @@
   .card.win .winname{font-size:9vh;font-weight:900;color:#FFC72C;line-height:1}
   .card.win .winsub{font-size:4.6vh;font-weight:800}
   .kicker{color:#37C2FF;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
+  .kicker .es{display:block;letter-spacing:.08em;color:#2b96c9;font-size:2.2vh;margin-top:.4vh}
   .title{font-size:7vh;font-weight:900;line-height:1}
   .title2{font-size:5.2vh;font-weight:900;color:#37C2FF}
+  .t-es{font-size:3vh;font-weight:800;color:#7fd4ff;margin-top:-.6vh}
+  .sub-es{font-size:3.2vh;font-weight:700;max-width:82vw;color:#8fd0f5}
   .huge{font-size:21vh;font-weight:900;line-height:.9;color:#FFC72C}
   .huge .of{font-size:6vh;color:#fff;font-weight:700}
   .sub{font-size:4.2vh;font-weight:700;max-width:82vw}
@@ -102,6 +111,21 @@
   .bar{width:10vw;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
   .fill{width:100%;background:linear-gradient(#37C2FF,#1f6fd6);border-radius:1vh 1vh 0 0;min-height:2vh}
   .bv{font-size:2.4vh;font-weight:800;margin-top:1vh}.bm{font-size:2.2vh;color:#9bb}
+  /* v8 Shift Showdown — podium rows (service palette) */
+  .sdrow{display:flex;align-items:center;gap:1.4vw;background:#13243f;padding:1vh 2vw;border-radius:1vh}
+  .sdrow.lead{background:linear-gradient(90deg,#6e5600,#13243f 70%);box-shadow:inset 0 0 0 .35vh #FFC72C}
+  .sdrow.dim{opacity:.5}
+  .sdrow .md{font-size:4.4vh;width:5.5vw;text-align:center}
+  .sdrow .shift{flex:1;text-align:left;display:flex;flex-direction:column;gap:.2vh}
+  .sdrow .sn{font-size:3.4vh;font-weight:900}
+  .sdrow .sn .es{color:#7fd4ff;font-weight:800;font-size:2.7vh}
+  .sdrow .sw{font-size:2vh;color:#9bb;font-weight:600}
+  .sdrow .osat{font-size:5.2vh;font-weight:900;color:#FFC72C;min-width:13vw;text-align:right;line-height:1}
+  .sdrow .osat .u{font-size:2.6vh;color:#fff;font-weight:700}
+  .sdrow .pills{display:flex;flex-direction:column;align-items:flex-end;gap:.5vh;min-width:17vw}
+  .sdpill{font-size:2vh;font-weight:800;border-radius:1vh;padding:.3vh 1.2vw;background:#0e1b30;color:#bcd}
+  .sdpill.up{color:#46e07a}.sdpill.dn{color:#ff7a6b}
+  .sdrow .dly{font-size:2.5vh;font-weight:800;color:#9bb;text-align:right;flex:1}
   #foot{position:fixed;bottom:1.4vh;width:100%;text-align:center;color:#6b8;font-size:1.9vh}
   #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#37C2FF;text-align:center;padding:6vw}
 </style></head><body>
@@ -115,6 +139,12 @@ const qs = new URLSearchParams(location.search);
 const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const ord = n => { const s=["th","st","nd","rd"],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
 const fmt = (v,dec=0) => v==null ? "—" : Number(v).toFixed(dec);
+// v8 bilingual helpers — kitchen.html's i18n pattern (Spanish month names + two-line kicker/title)
+const MES = {January:"enero",February:"febrero",March:"marzo",April:"abril",May:"mayo",June:"junio",
+  July:"julio",August:"agosto",September:"septiembre",October:"octubre",November:"noviembre",December:"diciembre"};
+const mes = m => MES[m]||m;
+const kick2 = (en,es) => '<div class="kicker">'+en+'<span class="es">'+es+'</span></div>';
+const title2es = (en,es) => '<div class="title2">'+en+'</div>'+(es?'<div class="t-es">'+es+'</div>':'');
 // OEPE goal tone: lower seconds = faster = better. g.oepe_o (Outstanding) is the toughest target.
 const oepeTone = (v,g) => v==null ? "" : (v<=g.oepe_o ? "good" : (v<=g.oepe_g ? "" : "bad"));
 // R2P goal tone: lower seconds better. r2p_g (40) is best, r2p_p (60) is the floor.
@@ -224,6 +254,44 @@ function buildCards(d){
     cards.push({a:"teal",h:'<div class="kicker">The Board · '+esc(mr.month)+' MTD · drive-thru OEPE (lower = faster)</div>'+
       '<div class="title2">Drive-thru speed — all '+mr.total+'</div><div class="board">'+
       mr.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+fmt(r.oepe)+'<span class="un">s</span></span></div>').join("")+'</div>'});
+  }
+
+  // 2c) SHIFT SHOWDOWN (fn v10) — dayparts ranked by MTD guest OSAT; crown the leader (bilingual)
+  if(d.shiftShowdown&&d.shiftShowdown.dayparts&&d.shiftShowdown.dayparts.some(p=>p.rank!=null)){
+    const sd=d.shiftShowdown, MD=["🥇","🥈","🥉","🏅"];
+    const rows=sd.dayparts.filter(p=>p.rank!=null).slice().sort((a,b)=>a.rank-b.rank);
+    const out=sd.dayparts.filter(p=>p.rank==null);
+    const tail=rows.length>1?rows[rows.length-1]:null;
+    const cheer=tail?(tail.key==="base_4p_12a"
+      ?'Beat the dinner slump — the crown is up for grabs!'
+      :esc(tail.label_en)+' crew — the crown is up for grabs!'):'';
+    const cheerEs=tail?(tail.key==="base_4p_12a"
+      ?'¡A vencer el bajón de la cena — la corona está en juego!'
+      :'¡Equipo de '+esc(tail.label_es.toLowerCase())+' — la corona está en juego!'):'';
+    const pills=p=>{
+      let h='';
+      if(p.delta!=null) h+='<span class="sdpill '+(p.delta>=0?'up':'dn')+'">'+(p.delta>=0?'+':'−')+Math.abs(p.delta).toFixed(1)+' vs org · same shift / mismo turno</span>';
+      if(p.arrow==='up') h+='<span class="sdpill up">▲ up vs '+esc(sd.prev_month)+' / sube vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='down') h+='<span class="sdpill dn">▼ down vs '+esc(sd.prev_month)+' / baja vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='flat') h+='<span class="sdpill">▬ even vs '+esc(sd.prev_month)+' / igual vs '+esc(mes(sd.prev_month))+'</span>';
+      return h;
+    };
+    const rowH=rows.map(p=>'<div class="sdrow'+(p.rank===1?' lead':'')+'">'+
+      '<span class="md">'+(MD[p.rank-1]||p.rank)+'</span>'+
+      '<span class="shift"><span class="sn">'+(p.rank===1?'👑 ':'')+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span>'+
+      '<span class="sw">'+esc(p.window)+(p.n!=null?' · '+p.n+' surveys / encuestas':'')+(p.org!=null?' · org '+p.org.toFixed(1)+'%':'')+'</span></span>'+
+      '<span class="osat">'+p.osat.toFixed(1)+'<span class="u">%</span></span>'+
+      '<span class="pills">'+pills(p)+'</span></div>').join("");
+    const outH=out.map(p=>'<div class="sdrow dim"><span class="md">⏳</span>'+
+      '<span class="shift"><span class="sn">'+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span><span class="sw">'+esc(p.window)+'</span></span>'+
+      '<span class="dly">'+(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados')+'</span></div>').join("");
+    cards.push({a:"gold",h:kick2(
+        'Shift Showdown · '+esc(sd.month)+' — month to date'+(sd.data_through?' · data through '+esc(sd.data_through):''),
+        'Duelo de turnos · '+esc(mes(sd.month))+' — mes en curso'+(sd.data_through?' · datos hasta '+esc(sd.data_through):''))+
+      title2es('Which shift wins our guests?','¿Qué turno conquista a nuestros clientes?')+
+      (cheer?'<div class="sub" style="font-size:3.3vh">'+cheer+'</div><div class="sub-es" style="font-size:2.7vh">'+cheerEs+'</div>':'')+
+      '<div class="board" style="width:82vw">'+rowH+outH+'</div>'+
+      '<div class="fine">MTD guest OSAT by shift vs the same shift org-wide · SMG VOICE daypart feeds / OSAT del mes por turno vs el mismo turno en toda la organización</div>'});
   }
 
   // 5) LIVE TODAY (DataPass daily feed)
