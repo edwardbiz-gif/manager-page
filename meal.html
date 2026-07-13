@@ -180,7 +180,11 @@ function fillEmployees(){
   }
   // v2 groups; falls back to the v1 payload keys if an old fn answers.
   group('On the clock - no meal yet', boot.employees_on_clock_no_meal || boot.employees_scheduled_now);
-  group('Already logged today', boot.employees_already_logged);
+  // v2-0.48: 🍽 marks people whose meal is already logged today (same icon as
+  // the board's floor view) — the group label said it, the icon makes it visual.
+  group('Already logged today', (boot.employees_already_logged || []).map(function(e){
+    return { geid: e.geid, name: '🍽 ' + e.name };
+  }));
   group('All crew', boot.employees_other);
   var mg = boot.management || [];
   if (mg.length) {
