@@ -1,8 +1,12 @@
 <!doctype html>
-<!-- kitchen.html v7 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v8 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v8 (2026-07-13, Eddie ruling): Shift Showdown empty rows prefer fn-provided `state_copy`
+     (fn v12) — the late-night row now reads "Not enough overnight surveys / Pocas encuestas
+     nocturnas" (Base 12a-5a retired as a daily expectation; "Data delayed" implied data was
+     coming). Dimmed styling + generic fallbacks unchanged.
      v7 (2026-07-12, Eddie): SHIFT SHOWDOWN card (fn v10 `shiftShowdown` payload) — the store's own
      dayparts ranked by current-month MTD guest OSAT (SMG VOICE daypart feeds), medal podium rows,
      crown on the leading shift, delta-vs-org-same-daypart pill + trend arrow vs prior month,
@@ -142,7 +146,7 @@ function buildCards(d){
       '<span class="pills">'+pills(p)+'</span></div>').join("");
     const outH=out.map(p=>'<div class="sdrow dim"><span class="md">⏳</span>'+
       '<span class="shift"><span class="sn">'+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span><span class="sw">'+esc(p.window)+'</span></span>'+
-      '<span class="dly">'+(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados')+'</span></div>').join("");
+      '<span class="dly">'+esc(p.state_copy||(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados'))+'</span></div>').join("");
     cards.push({a:"red",h:kick2(
         'Shift Showdown · '+esc(sd.month)+' — month to date'+(sd.data_through?' · data through '+esc(sd.data_through):''),
         'Duelo de turnos · '+esc(mes(sd.month))+' — mes en curso'+(sd.data_through?' · datos hasta '+esc(sd.data_through):''))+
