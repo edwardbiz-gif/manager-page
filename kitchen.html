@@ -1,8 +1,15 @@
 <!doctype html>
-<!-- kitchen.html v8 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+<!-- kitchen.html v9 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
      https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
      (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
      Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v9 (2026-07-16, Eddie): TREND card redesigned — the flat/near-equal bar chart was replaced
+     with an animated auto-scaled LINE graph (amber→red draw-in, glowing pulse nodes, big value
+     labels, month axis, YTD dashed reference line). The y-band auto-fits the data so e.g. 57 vs 68
+     reads as a real difference (the old bars looked near-equal). Re-animates each time the card
+     rotates in. Same data shape (d.trend=[{m,v}], d.qualityThrough, d.qualityYtd); the bilingual
+     header (kick2/title2es) + rotate/fade behavior are unchanged. (Base = out/kitchen-trend-designs
+     design-a "Glow & Flow"; grafted the YTD reference line + rotate-in re-animation from design-b.)
      v8 (2026-07-13, Eddie ruling): Shift Showdown empty rows prefer fn-provided `state_copy`
      (fn v12) — the late-night row now reads "Not enough overnight surveys / Pocas encuestas
      nocturnas" (Base 12a-5a retired as a daily expectation; "Data delayed" implied data was
@@ -70,6 +77,21 @@
   .sdrow .dly{font-size:2.5vh;font-weight:800;color:#bbb;text-align:right;flex:1}
   #foot{position:fixed;bottom:1.5vh;width:100%;text-align:center;color:#777;font-size:2vh}
   #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#FFC72C;text-align:center;padding:6vw}
+  /* v9 quality-trend line graph (design-a "Glow & Flow" base + design-b YTD line) */
+  .kt-chart{width:88vw;height:50vh;position:relative}
+  .kt-chart svg{width:100%;height:100%;display:block;overflow:visible}
+  .kt-line,.kt-glow{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);
+    animation:ktDraw 2.1s cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes ktDraw{to{stroke-dashoffset:0}}
+  .kt-area{opacity:0;animation:ktReveal 1.4s ease .9s forwards}
+  .kt-ytd{opacity:0;animation:ktReveal .8s ease 1.1s forwards}
+  @keyframes ktReveal{to{opacity:1}}
+  .kt-halo{transform-box:fill-box;transform-origin:center;animation:ktHalo 2.4s ease-in-out infinite}
+  @keyframes ktHalo{0%,100%{opacity:.28;transform:scale(1)}50%{opacity:.65;transform:scale(1.7)}}
+  .kt-vlabel{opacity:0;animation:ktPop .5s cubic-bezier(.2,1.4,.3,1) forwards}
+  @keyframes ktPop{from{opacity:0;transform:translateY(10px) scale(.7)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .kt-mlabel{opacity:0;animation:ktFade .6s ease forwards}
+  @keyframes ktFade{to{opacity:1}}
 </style></head><body>
 <div id="stage"></div><div id="foot"></div>
 <script>
@@ -84,6 +106,62 @@ const mes = m => MES[m]||m;
 // two-line bilingual kicker + title helpers
 const kick2 = (en,es) => '<div class="kicker">'+en+'<span class="es">'+es+'</span></div>';
 const title2es = (en,es) => '<div class="title2">'+en+'</div>'+(es?'<div class="t-es">'+es+'</div>':'');
+
+// v9 quality-trend line graph. Consumes the SAME fn data shape: d.trend=[{m,v}], d.qualityYtd.
+// Auto-fits the y-band to the data (incl. YTD) so close months read as visibly different.
+function trendChart(d){
+  const T=d.trend, N=T.length, vals=T.map(t=>+t.v);
+  const W=1600,H=600,mL=80,mR=80,mT=96,mB=96,iw=W-mL-mR,ih=H-mT-mB,baseY=mT+ih;
+  let lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+  const ytd=(d.qualityYtd!=null&&!isNaN(+d.qualityYtd))?+d.qualityYtd:null;
+  if(ytd!=null){ lo=Math.min(lo,ytd); hi=Math.max(hi,ytd); }
+  const span=Math.max(hi-lo,1), pad=span*0.35, yMin=lo-pad, yMax=hi+pad;
+  const X=i=> mL+(N===1?iw/2:(i/(N-1))*iw);
+  const Y=v=> mT+(1-(v-yMin)/(yMax-yMin))*ih;
+  const pts=T.map((t,i)=>({x:X(i),y:Y(+t.v),v:+t.v,m:t.m}));
+  // Catmull-Rom -> cubic bezier smoothing through every point
+  let line="M "+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
+  for(let i=0;i<N-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
+    const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
+    line+=" C "+c1x.toFixed(1)+" "+c1y.toFixed(1)+" "+c2x.toFixed(1)+" "+c2y.toFixed(1)+" "+p2.x.toFixed(1)+" "+p2.y.toFixed(1); }
+  const area=line+" L "+pts[N-1].x.toFixed(1)+" "+baseY+" L "+pts[0].x.toFixed(1)+" "+baseY+" Z";
+  let grid="";
+  for(let g=0;g<=3;g++){ const gy=mT+(g/3)*ih;
+    grid+='<line x1="'+mL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+gy.toFixed(1)+'" stroke="#fff" stroke-opacity="0.06" stroke-width="2"/>'; }
+  let ytdEl="";
+  if(ytd!=null){ const yy=Y(ytd), tagW=160, tagY=Math.max(yy-40,mT-30);
+    ytdEl='<g class="kt-ytd">'+
+      '<line x1="'+mL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+yy.toFixed(1)+'" stroke="#DA291C" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/>'+
+      '<rect x="'+(W-mR-tagW)+'" y="'+tagY.toFixed(1)+'" width="'+tagW+'" height="34" rx="8" fill="#DA291C"/>'+
+      '<text x="'+(W-mR-tagW/2)+'" y="'+(tagY+25).toFixed(1)+'" text-anchor="middle" font-size="24" font-weight="900" fill="#fff">YTD '+ytd.toFixed(1)+'</text></g>'; }
+  let dots="",vlabels="",mlabels="";
+  pts.forEach((p,i)=>{ const delay=(1.6+i*0.13).toFixed(2);
+    dots+='<circle class="kt-halo" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="16" fill="#FFC72C" style="animation-delay:'+(i*0.2).toFixed(2)+'s"/>'+
+      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="12" fill="#101010" stroke="#FFC72C" stroke-width="6" filter="url(#ktGlowf)"/>'+
+      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="5" fill="#fff"/>';
+    const ly=(p.y<mT+56)?p.y+60:p.y-38;
+    vlabels+='<text class="kt-vlabel" x="'+p.x.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="56" font-weight="900" fill="#fff" style="animation-delay:'+delay+'s" paint-order="stroke" stroke="#101010" stroke-width="7">'+p.v.toFixed(1)+'</text>';
+    mlabels+='<text class="kt-mlabel" x="'+p.x.toFixed(1)+'" y="'+(baseY+66)+'" text-anchor="middle" font-size="42" font-weight="800" fill="#FFC72C" fill-opacity="0.85" style="animation-delay:'+(0.8+i*0.08).toFixed(2)+'s">'+esc(p.m)+'</text>'; });
+  return '<div class="kt-chart"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
+    '<defs>'+
+      '<linearGradient id="ktStroke" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFC72C"/><stop offset="0.55" stop-color="#FF8A1E"/><stop offset="1" stop-color="#DA291C"/></linearGradient>'+
+      '<linearGradient id="ktFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9B1E" stop-opacity="0.55"/><stop offset="0.6" stop-color="#DA291C" stop-opacity="0.18"/><stop offset="1" stop-color="#DA291C" stop-opacity="0"/></linearGradient>'+
+      '<filter id="ktGlowf" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'+
+      '<filter id="ktBigglow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18"/></filter>'+
+    '</defs>'+grid+ytdEl+
+    '<path class="kt-area" d="'+area+'" fill="url(#ktFill)"/>'+
+    '<path class="kt-glow" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" filter="url(#ktBigglow)"/>'+
+    '<path class="kt-line" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>'+
+    dots+vlabels+mlabels+'</svg></div>';
+}
+// Set the stroke-dash length from the real path so the line draws itself in.
+function initTrend(el){
+  const lp=el.querySelector('.kt-line'), gp=el.querySelector('.kt-glow');
+  if(!lp) return;
+  const len=lp.getTotalLength();
+  lp.style.setProperty('--len',len);
+  if(gp) gp.style.setProperty('--len',len);
+}
 
 function buildCards(d){
   const cards=[];
@@ -165,23 +243,26 @@ function buildCards(d){
         '<div class="score" style="margin-top:.5vh">'+(it.name?esc(it.name)+' · ':'')+esc(it.when)+(it.star?' · guest complaint':'')+'</div>'+
         '</div>').join("")+'</div>'});
   });
-  // 4) TREND (bilingual)
-  if(d.trend&&d.trend.length>=2){ const mx=Math.max.apply(null,d.trend.map(t=>t.v).concat([1]));
-    cards.push({a:"yellow",h:kick2(
+  // 4) TREND (bilingual) — v9 animated auto-scaled LINE graph (was a flat bar chart)
+  if(d.trend&&d.trend.length>=2){
+    cards.push({a:"yellow",cls:"kt-trend",h:kick2(
         'Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · YTD '+esc(d.qualityYtd):""),
         'Nuestra tendencia de calidad'+(d.qualityYtd!=null?' · año a la fecha '+esc(d.qualityYtd):""))+
-      title2es('Overall quality','Calidad general')+'<div class="bars">'+
-      d.trend.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+t.v+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'}); }
+      title2es('Overall quality','Calidad general')+trendChart(d)}); }
   // 5..N) EDITABLE CARDS (rendered as authored — author bilingual via // line breaks)
   (d.cards||[]).forEach(c=>cards.push({a:(c.section==="contest"?"yellow":"red"),h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
   return cards;
 }
 function render(d){
   const cards=buildCards(d), stage=document.getElementById("stage");
-  stage.innerHTML=cards.map(c=>'<div class="card '+c.a+'">'+c.h+'</div>').join("");
+  stage.innerHTML=cards.map(c=>'<div class="card '+c.a+(c.cls?' '+c.cls:'')+'">'+c.h+'</div>').join("");
+  // v9: prime the trend line-graph draw-in (stash HTML so we can replay it on rotate-in)
+  [].slice.call(document.querySelectorAll('.kt-trend')).forEach(function(el){ el._html=el.innerHTML; initTrend(el); });
   document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+" / "+esc(mes(d.monthName))+(d.isCurrentMonth===false?" final":" month-to-date · mes en curso")+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from last month's VOICE — updates when this month's lands)":"");
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
-  setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
+  setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; const cur=els[i]; cur.classList.add("on");
+    // v9: replay the trend draw-in each time that card rotates into view
+    if(cur.classList.contains("kt-trend")&&cur._html){ cur.innerHTML=cur._html; initTrend(cur); } },12000);
 }
 fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
   .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Kitchen screen: '+esc(d.error||"unavailable")+'. Check the link. / Pantalla no disponible — revisa el enlace.</div>';return;} render(d); })  // store default 3444 below
