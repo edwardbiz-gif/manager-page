@@ -9,6 +9,13 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.52 — OWNER PRIORITIES SHEET (fn + shell lockstep v2-0.52, learning-loop
+  spec 03, 2026-07-20): new owner-only Priorities page (MORE lane tile ->
+  ?page=priorities) to view/edit business_priorities ranking weights (0..3 per
+  metric, org or store scope, optional season window). priority_save/priority_delete
+  via v2CallApi; the fn 403s non-owner tokens. Weights steer ranking in the brief,
+  copilot SLA, and advisor explanations.
+
   v2-0.51 — BOARD USAGE TELEMETRY (fn + shell lockstep v2-0.51, learning-loop
   spec 02, 2026-07-20): one batched cards_viewed POST per session records which
   lanes/drills the user actually opened (SEEN_CARDS -> fn audit -> refresh_usage_daily
@@ -1111,7 +1118,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.51";
+const SHELL_VERSION = "v2-0.52";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4275,6 +4282,8 @@ const PAGE_REGISTRY = {
   sl_oepe:      { route:"sl-oepe", title:"Shift Leader OEPE — MTD", render: renderSlOepePage, ttlMs: 5*60*1000 },
   // v2-0.48: New Task / Ticket form (server 403s RO/guest tokens).
   task_form:    { route:"new-task", title:"New Task / Ticket", render: renderTaskFormPage, after: tfAfterRender, ttlMs: 5*60*1000 },
+  // learning-loop spec 03: Owner-only ranking priorities (fn 403s non-owners).
+  priorities:   { route:"priorities", title:"Owner Priorities", render: renderPrioritiesPage, after: prAfterRender, ttlMs: 60*1000 },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -5282,6 +5291,115 @@ function tfAfterRender(_body, payload){
   if(box) box.innerHTML = tfAssigneeListHtml(page, tfSelectedStore("tfStore", page));
 }
 
+/* ===== Owner Priorities page (learning-loop spec 03) — owner-only ranking
+   weights. The fn 403s non-owners; this surface just reads/edits the small
+   business_priorities table. ===== */
+const PR = { page:null };
+function prStoreName(sid){
+  const s = (PR.page && (PR.page.stores||[]).find(function(x){ return x.id===sid; }));
+  return s ? (s.store_number + " " + s.location_name) : ("store #" + sid);
+}
+function renderPrioritiesPage(payload){
+  const page = (payload && payload.page) || {};
+  PR.page = page;
+  const rows = page.rows || [];
+  const vocab = page.metric_vocab || [];
+  const wOptions = function(cur){ let o=""; for(let w=0;w<=3;w++){ o += '<option value="'+w+'"'+(w===cur?" selected":"")+'>'+w+'</option>'; } return o; };
+  let tbl;
+  if(rows.length === 0){ tbl = '<div class="cap">No priorities set yet. Add one below.</div>'; }
+  else {
+    tbl = '<div style="display:flex;flex-direction:column;gap:8px">';
+    for(const r of rows){
+      const scopeLbl = (r.scope === "store") ? prStoreName(r.store_id) : "Org-wide";
+      const win = (r.window_start || r.window_end)
+        ? (" · " + (r.window_start || "…") + " to " + (r.window_end || "…")) : "";
+      const floored = (r.metric_key === "temp" || r.metric_key === "money")
+        ? ' <span class="cap">(floored at 1)</span>' : "";
+      tbl += '<div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:8px 10px">'
+        + '<div style="flex:1;min-width:0"><b>' + esc(r.metric_key) + '</b>' + floored
+        + ' <span class="cap">' + esc(scopeLbl) + esc(win) + '</span>'
+        + (r.note ? '<div class="cap">' + esc(r.note) + '</div>' : "")
+        + '</div>'
+        + '<select class="tf-inp" style="width:64px" data-id="' + r.id + '" onchange="prSaveWeight(this)">' + wOptions(r.weight) + '</select>'
+        + '<button type="button" class="tf-tab" data-id="' + r.id + '" onclick="prDelete(this)" title="remove">✕</button>'
+        + '</div>';
+    }
+    tbl += '</div>';
+  }
+  const metOpts = vocab.map(function(m){ return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join("");
+  const storeOpts = (page.stores || []).map(function(s){ return '<option value="' + s.id + '">' + esc(s.store_number + " " + s.location_name) + '</option>'; }).join("");
+  const add = '<div style="margin-top:6px">'
+    + '<label class="tf-lab">Scope</label>'
+    + '<select id="prScope" class="tf-inp" onchange="prScopeChange()"><option value="org">Org-wide</option><option value="store">One store</option></select>'
+    + '<div id="prStoreWrap" style="display:none"><label class="tf-lab">Store</label><select id="prStore" class="tf-inp">' + storeOpts + '</select></div>'
+    + '<label class="tf-lab">Metric</label><select id="prMetric" class="tf-inp">' + metOpts + '</select>'
+    + '<label class="tf-lab">Weight (0 = last, 1 = neutral, 3 = top)</label><select id="prWeight" class="tf-inp">' + wOptions(1) + '</select>'
+    + '<label class="tf-lab">Season window (optional)</label>'
+    + '<div style="display:flex;gap:8px"><input id="prWinStart" type="date" class="tf-inp"><input id="prWinEnd" type="date" class="tf-inp"></div>'
+    + '<label class="tf-lab">Note (optional)</label><input id="prNote" class="tf-inp" maxlength="200" placeholder="why this weight">'
+    + '<button type="button" class="tf-sub" onclick="prAdd(this)">Add priority</button>'
+    + '<div id="prMsg" class="cap"></div>'
+    + '</div>';
+  return '<div class="cap">Data through ' + esc(page.data_through || "") + '. Higher weight sorts first across your briefs, copilot recs, and the advisor. Food safety (temp) and cash (money) can be elevated but are never sorted below neutral.</div>'
+    + tbl
+    + '<h3 style="margin:16px 0 4px">Add a priority</h3>'
+    + add;
+}
+function prAfterRender(_body, payload){ PR.page = (payload && payload.page) || {}; }
+function prScopeChange(){
+  const s = document.getElementById("prScope");
+  const w = document.getElementById("prStoreWrap");
+  if(s && w) w.style.display = (s.value === "store") ? "block" : "none";
+}
+function prReopen(){ delete PAGE_CACHE["priorities"]; openPage("priorities", { noHistory:true }); }
+async function prSaveWeight(sel){
+  const id = Number(sel.getAttribute("data-id"));
+  const row = (PR.page.rows || []).find(function(r){ return r.id === id; });
+  if(!row) return;
+  try{
+    const res = await v2CallApi({ action:"priority_save", scope:row.scope,
+      store_id: (row.store_id != null ? String(row.store_id) : ""), metric_key: row.metric_key,
+      weight: String(sel.value), window_start: row.window_start || "", window_end: row.window_end || "",
+      note: row.note || "" });
+    if(res && res.result && res.result.ok === false){ alert(res.result.msg || "Save failed"); }
+    prReopen();
+  }catch(e){ alert("Save failed: " + (e && e.message ? e.message : e)); }
+}
+async function prDelete(btn){
+  const id = Number(btn.getAttribute("data-id"));
+  if(!confirm("Remove this priority?")) return;
+  try{
+    const res = await v2CallApi({ action:"priority_delete", id:String(id) });
+    if(res && res.result && res.result.ok === false){ alert(res.result.msg || "Delete failed"); }
+    prReopen();
+  }catch(e){ alert("Delete failed: " + (e && e.message ? e.message : e)); }
+}
+async function prAdd(btn){
+  const scope = document.getElementById("prScope").value;
+  const store_id = (scope === "store") ? document.getElementById("prStore").value : "";
+  const metric_key = document.getElementById("prMetric").value;
+  const weight = document.getElementById("prWeight").value;
+  const window_start = document.getElementById("prWinStart").value || "";
+  const window_end = document.getElementById("prWinEnd").value || "";
+  const note = document.getElementById("prNote").value || "";
+  const msg = document.getElementById("prMsg");
+  btn.disabled = true;
+  try{
+    const res = await v2CallApi({ action:"priority_save", scope, store_id, metric_key,
+      weight, window_start, window_end, note });
+    if(res && res.result && res.result.ok === false){ if(msg) msg.textContent = res.result.msg || "Save failed"; btn.disabled = false; return; }
+    prReopen();
+  }catch(e){ if(msg) msg.textContent = "Save failed: " + (e && e.message ? e.message : e); btn.disabled = false; }
+}
+function renderPrioritiesTile(data){
+  if(!(data.manager && data.manager.role === "Owner")) return "";
+  const body = '<div class="meallog-btn" style="cursor:pointer" onclick="openPage(\'priorities\')">'
+    + '<span class="mlb-plus">★</span><span class="mlb-txt"><b>Set ranking priorities</b>'
+    + '<span class="mlb-sub">Steer briefs, copilot, and the advisor by what matters this quarter.</span></span>'
+    + '<span class="chev">›</span></div>';
+  return card("Owner Priorities", body, { info:"owner-only — weights steer ranking", newBadge:true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -5400,6 +5518,9 @@ const MANIFEST = [
   // Self-gates on data.contacts (null for RO/guest — PII); read-only for all.
   { id:"more_contacts",     lane:"MORE", title:"Contacts",                render: renderMoreContacts,      newBadge:true },
   { id:"more_ownertools",   lane:"MORE", title:"Owner-Hub tools",         render: renderMoreOwnerTools   },
+  // learning-loop spec 03: Owner-only ranking priorities entry (self-gates on
+  // Owner role; opens the priorities PAGE — the fn 403s any non-owner token).
+  { id:"more_priorities",   lane:"MORE", title:"Owner Priorities",        render: renderPrioritiesTile,    newBadge:true },
 ];
 
 /* =========================================================================
