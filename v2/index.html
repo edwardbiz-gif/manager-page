@@ -4284,6 +4284,10 @@ const PAGE_REGISTRY = {
   task_form:    { route:"new-task", title:"New Task / Ticket", render: renderTaskFormPage, after: tfAfterRender, ttlMs: 5*60*1000 },
   // learning-loop spec 03: Owner-only ranking priorities (fn 403s non-owners).
   priorities:   { route:"priorities", title:"Owner Priorities", render: renderPrioritiesPage, after: prAfterRender, ttlMs: 60*1000 },
+  // ask-the-brain v1 — OWNER ONLY, CLIENT-ONLY page (no manager-page-v2 gather):
+  // renders the ask box and POSTs straight to the advisor-ask Edge Fn, which
+  // enforces the hard role='Owner' 403. `local:true` skips the page-data fetch.
+  brain:        { route:"brain", title:"Ask the Brain", render: renderAskBrainPage, local:true },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -4302,6 +4306,7 @@ function pageSkeleton(){
 
 async function fetchPage(id){
   const reg = PAGE_REGISTRY[id];
+  if(reg && reg.local) return {};   // client-only page (Ask the Brain): no fn fetch
   const c = PAGE_CACHE[id];
   if(c && (Date.now() - c.at) < (reg.ttlMs || 5*60*1000)) return c.payload;
   if(PAGE_INFLIGHT[id]) return PAGE_INFLIGHT[id];
@@ -5400,6 +5405,65 @@ function renderPrioritiesTile(data){
   return card("Owner Priorities", body, { info:"owner-only — weights steer ranking", newBadge:true });
 }
 
+/* =========================================================================
+   ASK THE BRAIN v1 (owner-only). A client-only page: it POSTs the question
+   straight to the advisor-ask Edge Fn (a SEPARATE slug from this board's fn),
+   which enforces the hard role='Owner' 403, gathers a grounded evidence pack,
+   calls the model, and runs a deterministic post-pass so every number binds to
+   the platform's own tables before it reaches this screen. Answers render
+   TEXT ONLY (no images/links) — the markdown-image exfil block (dossier 07).
+   ========================================================================= */
+const ASK_ENDPOINT = ENDPOINT.replace("manager-page-v2", "advisor-ask");
+function renderAskBrainPage(){
+  return '<div class="cap">Owner only. Ask about sales, PAC, projections, anomalies, extended hours. Every number in an answer is checked against your own tables before it shows; a figure that cannot be verified is refused, not guessed. Read-only — nothing is sent or changed.</div>'
+    + '<div style="margin-top:12px">'
+    + '<textarea id="askQ" class="tf-inp" rows="3" placeholder="e.g. which store had the worst PAC change last month, and by how much?"></textarea>'
+    + '<button type="button" class="tf-sub" onclick="askBrainSubmit(this)">Ask</button>'
+    + '<div id="askOut" style="margin-top:12px"></div>'
+    + '</div>';
+}
+async function askBrainSubmit(btn){
+  const q = (document.getElementById("askQ").value || "").trim();
+  const out = document.getElementById("askOut");
+  if(!q){ out.innerHTML = '<div class="cap">Type a question first.</div>'; return; }
+  btn.disabled = true; out.innerHTML = '<div class="cap">Thinking…</div>';
+  try{
+    const r = await fetch(ASK_ENDPOINT, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ t: TOKEN, question: q }) });
+    const j = await r.json().catch(function(){ return {}; });
+    if(r.status === 403){ out.innerHTML = '<div class="errbox">This is available to the owner only.</div>'; btn.disabled = false; return; }
+    if(r.status === 401){ out.innerHTML = '<div class="errbox">This link is no longer valid.</div>'; btn.disabled = false; return; }
+    if(r.status === 429){ out.innerHTML = '<div class="errbox">' + esc(j.message || "Daily question limit reached.") + '</div>'; btn.disabled = false; return; }
+    if(!r.ok){ out.innerHTML = '<div class="errbox">Server error (HTTP ' + r.status + ').</div>'; btn.disabled = false; return; }
+    out.innerHTML = askAnswerCard(j);
+  }catch(e){ out.innerHTML = '<div class="errbox">Could not reach the brain: ' + esc(e && e.message ? e.message : e) + '</div>'; }
+  btn.disabled = false;
+}
+function askAnswerCard(j){
+  const res = j.post_pass_result || "";
+  const badge = res === "refused" ? '<span class="ct" style="background:var(--bad-bg);padding:2px 8px;border-radius:8px">refused (unverified figure)</span>'
+    : res === "flagged" ? '<span class="ct" style="background:var(--warn-bg);padding:2px 8px;border-radius:8px">flagged</span>'
+    : res === "failed" ? '<span class="ct" style="background:var(--warn-bg);padding:2px 8px;border-radius:8px">unavailable</span>'
+    : j.abstained ? '<span class="ct" style="padding:2px 8px;border-radius:8px">no data for that</span>'
+    : '<span class="ct" style="background:var(--good-bg);padding:2px 8px;border-radius:8px">grounded</span>';
+  // TEXT ONLY: escape everything, newlines -> <br>. No <img>, no autolinking.
+  const ans = esc(j.answer_md || "").replace(/\n/g, "<br>");
+  const cs = Array.isArray(j.citations) ? j.citations.filter(function(c){ return c && c.table; }) : [];
+  const cites = cs.length ? '<div class="cap" style="margin-top:8px">Sources: ' + cs.map(function(c){ return esc(c.table + (c.metric ? " · " + c.metric : "") + (c.key ? " (" + c.key + ")" : "")); }).join(" &nbsp;·&nbsp; ") + '</div>' : "";
+  const dt = j.data_through ? '<div class="cap">Data through ' + esc(j.data_through) + '.</div>' : "";
+  const deg = (Array.isArray(j.degraded) && j.degraded.length) ? '<div class="cap" style="color:var(--warn)">Degraded sources: ' + esc(j.degraded.join(", ")) + '</div>' : "";
+  const body = '<div style="margin-bottom:8px">' + badge + '</div>'
+    + '<div style="line-height:1.55">' + ans + '</div>' + cites + dt + deg;
+  return card("Answer", body, {});
+}
+function renderAskBrainTile(data){
+  if(!(data.manager && data.manager.role === "Owner")) return "";
+  const body = '<div class="meallog-btn" style="cursor:pointer" onclick="openPage(\'brain\')">'
+    + '<span class="mlb-plus">✦</span><span class="mlb-txt"><b>Ask the Brain</b>'
+    + '<span class="mlb-sub">Type a question, get a blunt cited answer. Every number checked against your own tables.</span></span>'
+    + '<span class="chev">›</span></div>';
+  return card("Ask the Brain", body, { info:"owner-only · grounded Q&A", newBadge:true });
+}
+
 const MANIFEST = [
   // TODAY — GM "Today / priorities" home (plan §3.1). Order = top-to-bottom:
   // what-needs-you first (act/dismiss loop), then the action hubs, then the
@@ -5417,6 +5481,9 @@ const MANIFEST = [
   // pre-meeting). Hides itself on RO/guest tokens (data.read_only; the server
   // POST guard is the real gate). Opens the task_form PAGE.
   { id:"today_new_task",   lane:"TODAY", title:"New Task / Ticket",       render: renderNewTaskTile,     newBadge:true },
+  // ask-the-brain v1 owner tile (self-gates: renders "" for non-owners). Opens
+  // the client-only brain page; the advisor-ask fn is the real role='Owner' gate.
+  { id:"today_ask_brain",  lane:"TODAY", title:"Ask the Brain",           render: renderAskBrainTile,    newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
   // THIS board's token (meal-log accepts manager_page AND manager_page_ro —
