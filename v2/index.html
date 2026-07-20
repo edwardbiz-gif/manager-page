@@ -9,6 +9,11 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.49 — CLOSE REASONS (fn + shell lockstep v2-0.49, learning-loop spec 01,
+  2026-07-19): the task "Done" button opens a close-reason sheet (9-item
+  taxonomy, note required for Other) and posts close_reason/close_note; the fn
+  rejects a close without one. Teaches the system WHY tasks close.
+
   v2-0.48 — NEW TASK / TICKET + INVOICE GATE + REPAIR-VENDOR EDIT (fn + shell
   lockstep v2-0.48, Eddie pre-meeting 2026-07-13). Three additions:
     • New Task / Ticket — a home tile on EVERY manager board (today_new_task;
@@ -1093,7 +1098,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.48";
+const SHELL_VERSION = "v2-0.49";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4751,6 +4756,32 @@ function renderMealLogTile(data){
     { info: "meals under $15 - promos need a reason - rules flag in reporting, never block", newBadge: true });
 }
 
+// Meal & Promo QR SHEET — printable POS sheet (PDF) button, pinned to the TOP of
+// the MORE lane (Eddie 2026-07-13 "put the qr code sheets for promo and employee
+// meals at the top of everyone's feed"). Static LINK tile mirroring
+// renderMealLogTile: per-store sheet meal-qr/<store number>.pdf, or the ALL-STORES
+// sheet for multi-store scopes. No fn dependency (renders from data.stores); the
+// PDFs are hosted next to this shell on GH Pages. The printed sheet's QR opens the
+// meal/promo logger. SHELL_VERSION intentionally unchanged (data-compatible).
+function renderMealQrSheetTile(data){
+  const stores = (data && data.stores) || [];
+  const base = "https://edwardbiz-gif.github.io/manager-page/meal-qr/";
+  let url, label;
+  if (stores.length === 1 && stores[0].number != null) {
+    url = base + encodeURIComponent(stores[0].number) + ".pdf";
+    label = "Print this store's Meal & Promo QR sheet";
+  } else {
+    url = base + "ALL-STORES-meal-qr.pdf";
+    label = "Print the Meal & Promo QR sheets (all 12 stores)";
+  }
+  const body = '<a class="meallog-btn" href="'+url+'" target="_blank" rel="noopener">'
+    + '<span class="mlb-plus">🖨</span><span class="mlb-txt"><b>'+esc(label)+'</b>'
+    + '<span class="mlb-sub">Post it at the register — crew scan the QR to log a meal or promo in ~30 seconds.</span></span>'
+    + '<span class="chev">›</span></a>';
+  return card("Meal & Promo QR sheet", body,
+    { info: "print & post at the POS - the QR opens the meal/promo logger", newBadge: true });
+}
+
 // v2-0.48: New Task / Ticket — home tile on EVERY manager board. Opens the
 // task_form page (page framework). RO/guest tokens never see it: the fn sends
 // data.read_only=true for manager_page_ro scope (and rejects any POST from it
@@ -5305,6 +5336,10 @@ const MANIFEST = [
   { id:"team_operations",   lane:"TEAM", title:"Operations (Jolt)",       render: renderTeamOperations,    newBadge:true },
   { id:"team_waste",        lane:"TEAM", title:"Waste compliance",        render: renderTeamWaste        },
   // MORE — Owner-Hub overflow (GM-relevant subset; owner/sup tools render dark).
+  // Meal & Promo QR SHEET — printable POS sheet button, PINNED to the top of MORE
+  // (Eddie 2026-07-13). Static link tile; PDFs at manager-page/meal-qr/<number>.pdf
+  // (+ ALL-STORES for multi-store). Shell-only; no fn change, SHELL_VERSION unchanged.
+  { id:"more_meal_qr",      lane:"MORE", title:"Meal & Promo QR sheet",   render: renderMealQrSheetTile,   newBadge:true },
   { id:"more_campaigns",    lane:"MORE", title:"Submission campaigns",    render: renderMoreCampaigns,     newBadge:true },
   { id:"more_rgr",          lane:"MORE", title:"RGR prep checklist",      render: renderMoreRgr          },
   // v2 launch spec §1: contacts VIEW widened to AM+ (Owner/Sup/GM/Department).
@@ -5420,15 +5455,47 @@ async function v2CallApi(body){
 }
 function v2FindRow(el, cls){ while(el && !el.classList.contains(cls)) el=el.parentElement; return el; }
 
-// Mark a task done (action:"close"). Confirm-gated; re-fetches + repaints.
-async function v2CloseTask(ev, btn){
+// Mark a task done (action:"close"). v2-0.49: the confirm() became a close-reason
+// sheet — the fn now REJECTS a close without a reason (learning-loop spec 01).
+var CLOSE_REASON_OPTS = [
+  ["fixed_process","Fixed a process"],
+  ["fixed_config","Fixed a config/setting"],
+  ["fixed_device","Fixed a device"],
+  ["coached","Coached someone"],
+  ["false_alarm_sensor","False alarm — sensor/timer"],
+  ["false_alarm_data","False alarm — data artifact"],
+  ["duplicate","Duplicate task"],
+  ["wont_do","Won't do"],
+  ["other","Other…"]
+];
+function v2CloseTask(ev, btn){
   ev.stopPropagation();
   const row = v2FindRow(btn, "t-row"); if(!row) return;
   const id = Number(row.dataset.id);
-  if(!confirm("Mark task #"+id+" done?")) return;
+  const open = row.querySelector(".t-close-sheet");
+  if(open){ open.remove(); return; }
+  const sheet = document.createElement("div");
+  sheet.className = "lb-form t-close-sheet";
+  sheet.innerHTML = '<b>Close #'+id+' — what happened?</b>'
+    +'<select class="tcReason">'+CLOSE_REASON_OPTS.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join('')+'</select>'
+    +'<input class="tcNote" placeholder="note (required for Other)">'
+    +'<div class="lb-actions"><button class="lb-btn warn" onclick="v2CloseConfirm(event,this,'+id+')">Mark done</button>'
+    +'<button class="lb-btn" onclick="event.stopPropagation();this.closest(\'.t-close-sheet\').remove()">cancel</button></div>';
+  sheet.addEventListener("click", function(e){ e.stopPropagation(); });
+  row.appendChild(sheet);
+  const sel = sheet.querySelector(".tcReason");
+  if(sel) sel.focus();
+}
+async function v2CloseConfirm(ev, btn, id){
+  ev.stopPropagation();
+  const sheet = btn.closest(".t-close-sheet"); if(!sheet) return;
+  const row = v2FindRow(sheet, "t-row"); if(!row) return;
+  const reason = (sheet.querySelector(".tcReason")||{}).value || "";
+  const note = ((sheet.querySelector(".tcNote")||{}).value || "").trim();
+  if(reason === "other" && !note){ alert("Add a short note for 'other'."); return; }
   row.classList.add("busy"); btn.disabled = true;
   try{
-    const payload = await v2CallApi({ action:"close", id, to_status:"done" });
+    const payload = await v2CallApi({ action:"close", id, to_status:"done", close_reason: reason, close_note: note || null });
     if(payload && payload.result && payload.result.ok === false){
       row.classList.remove("busy"); btn.disabled = false;
       alert(payload.result.msg || "Could not close that task."); return;
