@@ -9,6 +9,13 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.50 — NEW-HIRE TRAINING POPULATION FIX (fn + shell lockstep v2-0.50, Q4
+  display bug, 2026-07-20): the Team training card now shows ONLY the real
+  population (hired last 90d or inside the hire+14 deadline), each row carries
+  hired date + days left/overdue, sorted most-overdue first; "hire date missing
+  (n)" footer; "current as of" = roster freshness, last course completion shown
+  separately.
+
   v2-0.49 — CLOSE REASONS (fn + shell lockstep v2-0.49, learning-loop spec 01,
   2026-07-19): the task "Done" button opens a close-reason sheet (9-item
   taxonomy, note required for Other) and posts close_reason/close_note; the fn
@@ -1098,7 +1105,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.49";
+const SHELL_VERSION = "v2-0.50";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2742,27 +2749,41 @@ function pct1NoUnit(v){ return v==null?"—":Number(v).toFixed(2); }
 // MODULE — new-hire training (summary + per-employee; tap → per-course drill).
 function renderTeamTraining(data){
   const t = data.newHireTraining;
-  if(!t || !t.rows || !t.rows.length){
+  if(!t){
     return card("New-hire training", '<div class="empline">No tracked training rows for your scope yet.</div>', { icon:"🎓" });
+  }
+  const missFoot = t.hire_dates_missing ? '<div class="cap">hire date missing ('+t.hire_dates_missing+') — not listed, never counted overdue.</div>' : '';
+  if(!t.rows || !t.rows.length){
+    return card("New-hire training",
+      '<div class="empline">No employees in the new-hire window (hired last 90d or inside hire+14d) right now.</div>'+missFoot,
+      { icon:"🎓", through: t.data_through?fmtDate(t.data_through):null });
   }
   const sm = t.summary || {};
   const grid = '<div class="trgrid">'
-    + '<div class="trtile"><div class="trl">Employees</div><div class="trv">'+(sm.employees||0)+'</div></div>'
+    + '<div class="trtile"><div class="trl">New hires</div><div class="trv">'+(sm.employees||0)+'</div></div>'
     + '<div class="trtile"><div class="trl">Complete</div><div class="trv '+(sm.complete?"fav":"neu")+'">'+(sm.complete||0)+'</div></div>'
     + '<div class="trtile"><div class="trl">Overdue</div><div class="trv '+(sm.overdue?"unfav":"neu")+'">'+(sm.overdue||0)+'</div></div>'
     + '<div class="trtile"><div class="trl">Due soon</div><div class="trv '+(sm.due_soon?"warn":"neu")+'">'+(sm.due_soon||0)+'</div></div></div>';
-  // show the lowest-completion employees first (real gap surfaced).
   const stOf = (r)=> r.all_complete ? {c:"st-ok",t:"complete"} : r.status==="overdue" ? {c:"st-bad",t:"overdue"}
     : r.status==="due_soon" ? {c:"st-warn",t:"due soon"} : r.status==="no_hire_date" ? {c:"st-na",t:"no hire date"} : {c:"st-na",t:"in progress"};
-  const sorted = t.rows.slice().sort((a,b)=>(a.completed/a.total)-(b.completed/b.total)).slice(0,8);
+  // v2-0.50: most-overdue first (days_remaining ascending, unknowns last, completion tiebreak).
+  const sorted = t.rows.slice().sort((a,b)=>{
+    const ad=a.days_remaining, bd=b.days_remaining;
+    if(ad==null && bd==null) return (a.completed/a.total)-(b.completed/b.total);
+    if(ad==null) return 1;
+    if(bd==null) return -1;
+    return (ad-bd) || ((a.completed/a.total)-(b.completed/b.total));
+  }).slice(0,8);
   const list = sorted.map(r=>{
     const s=stOf(r);
-    return '<div class="emprow"><div class="empn">'+esc(r.name)+' <small>'+esc(r.store||"")+' · '+r.completed+'/'+r.total+'</small></div>'
+    const hired = r.hire_date ? (' · hired '+fmtDate(r.hire_date)) : '';
+    const days = r.days_remaining==null ? '' : (' · '+(r.days_remaining<0 ? (Math.abs(r.days_remaining)+'d overdue') : (r.days_remaining+'d left')));
+    return '<div class="emprow"><div class="empn">'+esc(r.name)+' <small>'+esc(r.store||"")+hired+days+' · '+r.completed+'/'+r.total+'</small></div>'
       + '<span class="empstat '+s.c+'">'+s.t+'</span></div>';
   }).join("");
-  return card("New-hire training", grid + '<div style="margin-top:9px">'+list+'</div>'
-    + '<div class="cap">'+esc(t.tracked_note||"")+'. Deadline = hire + 14 days (PBS). Names "First L." (PII-gated). Tap for the per-course grid. From v_new_hire_training.</div>',
-    { icon:"🎓", through: t.data_through?fmtDate(t.data_through):(t.refreshed_at?fmtDate(t.refreshed_at):null), newBadge:true, drill:{kind:"training"} });
+  return card("New-hire training", grid + '<div style="margin-top:9px">'+list+'</div>' + missFoot
+    + '<div class="cap">'+esc(t.tracked_note||"")+'. Deadline = hire + 14 days (PBS). Shows hires from the last 90d or inside their deadline. Names "First L." (PII-gated). Tap for the per-course grid. Current as of '+(t.data_through?fmtDate(t.data_through):"—")+(t.last_completion?(' · last course completion '+fmtDate(t.last_completion)):'')+'.</div>',
+    { icon:"🎓", through: t.data_through?fmtDate(t.data_through):null, newBadge:true, drill:{kind:"training"} });
 }
 
 // MODULE — DataPass labor% summary tiles (deploy-vs-demand grid behind a tap).
@@ -3980,7 +4001,7 @@ function openLaneSheet(kind, arg){
           const missing=(r.missing_course_ids||[]).length;
           return dr(esc(r.name)+" <small style='color:var(--ink-muted)'>"+esc(r.store||"")+"</small>", r.completed+"/"+r.total+(missing?" · "+missing+" missing":" · ✓")+(r.status==="overdue"?" · overdue":""));
         }).join("")
-      + '<div class="cap">'+esc(t.tracked_note||"")+' Deadline = hire+14d (PBS). From v_new_hire_training. Data thru '+esc(t.data_through?fmtDate(t.data_through):"—")+'.</div>';
+      + '<div class="cap">'+esc(t.tracked_note||"")+' Deadline = hire+14d (PBS). Hires last 90d or inside deadline. Current as of '+esc(t.data_through?fmtDate(t.data_through):"—")+(t.last_completion?(' · last course completion '+esc(fmtDate(t.last_completion))):'')+'.</div>';
   } else if(kind==="deploy"){
     const dl = data.datapass_labor || {}; const b = dl.board; title=(b&&b.name?b.name+" · ":"")+"Deploy vs demand"; crumb="Team › <b>Labor grid</b>";
     if(b && b.grid){
