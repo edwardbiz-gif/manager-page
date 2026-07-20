@@ -9,6 +9,12 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.51 — BOARD USAGE TELEMETRY (fn + shell lockstep v2-0.51, learning-loop
+  spec 02, 2026-07-20): one batched cards_viewed POST per session records which
+  lanes/drills the user actually opened (SEEN_CARDS -> fn audit -> refresh_usage_daily
+  -> v_card_engagement -> brief demotion). Fire-and-forget keepalive on tab-hide
+  (90s fallback); allowed on RO tokens; no other module touched.
+
   v2-0.50 — NEW-HIRE TRAINING POPULATION FIX (fn + shell lockstep v2-0.50, Q4
   display bug, 2026-07-20): the Team training card now shows ONLY the real
   population (hired last 90d or inside the hire+14 deadline), each row carries
@@ -1105,7 +1111,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.50";
+const SHELL_VERSION = "v2-0.51";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1114,6 +1120,31 @@ const TOKEN = QS.get("t") || "";
 /* global app state */
 let STATE = null;             // the full {result, data} payload
 let ACTIVE_LANE = "TODAY";    // current bottom tab
+
+/* usage telemetry: one batched cards_viewed POST per session (learning-loop
+   spec 02). Records which lanes/drills the user actually opened, once per
+   session, on tab-hide (or a 90s fallback). Fire-and-forget keepalive; the
+   response is discarded. Known v1 loss modes (accepted): cards opened after
+   the single flush are dropped; a hard-killed tab before visibilitychange
+   loses that session. Allowed on RO tokens (the fn accepts audit-only writes). */
+const SEEN_CARDS = new Set(["lane_today"]);   // default lane counts as seen
+const SESSION_T0 = Date.now();
+let TELEMETRY_SENT = false;
+function telemetrySee(key){ if(!TELEMETRY_SENT) SEEN_CARDS.add(key); }
+function flushTelemetry(){
+  if(TELEMETRY_SENT || !TOKEN || SEEN_CARDS.size === 0) return;
+  TELEMETRY_SENT = true;
+  fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
+    method: "POST", keepalive: true,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "cards_viewed",
+      cards: Array.from(SEEN_CARDS), session_ms: Date.now() - SESSION_T0 }),
+  }).catch(function(){});
+}
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "hidden") flushTelemetry();
+});
+setTimeout(flushTelemetry, 90000);   // long-session fallback: flush at 90s
 
 /* ---- the five fixed lanes (plan §2) — order = tab order ---- */
 const LANES = [
@@ -2472,6 +2503,7 @@ function renderNumbersLto(data){
    their own onclick→numbersDrill(el). Detail restates the data-through date and
    never fabricates a number the headline withheld (honesty carries into drills). */
 function numbersDrill(el, ev){
+  telemetrySee("drill_" + (el.getAttribute("data-drill") || "row"));   // usage telemetry (spec 02)
   if(ev) ev.stopPropagation();   // a row drill overrides the parent card's drill
   openNumbersSheet(el.getAttribute("data-drill"), { store_id: Number(el.getAttribute("data-id")) });
 }
@@ -3934,6 +3966,7 @@ function renderMoreOwnerTools(data){
    ========================================================================= */
 const LANE_DRILL_KINDS = new Set(["gfeedback","gvoice","scorecard","training","deploy","servicetimes","turnover","shiftleaders","shiftmetrics","operations","jolt_ops"]);
 function laneDrill(el, ev){
+  telemetrySee("drill_" + (el.getAttribute("data-drill") || "row"));   // usage telemetry (spec 02)
   if(ev) ev.stopPropagation();
   const kind = el.getAttribute("data-drill");
   const nsn = el.getAttribute("data-nsn");
@@ -5707,6 +5740,7 @@ function buildTabBar(){
     b.addEventListener("click", async ()=>{
       const lane = b.getAttribute("data-lane");
       ACTIVE_LANE = lane;
+      telemetrySee("lane_" + lane.toLowerCase());   // usage telemetry (spec 02)
       bar.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===b));
       if(LOADED_LANES.has(lane) || !LANE_KEYS[lane]){
         renderBoard();                       // data already in memory — instant
