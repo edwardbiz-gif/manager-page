@@ -1127,7 +1127,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.53";
+const SHELL_VERSION = "v2-0.54";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4294,10 +4294,13 @@ const PAGE_REGISTRY = {
   task_form:    { route:"new-task", title:"New Task / Ticket", render: renderTaskFormPage, after: tfAfterRender, ttlMs: 5*60*1000 },
   // learning-loop spec 03: Owner-only ranking priorities (fn 403s non-owners).
   priorities:   { route:"priorities", title:"Owner Priorities", render: renderPrioritiesPage, after: prAfterRender, ttlMs: 60*1000 },
-  // ask-the-brain v1 — OWNER ONLY, CLIENT-ONLY page (no manager-page-v2 gather):
-  // renders the ask box and POSTs straight to the advisor-ask Edge Fn, which
-  // enforces the hard role='Owner' 403. `local:true` skips the page-data fetch.
-  brain:        { route:"brain", title:"Ask the Brain", render: renderAskBrainPage, local:true },
+  // The Brain hub (v2-0.54) — OWNER ONLY (the fn 403s non-owners via requireOwner).
+  // ONE server gather (gatherBrainHubPage) renders the whole hub: ASK · TODAY ·
+  // MONEY(dark) · LEARNING · MEMORY · AUTONOMY(shadow) · SYSTEM. The ASK section
+  // REUSES the existing ask box inline (renderAskBrainPage + askBrainSubmit, which
+  // POST straight to the separate advisor-ask fn). `&p=brain` deep-links here; the
+  // ask box is now section 1 of the hub (no standalone ask route — it lives inside).
+  brain:        { route:"brain", title:"The Brain", render: renderBrainHubPage, after: brainAfterRender, ttlMs: 60*1000 },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -5468,10 +5471,239 @@ function askAnswerCard(j){
 function renderAskBrainTile(data){
   if(!(data.manager && data.manager.role === "Owner")) return "";
   const body = '<div class="meallog-btn" style="cursor:pointer" onclick="openPage(\'brain\')">'
-    + '<span class="mlb-plus">✦</span><span class="mlb-txt"><b>Ask the Brain</b>'
-    + '<span class="mlb-sub">Type a question, get a blunt cited answer. Every number checked against your own tables.</span></span>'
+    + '<span class="mlb-plus">✦</span><span class="mlb-txt"><b>The Brain</b>'
+    + '<span class="mlb-sub">Ask a question, and see everything the brain knows and is deciding — today\'s brief, the money model, what it is learning, what it remembers.</span></span>'
     + '<span class="chev">›</span></div>';
-  return card("Ask the Brain", body, { info:"owner-only · grounded Q&A", newBadge:true });
+  return card("The Brain", body, { info:"owner-only · ask · learn · remember · decide", newBadge:true });
+}
+
+/* =========================================================================
+   THE BRAIN HUB (v2-0.54) — the owner interface over every brain feature.
+   Server-gathered (gatherBrainHubPage); each section reads page.<key> and, if
+   that slice carried { error } or a client render throws, shows an honest
+   "unavailable" line — a failed slice never blanks the hub (brSafe). The ASK
+   section REUSES the existing ask box inline (renderAskBrainPage + askBrainSubmit
+   POST straight to the separate advisor-ask fn). The three write buttons
+   (Approve playbook, Confirm/Reject memory) POST owner-only audited actions.
+   ========================================================================= */
+const BR = { page:null };
+function brDate(iso){ return iso ? esc(String(iso).slice(0,10)) : "—"; }
+function brMoney(n){ if(n==null) return "—"; const v=Number(n); return (v<0?"-":"")+"$"+Math.abs(v).toLocaleString("en-US"); }
+function brUnavail(label){ return '<div class="cap">'+esc(label)+' is unavailable right now — the rest of the hub is unaffected.</div>'; }
+function brSafe(fn, label){ try{ return fn(); }catch(e){ console.error("brain section error:", label, e); return brUnavail(label); } }
+function brSev(sev){
+  if(!sev) return "";
+  const s=String(sev).toLowerCase();
+  const col=(s==="high"||s==="urgent")?"var(--bad)":(s==="med"||s==="medium")?"var(--warn)":"var(--ink-muted)";
+  const bg=(s==="high"||s==="urgent")?"var(--bad-bg)":(s==="med"||s==="medium")?"var(--warn-bg)":"transparent";
+  return '<span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.3px;color:'+col+';background:'+bg+';padding:1px 7px;border-radius:8px">'+esc(sev)+'</span>';
+}
+function brSection(title, inner){
+  return '<h3 style="margin:20px 2px 8px;font-size:14px;letter-spacing:.3px">'+esc(title)+'</h3>'+inner;
+}
+function renderBrainHubPage(payload){
+  const page=(payload&&payload.page)||{};
+  BR.page=page;
+  let h='<div class="cap">Owner only. One place for everything the brain does: ask it a question, see the day brief, the dark money model, what it is learning, what it remembers, and its own run log. Every section states its data-through date. Reads only — the sole writes here are your explicit approvals below.</div>';
+  h+=brSection("Ask", brSafe(function(){ return card("Ask the Brain", renderAskBrainPage(), { info:"grounded · cited · refuses an unverified figure rather than guess" }); }, "Ask"));
+  h+=brSection("Today", brSafe(function(){ return brToday(page.today); }, "Today"));
+  h+=brSection("Money model (dark)", brSafe(function(){ return brMoneySec(page.money); }, "The money model"));
+  h+=brSection("Learning", brSafe(function(){ return brLearning(page.learning); }, "Learning"));
+  h+=brSection("Memory", brSafe(function(){ return brMemory(page.memory); }, "Memory"));
+  h+=brSection("Autonomy (shadow)", brSafe(function(){ return brAutonomy(page.autonomy); }, "Autonomy"));
+  h+=brSection("System", brSafe(function(){ return brSystem(page.system); }, "System"));
+  h+='<div class="cap" style="margin-top:18px">Hub data through '+brDate(page.data_through)+'. Owner-only; read-only and guest tokens never see this page (the fn returns 403).</div>';
+  return h;
+}
+function brToday(t){
+  if(!t||t.error) return brUnavail("Today");
+  const items=t.items||[];
+  let body="";
+  if(items.length===0){ body+='<div class="cap">No owner brief items today.</div>'; }
+  else {
+    body+='<div style="display:flex;flex-direction:column;gap:10px">';
+    for(const it of items){
+      body+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:9px 11px">'
+        +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:3px">'+brSev(it.severity)
+        +(it.store?'<span class="cap">'+esc(it.store)+'</span>':"")+'</div>'
+        +'<div style="font-weight:700;line-height:1.4">'+esc(it.headline||"")+'</div>'
+        +(it.lever?'<div class="cap" style="margin-top:3px">Do: '+esc(it.lever)+'</div>':"")
+        +(it.data_through?'<div class="cap">data through '+brDate(it.data_through)+'</div>':"")
+        +'</div>';
+    }
+    body+='</div>';
+  }
+  const wp=t.wake_pending||[];
+  if(t.wake_total===0||wp.length===0){ body+='<div class="cap" style="margin-top:8px">No pending wake events.</div>'; }
+  else { body+='<div class="cap" style="margin-top:8px">Pending wake events: '+wp.map(function(w){ return esc(w.type)+' ×'+w.n; }).join(" · ")+'</div>'; }
+  const info=t.brief_date?("brief "+brDate(t.brief_date)+" · data thru "+brDate(t.brief_data_through)):"owner brief";
+  return card("Today — top 3", body, { info:info });
+}
+function brMoneySec(m){
+  if(!m||m.error) return brUnavail("The money model");
+  let body='<div style="line-height:1.6"><b>'+m.n_rows+'</b> forecast rows frozen across <b>'+m.n_recs+'</b> recommendations · predicted range <b>'+brMoney(m.predicted_min)+'</b> to <b>'+brMoney(m.predicted_max)+'</b> · '+(m.n_executed||0)+' executed</div>';
+  body+='<div class="cap" style="margin-top:2px">Ledger data through '+brDate(m.ledger_data_through)+'. DARK — nothing on any surface ranks by EV yet.</div>';
+  const bs=m.by_source||[];
+  if(bs.length){
+    body+='<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">';
+    for(const s of bs){
+      body+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span>'+esc(s.source)+' <span class="cap">'+esc(s.window)+'</span></span><span class="cap">'+s.n+' rows · '+brMoney(s.min)+' to '+brMoney(s.max)+'</span></div>';
+    }
+    body+='</div>';
+  }
+  body+='<div class="cap" style="margin-top:10px;color:var(--warn)">M2 — '+esc(m.m2_status||"")+'</div>';
+  body+='<div class="cap" style="color:var(--warn)">M3 — '+esc(m.m3_status||"")+'</div>';
+  const models=m.models||[];
+  if(models.length){
+    body+='<div style="font-weight:700;margin:12px 0 4px">The sitting list — ev_models seeds (inert until you approve the money math)</div>';
+    body+='<div style="display:flex;flex-direction:column;gap:6px">';
+    for(const md of models){
+      const dollar=(md.unit_dollars==null)?'<span style="color:var(--warn)">no $ model (rides the severity prior)</span>':('unit $'+Number(md.unit_dollars).toLocaleString("en-US"));
+      body+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:9px;padding:7px 9px">'
+        +'<div style="display:flex;justify-content:space-between;gap:8px"><span><b>'+esc(md.source)+'</b> · '+esc(md.metric)+'</span><span class="cap">inert · approved=false</span></div>'
+        +'<div class="cap">'+esc(md.method)+' · '+dollar+' · conf '+esc(String(md.confidence))+' · effort '+esc(String(md.effort))+' · shrink '+esc(String(md.shrink_factor))+' · '+esc(md.noise_class)+'</div>'
+        +(md.notes?'<div class="cap">'+esc(md.notes)+'</div>':"")
+        +'</div>';
+    }
+    body+='</div>';
+  }
+  return card("Money model (dark)", body, { info:"M0-M1 shipped dark · M2 and M3 are your gates" });
+}
+function brLearning(l){
+  if(!l||l.error) return brUnavail("Learning");
+  let out="";
+  const pbs=l.playbooks||[];
+  let pb="";
+  if(pbs.length===0){ pb='<div class="cap">No playbooks.</div>'; }
+  else {
+    pb='<div style="display:flex;flex-direction:column;gap:8px">';
+    for(const p of pbs){
+      const badge=p.approved
+        ?'<span style="font-size:10px;font-weight:800;color:var(--good)">approved ✓</span> <button type="button" class="tf-tab" data-id="'+p.id+'" onclick="pbApprove(this,false)">undo</button>'
+        :'<button type="button" class="tf-sub" style="width:auto;padding:5px 14px;margin:0" data-id="'+p.id+'" onclick="pbApprove(this,true)">Approve</button>';
+      pb+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:9px 11px">'
+        +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="flex:1;min-width:0"><b>'+esc(p.title)+'</b> <span class="cap">'+esc(p.category)+' · '+esc(p.guard_action)+(p.rescope_to?(' → '+esc(p.rescope_to)):"")+'</span></div><div style="white-space:nowrap">'+badge+'</div></div>'
+        +(p.reframe_note?'<div class="cap" style="margin-top:3px">'+esc(p.reframe_note)+'</div>':"")
+        +'</div>';
+    }
+    pb+='</div>';
+  }
+  pb+='<div class="cap" style="margin-top:6px">Approving a playbook lets the next copilot ingest reframe or rescope matching signals. Money and food-safety recs are never suppressed, approved or not.</div>';
+  out+=card("Playbooks (L4) — your approvals", pb, { info:"owner-only · one tap · reversible" });
+  const props=l.threshold_proposals||[];
+  let th="";
+  if(props.length===0){ th='<div class="cap">No threshold proposals. '+esc(l.threshold_gate||"")+'</div>'; }
+  else { th='<div style="display:flex;flex-direction:column;gap:4px">'; for(const t of props){ th+='<div style="font-size:12px">'+esc(t.constant_key)+': '+esc(String(t.current_value))+' → '+esc(String(t.proposed_value))+' <span class="cap">'+esc(t.status)+'</span></div>'; } th+='</div>'; }
+  out+=card("Threshold self-tuning (L5)", th, { info:"dark · proposals only, never auto-applied" });
+  const cm=l.close_reason_mix||[];
+  let cmb=(cm.length===0)?'<div class="cap">No task closes with a reason in the window.</div>':'<div class="cap">'+cm.map(function(c){ return esc(c.reason)+' ×'+c.n; }).join(" · ")+'</div>';
+  const fp=l.fp_rate||[];
+  if(fp.length===0){ cmb+='<div class="cap" style="margin-top:6px">Signal false-positive rate: no coverage yet.</div>'; }
+  else {
+    cmb+='<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">';
+    for(const f of fp){ cmb+='<div style="font-size:12px">'+esc(f.src_tag||"")+(f.metric?(' · '+esc(f.metric)):"")+': <b>'+esc(String(f.fp_rate))+'</b> <span class="cap">('+f.n_false_alarm+'/'+f.n_closes+(f.fires_proposal?' · fires':"")+')</span></div>'; }
+    cmb+='</div>';
+  }
+  out+=card("Close-reason mix — "+(l.close_reason_window||"last 7 days"), cmb, { info:"the learning signal behind L1 and L5" });
+  out+='<div class="meallog-btn" style="cursor:pointer;margin-top:6px" onclick="openPage(\'priorities\')"><span class="mlb-plus">★</span><span class="mlb-txt"><b>Ranking priorities</b><span class="mlb-sub">Steer briefs, copilot, and the advisor by what matters this quarter.</span></span><span class="chev">›</span></div>';
+  return out;
+}
+function brMemory(mem){
+  if(!mem||mem.error) return brUnavail("Memory");
+  let out="";
+  const due=mem.due||[];
+  let db="";
+  if(due.length===0){ db='<div class="cap">Nothing due or overdue.</div>'; }
+  else {
+    db='<div style="display:flex;flex-direction:column;gap:6px">';
+    for(const d of due){
+      const over=(d.days_overdue!=null&&d.days_overdue>0)?'<span style="color:var(--bad);font-weight:800">'+d.days_overdue+'d overdue</span> ':"";
+      db+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:9px;padding:7px 9px">'+over+esc(d.content||"")+(d.owed_to_name?'<div class="cap">owed to '+esc(d.owed_to_name)+'</div>':"")+'</div>';
+    }
+    db+='</div>';
+  }
+  out+=card("Due and overdue", db, { info:"commitments the brain is holding you to" });
+  const st=mem.staged||[];
+  let sb="";
+  if(st.length===0){ sb='<div class="cap">Confirm queue is empty — nothing staged for review.</div>'; }
+  else {
+    sb='<div style="display:flex;flex-direction:column;gap:8px">';
+    for(const s of st){
+      sb+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:9px 11px"><div style="line-height:1.4">'+esc(s.content||"")+'</div><div class="cap">'+esc(s.kind||"")+' · '+esc(s.capture_channel||"")+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:6px"><button type="button" class="tf-sub" style="width:auto;padding:5px 14px;margin:0" data-id="'+s.id+'" onclick="memConfirm(this)">Confirm</button><button type="button" class="tf-tab" data-id="'+s.id+'" onclick="memReject(this)">Reject</button></div></div>';
+    }
+    sb+='</div>';
+  }
+  out+=card("Confirm queue", sb, { info:"staged captures awaiting your yes or no" });
+  const seeds=mem.seeds||[];
+  let sd="";
+  if(seeds.length===0){ sd='<div class="cap">No seeds under review.</div>'; }
+  else {
+    sd='<div style="display:flex;flex-direction:column;gap:6px">';
+    for(const s of seeds){
+      sd+='<div style="display:flex;gap:10px;align-items:center;border:1px solid rgba(128,128,128,.25);border-radius:9px;padding:7px 9px"><div style="flex:1;min-width:0"><span class="cap">'+esc(s.kind||"")+' · #'+s.id+'</span><br>'+esc(s.content||"")+'</div><button type="button" class="tf-tab" data-id="'+s.id+'" onclick="memReject(this)">Reject</button></div>';
+    }
+    sd+='</div>';
+  }
+  out+=card("Seeds under review", sd, { info:mem.seeds_note||"the loaded memory seeds" });
+  return out;
+}
+function brAutonomy(a){
+  if(!a||a.error) return brUnavail("Autonomy");
+  if(a.live===false){ return card("Autonomy (shadow)", '<div class="cap">'+esc(a.note||"Not yet live.")+'</div>', { info:"Phase A — the brain gets hands last" }); }
+  const body='<div style="line-height:1.6"><b>'+(a.action_count||0)+'</b> shadow actions · <b>'+(a.grant_count||0)+'</b> grants</div><div class="cap">'+esc(a.note||"")+'</div>';
+  return card("Autonomy (shadow)", body, { info:"shadow only — nothing acts on its own" });
+}
+function brSystem(s){
+  if(!s||s.error) return brUnavail("System");
+  const okCol=s.fn_secret_ok?"var(--good)":"var(--bad)", okBg=s.fn_secret_ok?"var(--good-bg)":"var(--bad-bg)";
+  let body='<div style="display:inline-block;font-size:11px;font-weight:800;color:'+okCol+';background:'+okBg+';padding:2px 9px;border-radius:8px;margin-bottom:6px">'+(s.fn_secret_ok?"ask-the-brain healthy":"ask-the-brain check needed")+'</div>';
+  body+='<div class="cap">'+esc(s.health_note||"")+'</div>';
+  const runs=s.brain_runs||[];
+  if(runs.length){
+    body+='<div style="font-weight:700;margin:10px 0 4px">Last '+runs.length+' brain runs</div><div style="display:flex;flex-direction:column;gap:3px">';
+    for(const r of runs){
+      const rc=(r.post_pass_result==="failed")?"var(--bad)":(r.post_pass_result==="pass")?"var(--good)":"var(--warn)";
+      body+='<div style="font-size:12px;display:flex;justify-content:space-between;gap:8px"><span>'+esc(r.surface||"")+' <span class="cap">'+esc(r.typed_action||r.purpose||"")+'</span></span><span style="color:'+rc+'">'+esc(r.post_pass_result||"")+' <span class="cap">'+(r.latency_ms!=null?(r.latency_ms+"ms"):"")+' · '+brDate(r.created_at)+'</span></span></div>';
+    }
+    body+='</div>';
+  } else { body+='<div class="cap" style="margin-top:8px">No brain runs yet.</div>'; }
+  const ob=s.comm_outbox||[];
+  if(ob.length){
+    body+='<div style="font-weight:700;margin:10px 0 4px">Comm outbox — last '+ob.length+' (all simulate or draft today)</div><div style="display:flex;flex-direction:column;gap:3px">';
+    for(const c of ob){ body+='<div style="font-size:12px;display:flex;justify-content:space-between;gap:8px"><span>'+esc(c.channel||"")+' <span class="cap">'+esc(c.intent||"")+'</span></span><span class="cap">'+esc(c.status||"")+' · '+esc(c.mode||"")+' · '+brDate(c.created_at)+'</span></div>'; }
+    body+='</div>';
+  } else { body+='<div class="cap" style="margin-top:8px">Comm outbox empty.</div>'; }
+  return card("System", body, { info:"the brain own run log — reads only" });
+}
+function brainAfterRender(_body, payload){ BR.page=(payload&&payload.page)||{}; }
+function brainReopen(){ delete PAGE_CACHE["brain"]; openPage("brain", { noHistory:true }); }
+async function brainWrite(body){ if(!STATE){ STATE={ result:null, data:{} }; } return v2CallApi(body); }
+async function pbApprove(btn, approve){
+  const id=btn.getAttribute("data-id"); btn.disabled=true;
+  try{
+    const res=await brainWrite({ action:"playbook_approve", id:String(id), approved: approve?"true":"false" });
+    if(res&&res.result&&res.result.ok===false){ alert(res.result.msg||"Failed"); btn.disabled=false; return; }
+    brainReopen();
+  }catch(e){ alert("Failed: "+(e&&e.message?e.message:e)); btn.disabled=false; }
+}
+async function memConfirm(btn){
+  const id=btn.getAttribute("data-id"); btn.disabled=true;
+  try{
+    const res=await brainWrite({ action:"memory_confirm", id:String(id) });
+    if(res&&res.result&&res.result.ok===false){ alert(res.result.msg||"Failed"); btn.disabled=false; return; }
+    brainReopen();
+  }catch(e){ alert("Failed: "+(e&&e.message?e.message:e)); btn.disabled=false; }
+}
+async function memReject(btn){
+  const id=btn.getAttribute("data-id");
+  if(!confirm("Reject this memory? It becomes a tombstone so it will not come back.")) return;
+  btn.disabled=true;
+  try{
+    const res=await brainWrite({ action:"memory_reject", id:String(id) });
+    if(res&&res.result&&res.result.ok===false){ alert(res.result.msg||"Failed"); btn.disabled=false; return; }
+    brainReopen();
+  }catch(e){ alert("Failed: "+(e&&e.message?e.message:e)); btn.disabled=false; }
 }
 
 const MANIFEST = [
@@ -5491,9 +5723,10 @@ const MANIFEST = [
   // pre-meeting). Hides itself on RO/guest tokens (data.read_only; the server
   // POST guard is the real gate). Opens the task_form PAGE.
   { id:"today_new_task",   lane:"TODAY", title:"New Task / Ticket",       render: renderNewTaskTile,     newBadge:true },
-  // ask-the-brain v1 owner tile (self-gates: renders "" for non-owners). Opens
-  // the client-only brain page; the advisor-ask fn is the real role='Owner' gate.
-  { id:"today_ask_brain",  lane:"TODAY", title:"Ask the Brain",           render: renderAskBrainTile,    newBadge:true },
+  // v2-0.54: The Brain hub owner tile (self-gates: renders "" for non-owners).
+  // Opens the server-gathered brain hub (?page=brain); the fn requireOwner is the
+  // real gate. The hub's ASK section reuses the ask box inline.
+  { id:"today_ask_brain",  lane:"TODAY", title:"The Brain",               render: renderAskBrainTile,    newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
   // THIS board's token (meal-log accepts manager_page AND manager_page_ro —
