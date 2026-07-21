@@ -9,6 +9,15 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.53 — C-1 TWO-WAY REPLY (fn + shell lockstep v2-0.53, conversation-surfaces
+  Stage 2, 2026-07-21): every task row gets a Reply button + inline sheet posting
+  action:"reply". The server parses (haiku) + routes: context/snooze/ack auto-apply
+  (reversible), rescope/reassign draft for a one-tap approval, a dispute drafts a
+  supervisor-first false-alarm close (never auto-closed), unknown->held. The sheet
+  renders only the fixed server status string (textContent, never HTML) — no
+  rendered-output exfil surface. Parsing ships DISABLED server-side until the
+  parser battery passes; until then replies are filed for review.
+
   v2-0.52 — OWNER PRIORITIES SHEET (fn + shell lockstep v2-0.52, learning-loop
   spec 03, 2026-07-20): new owner-only Priorities page (MORE lane tile ->
   ?page=priorities) to view/edit business_priorities ranking weights (0..3 per
@@ -1118,7 +1127,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.52";
+const SHELL_VERSION = "v2-0.53";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1631,6 +1640,7 @@ function renderTodayTasks(data){
         + '<div class="actmain"><div class="acttitle">'+esc(t.title||("Task #"+t.id))+'</div>'
         + '<div class="actsub"><span class="pchip '+pr+'">'+esc(pr)+'</span>'+dt
         + (t.category?'<span class="duechip">'+esc(t.category)+'</span>':'')+co+'</div></div>'
+        + '<button class="actbtn" onclick="v2ReplyTask(event,this)" title="reply — add context, snooze, or flag a false alarm">Reply</button>'
         + '<button class="actbtn go" onclick="v2CloseTask(event,this)">Done</button>'
         + '</div>';
     }).join("");
@@ -5746,6 +5756,48 @@ async function v2CloseConfirm(ev, btn, id){
   }catch(e){
     row.classList.remove("busy"); btn.disabled = false;
     alert("Mark done failed: " + (e && e.message));
+  }
+}
+
+// C-1 two-way reply (action:"reply"). Opens an inline sheet; the reply is parsed
+// + routed server-side (context/snooze auto-apply; rescope/dispute draft for a
+// tap). The server returns only a fixed status string (result.msg) — never model
+// content — so there is no rendered-output exfil surface (dossier 07).
+function v2ReplyTask(ev, btn){
+  ev.stopPropagation();
+  const row = v2FindRow(btn, "t-row"); if(!row) return;
+  const id = Number(row.dataset.id);
+  const open = row.querySelector(".t-reply-sheet");
+  if(open){ open.remove(); return; }
+  const sheet = document.createElement("div");
+  sheet.className = "lb-form t-reply-sheet";
+  sheet.innerHTML = '<b>Reply to #'+id+'</b>'
+    +'<div class="actsub">Add context, snooze it, or flag a false alarm. Priority/reassign changes are drafted for a one-tap approval, not applied.</div>'
+    +'<textarea class="trBody" rows="3" placeholder="e.g. part is on order, tech comes Thursday — or: the timer\'s broken, false alarm" style="width:100%"></textarea>'
+    +'<div class="lb-actions"><button class="lb-btn go" onclick="v2ReplySend(event,this,'+id+')">Send</button>'
+    +'<button class="lb-btn" onclick="event.stopPropagation();this.closest(\'.t-reply-sheet\').remove()">cancel</button></div>'
+    +'<div class="trMsg actsub"></div>';
+  sheet.addEventListener("click", function(e){ e.stopPropagation(); });
+  row.appendChild(sheet);
+  const ta = sheet.querySelector(".trBody"); if(ta) ta.focus();
+}
+async function v2ReplySend(ev, btn, id){
+  ev.stopPropagation();
+  const sheet = btn.closest(".t-reply-sheet"); if(!sheet) return;
+  const body = ((sheet.querySelector(".trBody")||{}).value || "").trim();
+  const msgEl = sheet.querySelector(".trMsg");
+  if(!body){ if(msgEl) msgEl.textContent = "Type a reply first."; return; }
+  btn.disabled = true; if(msgEl) msgEl.textContent = "Sending…";
+  try{
+    const payload = await v2CallApi({ action:"reply", id, reply_body: body });
+    const res = payload && payload.result;
+    // result.msg is a fixed server string — render as TEXT (textContent), never HTML.
+    if(msgEl) msgEl.textContent = (res && res.msg) ? res.msg : "Filed.";
+    if(res && res.ok){ const ta = sheet.querySelector(".trBody"); if(ta){ ta.value=""; ta.disabled=true; } }
+    else { btn.disabled = false; }
+  }catch(e){
+    btn.disabled = false;
+    if(msgEl) msgEl.textContent = "Could not send: " + (e && e.message ? e.message : e);
   }
 }
 
