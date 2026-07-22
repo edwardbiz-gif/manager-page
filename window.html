@@ -1,0 +1,199 @@
+<!doctype html>
+<!-- window.html v1 (2026-07-22) - drive-thru window measurement form for the
+     Late Night vinyl wrap (first user: Nick Boose). Store-agnostic by design:
+     the store dropdown defaults to blank and offers all 12 (which store "the
+     BDAP" is was unresolved at build time; the measurer knows where he is).
+     Served from GH Pages because the Supabase gateway rewrites Edge Fn
+     text/html to text/plain (house rule: an Edge Fn never serves a page).
+     API: the window-measure Edge Function (capability token ?t=, JSON + CORS).
+     Submissions ride the campaign infra (campaign id 3, owner-only tracker).
+     NOTE: keep every JS string apostrophe-safe - a raw apostrophe in a
+     single-quoted string once bricked a whole board shell. -->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex"><title>Drive Thru Window Measurement</title>
+<style>
+  :root{--bg:#101010;--card:#1c1c1c;--line:#333;--ink:#f4f4f4;--mut:#9aa0a6;--gold:#FFC72C;--red:#DA291C;--ok:#2eae4f}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:460px;margin:0 auto}
+  h1{font-size:21px;margin:4px 0 2px;letter-spacing:.3px}
+  h1 .accent{color:var(--gold)}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:14px 0 5px;font-weight:700}
+  select,textarea,input{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:70px;resize:vertical}
+  .dims{display:flex;gap:10px}
+  .dims>div{flex:1}
+  .dims input{font-size:22px;font-weight:800;letter-spacing:.5px}
+  .unit{font-size:12px;color:var(--mut);margin-top:4px}
+  .photo-btn{display:block;width:100%;padding:22px 14px;border:2px dashed var(--gold);border-radius:14px;background:transparent;color:var(--gold);font-size:16px;font-weight:800;cursor:pointer;text-align:center}
+  .photo-btn.have{border-style:solid;padding:10px}
+  .photo-btn img{max-width:100%;max-height:240px;border-radius:8px;display:block;margin:0 auto}
+  .photo-btn .retake{display:block;font-size:12px;color:var(--mut);font-weight:400;margin-top:6px}
+  input[type=file]{display:none}
+  .submit{width:100%;margin-top:18px;padding:15px 0;border:none;border-radius:12px;background:var(--gold);color:#111;font-size:17px;font-weight:800;cursor:pointer}
+  .submit:disabled{opacity:.45}
+  .err{display:none;background:rgba(218,41,28,.14);border:1px solid var(--red);color:#ff8d81;border-radius:10px;padding:10px;font-size:14px;margin-top:12px;word-break:break-word}
+  .ok-card{text-align:center;padding:34px 14px}
+  .ok-card .tick{font-size:52px;line-height:1}
+  .ok-card h2{margin:10px 0 4px;font-size:20px}
+  .sum{margin:14px auto 0;max-width:320px;text-align:left;font-size:14px;color:var(--mut)}
+  .sum b{color:var(--ink)}
+  .sum .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .dead{text-align:center;padding:44px 12px;color:var(--mut)}
+  .loading{text-align:center;padding:44px 12px;color:var(--mut)}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+</style></head><body>
+<div class="wrap">
+  <h1><span class="accent">Drive Thru Window</span> Measurement</h1>
+  <p class="sub" id="subline">For the Late Night vinyl wrap</p>
+
+  <div id="scr-loading" class="card loading">Loading&hellip;</div>
+
+  <div id="scr-dead" class="card dead" style="display:none">This link is not valid or has expired. Please text Eddie for a fresh one.</div>
+
+  <div id="scr-form" style="display:none">
+    <div class="card">
+      <label>1. Which store?</label>
+      <select id="store"><option value="">Select store&hellip;</option></select>
+      <label>2. Window size (outside edge to outside edge)</label>
+      <div class="dims">
+        <div><input type="text" id="w" inputmode="decimal" placeholder="Width" autocomplete="off"><div class="unit">inches wide</div></div>
+        <div><input type="text" id="h" inputmode="decimal" placeholder="Height" autocomplete="off"><div class="unit">inches tall</div></div>
+      </div>
+      <p class="hint">Measure the full glass area the vinyl should cover. Half inches are fine (like 41.5).</p>
+      <label>3. Panes / sections <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <select id="panes"><option value="">Not sure / one piece</option>
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        <option value="4">4</option><option value="5">5</option><option value="6">6</option></select>
+      <label>4. Photo of the window <span style="text-transform:none;font-weight:400">(optional, helps the sign shop)</span></label>
+      <button type="button" class="photo-btn" id="photo-btn">&#128247; Take a photo</button>
+      <input type="file" id="photo" accept="image/*" capture="environment">
+      <label>5. Notes <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <textarea id="notes" maxlength="1000" placeholder="e.g. mullion in the middle, sliding section on the left"></textarea>
+      <button class="submit" id="go">Send measurements</button>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div id="scr-done" class="card ok-card" style="display:none">
+    <div class="tick">&#9989;</div>
+    <h2>Got it, thanks!</h2>
+    <div class="sum" id="summary"></div>
+    <p class="hint" style="margin-top:14px">Eddie will take it from here with the sign shop.</p>
+  </div>
+</div>
+
+<script>
+var FN = 'https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/window-measure';
+var MAX_EDGE = 1600;      // client-side downscale target (longest edge, px)
+var JPEG_Q = 0.85;
+
+var params = new URLSearchParams(location.search);
+var tok = params.get('t') || '';
+var boot = null;
+var photoB64 = null;
+
+function el(id){ return document.getElementById(id); }
+function show(id){
+  ['scr-loading','scr-dead','scr-form','scr-done'].forEach(function(x){
+    el(x).style.display = (x === id) ? 'block' : 'none';
+  });
+}
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+function showErr(msg){ var e = el('err'); e.textContent = msg; e.style.display = 'block'; }
+
+// ---- bootstrap ------------------------------------------------------------
+function loadBoot(){
+  show('scr-loading');
+  fetch(FN + '?t=' + encodeURIComponent(tok))
+  .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) { show('scr-dead'); return; }
+    boot = res.j;
+    var sel = el('store');
+    (boot.stores || []).forEach(function(s){
+      var o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name + ' · #' + s.number;
+      sel.appendChild(o);
+    });
+    if (boot.campaign && boot.campaign.due_at) {
+      el('subline').textContent = 'For the Late Night vinyl wrap · needed by ' + boot.campaign.due_at;
+    }
+    show('scr-form');
+  })
+  .catch(function(){ show('scr-dead'); });
+}
+
+// ---- photo capture + downscale ---------------------------------------------
+el('photo-btn').onclick = function(){ el('photo').click(); };
+el('photo').onchange = function(){
+  var f = el('photo').files[0];
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+      var cw = Math.round(w * scale), ch = Math.round(h * scale);
+      var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      var dataUrl = cv.toDataURL('image/jpeg', JPEG_Q);
+      photoB64 = dataUrl.split(',')[1];
+      var btn = el('photo-btn');
+      btn.classList.add('have');
+      btn.innerHTML = '<img src="' + dataUrl + '" alt="window"><span class="retake">Tap to retake</span>';
+    };
+    img.onerror = function(){ showErr('Could not read that photo. Please try again.'); };
+    img.src = rd.result;
+  };
+  rd.onerror = function(){ showErr('Could not read that photo. Please try again.'); };
+  rd.readAsDataURL(f);
+};
+
+// ---- submit -----------------------------------------------------------------
+function num(id){
+  var v = parseFloat(String(el(id).value).replace(/[^0-9.]/g, ''));
+  return isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+}
+el('go').onclick = function(){
+  el('err').style.display = 'none';
+  var sid = el('store').value;
+  if (!sid) { showErr('Pick the store first.'); return; }
+  var w = num('w'), h = num('h');
+  if (!isFinite(w) || w < 6 || w > 600) { showErr('Enter the width in inches (numbers only, like 100.5).'); return; }
+  if (!isFinite(h) || h < 6 || h > 600) { showErr('Enter the height in inches (numbers only, like 41.5).'); return; }
+  var body = { t: tok, store_id: sid, width_in: w, height_in: h };
+  if (el('panes').value) body.panes = el('panes').value;
+  var n = el('notes').value.trim();
+  if (n) body.notes = n;
+  if (photoB64) { body.photo_b64 = photoB64; body.photo_mime = 'image/jpeg'; }
+  var btn = el('go'); btn.disabled = true; btn.textContent = 'Sending…';
+  fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) throw new Error(res.j && res.j.error ? res.j.error : 'HTTP error');
+    var s = '';
+    s += '<div class="row"><span>Store</span><b>' + esc(res.j.store.name) + ' #' + esc(res.j.store.number) + '</b></div>';
+    s += '<div class="row"><span>Width</span><b>' + esc(res.j.width_in) + ' in</b></div>';
+    s += '<div class="row"><span>Height</span><b>' + esc(res.j.height_in) + ' in</b></div>';
+    if (res.j.panes) s += '<div class="row"><span>Panes</span><b>' + esc(res.j.panes) + '</b></div>';
+    s += '<div class="row"><span>Photo</span><b>' + (res.j.has_photo ? 'attached' : 'none') + '</b></div>';
+    el('summary').innerHTML = s;
+    show('scr-done');
+  })
+  .catch(function(ex){
+    showErr('Could not send it: ' + ex.message + ' — please try again or text Eddie.');
+    btn.disabled = false; btn.textContent = 'Send measurements';
+  });
+};
+
+if (!tok) { show('scr-dead'); } else { loadBoot(); }
+</script></body></html>
