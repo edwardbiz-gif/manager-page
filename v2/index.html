@@ -1127,7 +1127,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.54";
+const SHELL_VERSION = "v2-0.55";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4301,10 +4301,314 @@ const PAGE_REGISTRY = {
   // POST straight to the separate advisor-ask fn). `&p=brain` deep-links here; the
   // ask box is now section 1 of the hub (no standalone ask route — it lives inside).
   brain:        { route:"brain", title:"The Brain", render: renderBrainHubPage, after: brainAfterRender, ttlMs: 60*1000 },
+  // Triage bake-off (docs/plans/triage-interface) — OWNER ONLY (fn 403s non-owners).
+  // Both pages share ONE gather (gatherTriageQueue); The Ledger is the sectioned
+  // single-scroll, The Stack is the one-card conveyor. Same verbs, same queue_actions.
+  triage_ledger: { route:"triage-a", title:"Triage — The Ledger", render: renderTriageLedgerPage, after: trlAfterRender, ttlMs: 20*1000 },
+  triage_stack:  { route:"triage-b", title:"Triage — The Stack",  render: renderTriageStackPage,  after: trsAfterRender, ttlMs: 20*1000 },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
 const PAGE_CACHE = {};      // id -> {at, payload}
+
+/* =========================================================================
+   TRIAGE INTERFACE (docs/plans/triage-interface) — "The Ledger" + "The Stack".
+   Two owner-only pages over ONE shared queue gather (fn gatherTriageQueue).
+   The Ledger = sectioned single-scroll (Sweep/Decide/Approve/Confirm/Overdue/FYI),
+   dense cards that expand in place. The Stack = one full-screen card at a time,
+   a finite dealt hand with a real end. Same verbs, same queue_actions backend;
+   taps are optimistic with an undo toast (graph verbs get a 60s cancel grace,
+   db verbs reverse). DRAFTS-ONLY: nothing here sends — Approve stages an Outlook
+   draft. Per-session metrics (taps/dwell/time-to-clear/reopens) batch to the fn.
+   ========================================================================= */
+var TR = { page:null, surface:null, id:null, sessionId:null, t0:0, taps:0, reopens:0,
+           decided:0, dwell:{}, dwellCur:null, dwellT0:0, flushed:false, deck:[], idx:0,
+           undoTimer:null, _toastTimeout:null, _flushBound:false, _reopening:false };
+
+function trIdem(p){ return (p||"tr")+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,8); }
+function trDate(iso){ return iso ? esc(String(iso).slice(0,10)) : "—"; }
+function trSlot(slot){ if(!slot||!slot.prep_for) return ""; return " · slot "+esc(String(slot.prep_for).slice(0,16).replace("T"," "))+(slot.prep_status?(" ("+esc(slot.prep_status)+")"):""); }
+function trNextWeek(){ return new Date(Date.now()+7*864e5).toISOString().slice(0,10); }
+function trNavChip(pid,label){ return '<span onclick="openPage(\''+pid+'\')" style="cursor:pointer;display:inline-block;font-size:11px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:3px 10px">'+esc(label)+'</span>'; }
+function trUrgencyChip(u){ if(!u||!u.chip) return ""; return '<span class="tr-chip '+esc(u.tier||"none")+'">'+esc(u.chip)+'</span>'; }
+
+async function trPost(body){
+  var r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
+    method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body||{}) });
+  if(r.status===401) throw new Error("link expired");
+  if(!r.ok){ var j={}; try{ j=await r.json(); }catch(e){} throw new Error((j.result&&j.result.msg)||("HTTP "+r.status)); }
+  return r.json();
+}
+function trReopen(){ if(!TR.id) return; TR._reopening=true; delete PAGE_CACHE[TR.id]; openPage(TR.id,{noHistory:true}); }
+
+/* ---- tap + undo ---- */
+async function trTap(ref, verb, itype, side, payloadEnc, ev){
+  var btn = ev && ev.currentTarget; if(btn) btn.disabled=true;
+  var card = btn && btn.closest(".tr-card, .tr-scard"); if(card) card.classList.add("busy");
+  TR.taps++;
+  var payload={}; try{ payload = payloadEnc ? JSON.parse(decodeURIComponent(payloadEnc)) : {}; }catch(e){}
+  try{
+    var res = await trPost({ action:"triage_act", surface:TR.surface, verb:verb, item_type:itype, item_ref:ref, idempotency_key:trIdem("t"), payload:payload });
+    if(!res.result || res.result.ok===false){ if(card) card.classList.remove("busy"); if(btn) btn.disabled=false; alert((res.result&&res.result.msg)||"Action failed"); return; }
+    TR.decided++;
+    trShowToast(res.result.msg, res.receipt);
+    if(TR.surface==="ledger") trLedgerResolve(card, res);
+    else trStackAdvance();
+  }catch(e){ if(card) card.classList.remove("busy"); if(btn) btn.disabled=false; alert("Failed: "+(e&&e.message)); }
+}
+function trShowToast(msg, receipt){
+  trClearToast();
+  if(!receipt || !receipt.qa_id) return;
+  var grace=(TR.page&&TR.page.undo_grace_ms)||60000, secs=Math.round(grace/1000);
+  var el=document.createElement("div"); el.className="tr-toast"; el.id="tr-toast";
+  el.innerHTML='<span>'+esc(msg||"Done")+'</span><button id="tr-undo">Undo ('+secs+'s)</button>';
+  document.body.appendChild(el);
+  document.getElementById("tr-undo").onclick=function(){ trUndo(receipt.qa_id); };
+  var left=secs;
+  TR.undoTimer=setInterval(function(){ left--; var b=document.getElementById("tr-undo"); if(b) b.textContent="Undo ("+left+"s)"; if(left<=0) trClearToast(); }, 1000);
+  TR._toastTimeout=setTimeout(trClearToast, grace+400);
+}
+function trClearToast(){ if(TR.undoTimer){clearInterval(TR.undoTimer);TR.undoTimer=null;} if(TR._toastTimeout){clearTimeout(TR._toastTimeout);TR._toastTimeout=null;} var e=document.getElementById("tr-toast"); if(e) e.remove(); }
+async function trUndo(qaId){
+  trClearToast();
+  try{ var res=await trPost({action:"triage_cancel", qa_id:qaId}); if(res.result&&res.result.ok===false){ alert(res.result.msg); return; } TR.decided=Math.max(0,TR.decided-1); TR.reopens++; trReopen(); }
+  catch(e){ alert("Undo failed: "+(e&&e.message)); }
+}
+function trLedgerResolve(card, res){
+  if(!card) return;
+  card.classList.remove("busy");
+  var staging=(res.receipt && res.receipt.status==="staged" && res.receipt.side==="graph");
+  var msg = staging ? "Staging in Outlook Drafts…" : (res.result.msg||"Done");
+  card.innerHTML='<div class="tr-done">✓ '+esc(msg)+'</div>';
+}
+
+/* ---- dwell + session metrics ---- */
+function trDwellStart(ref){ trDwellEnd(); TR.dwellCur=ref; TR.dwellT0=Date.now(); }
+function trDwellEnd(){ if(TR.dwellCur){ TR.dwell[TR.dwellCur]=(TR.dwell[TR.dwellCur]||0)+(Date.now()-TR.dwellT0); TR.dwellCur=null; } }
+function trSessionStart(surface){
+  if(TR._reopening){ TR._reopening=false; TR.surface=surface; trBindFlush(); return; }
+  trFlush();
+  TR.surface=surface; TR.id = surface==="ledger"?"triage_ledger":"triage_stack";
+  TR.sessionId=trIdem("s"); TR.t0=Date.now(); TR.taps=0; TR.reopens=0; TR.decided=0; TR.dwell={}; TR.dwellCur=null; TR.flushed=false;
+  trBindFlush();
+}
+function trBindFlush(){
+  if(TR._flushBound) return; TR._flushBound=true;
+  window.addEventListener("beforeunload", trFlush);
+  var layer=document.getElementById("pageLayer");
+  if(layer && window.MutationObserver){ new MutationObserver(function(){ if(!layer.classList.contains("open")) trFlush(); }).observe(layer,{attributes:true,attributeFilter:["class"]}); }
+}
+function trFlush(){
+  if(TR.flushed || !TR.sessionId) return;
+  trDwellEnd();
+  var events=[{t:"session", taps:TR.taps, reopens:TR.reopens, decided:TR.decided, elapsed_ms:Date.now()-TR.t0}];
+  for(var ref in TR.dwell){ events.push({t:"dwell", item:ref, ms:Math.round(TR.dwell[ref])}); }
+  if(TR.decided>0) events.push({t:"clear", time_to_clear_ms:Date.now()-TR.t0, decided:TR.decided});
+  if(TR.reopens>0) events.push({t:"reopen", n:TR.reopens});
+  TR.flushed=true;
+  var body=JSON.stringify({action:"triage_instr", surface:TR.surface, session_id:TR.sessionId, events:events});
+  try{
+    if(navigator.sendBeacon){ navigator.sendBeacon(ENDPOINT+"?t="+encodeURIComponent(TOKEN), new Blob([body],{type:"application/json"})); }
+    else { trPost(JSON.parse(body)); }
+  }catch(e){}
+}
+
+/* ---- shared card rendering ---- */
+function trVerbs(it){
+  return (it.verbs||[]).map(function(v){
+    var pl = encodeURIComponent(JSON.stringify(v.payload||{}));
+    return '<button class="tr-vb '+esc(v.kind||"secondary")+'" onclick="event.stopPropagation();trTap(\''+esc(it.id)+'\',\''+esc(v.verb)+'\',\''+esc(it.type)+'\',\''+esc(v.side)+'\',\''+pl+'\',event)">'+esc(v.label)+'</button>';
+  }).join("");
+}
+function trCard(it){
+  var disc = it.discuss_requested? ' <span class="tr-disc">discuss queued</span>':"";
+  var h='<div class="tr-card'+(it.high_stakes?" stakes3":"")+'" data-ref="'+esc(it.id)+'">';
+  h+='<div class="tr-top" onclick="trToggle(this)"><div style="flex:1">';
+  h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title">'+esc(it.title||"")+'</div>';
+  h+='<div><span class="tr-why">'+esc(it.why_here||"")+'</span>'+trUrgencyChip(it.urgency)+disc+'</div>';
+  if(it.recommendation) h+='<div class="tr-prop" style="margin-top:5px">'+esc(it.recommendation)+'</div>';
+  h+='</div><span class="chev">›</span></div>';
+  h+='<div class="tr-body">';
+  if(it.brief) h+='<div class="tr-brief">'+esc(it.brief)+'</div>';
+  if(it.provenance) h+='<div class="tr-commit"><b>from:</b> '+esc(it.provenance)+'</div>';
+  if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
+  if(it.history) h+='<div class="tr-commit">'+esc(it.history)+'</div>';
+  h+='<div class="tr-verbs">'+trVerbs(it)+'</div>';
+  h+='<div class="tr-commit" style="margin-top:6px;color:var(--ink-muted)">data through '+trDate(it.data_through)+'</div>';
+  h+='</div></div>';
+  return h;
+}
+function trToggle(top){ var c=top.closest(".tr-card"); if(!c) return; var was=c.classList.contains("open"); c.classList.toggle("open"); if(!was) trDwellStart(c.getAttribute("data-ref")); else trDwellEnd(); }
+
+/* ---- THE LEDGER ---- */
+function renderTriageLedgerPage(payload){
+  trEnsureStyles();
+  var p=(payload&&payload.page)||{}; TR.page=p; TR.surface="ledger"; TR.id="triage_ledger";
+  var t=p.tally||{}; var ranked=p.ranked||[]; var sweep=p.sweep||[]; var fyi=p.fyi||[];
+  var need=(t.need_you!=null)?t.need_you:(ranked.length+sweep.length);
+  var h='<div class="tr-hd"><div class="tr-tally"><b>'+esc(t.in||0)+'</b> in · <b>'+esc(t.auto_handled||0)+'</b> auto-handled · <b>'+esc(need)+'</b> need you</div>';
+  h+='<div class="tr-frame">'+esc(need)+' item'+(need===1?"":"s")+', one pass · data through '+trDate(p.data_through)+trSlot(p.slot)+'</div>';
+  h+='<div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap">'+trNavChip("triage_stack","Try The Stack ›")+trNavChip("brain","The Brain ›")+'</div></div>';
+  h+=trSweepBlock(sweep);
+  h+=trSection("Decide", ranked.filter(function(x){return x.section==="decide";}));
+  h+=trSection("Approve — staged drafts", ranked.filter(function(x){return x.section==="approve";}));
+  h+=trSection("Confirm — memory", ranked.filter(function(x){return x.section==="confirm";}));
+  h+=trOverdueSection(ranked.filter(function(x){return x.section==="overdue";}), p.counts||{});
+  h+=trFyiBlock(fyi);
+  if(need===0 && fyi.length===0) h+=emptyState("✓","Queue clear","Nothing needs you right now. The next queue builds before your sitting.");
+  return h;
+}
+function trSection(label, items){
+  if(!items.length) return "";
+  return '<div class="tr-sec">'+esc(label)+'<span class="tr-secn">'+items.length+'</span></div>'+items.map(trCard).join("");
+}
+function trSweepBlock(items){
+  if(!items.length) return "";
+  var h='<div class="tr-sec">Sweep — cheap wins first<span class="tr-secn">'+items.length+'</span></div>';
+  h+='<div class="tr-card"><div class="tr-prop">'+items.length+' trivially-approvable item'+(items.length===1?"":"s")+'</div>';
+  h+='<div class="tr-commit">Memory confirms and obvious drafts. Approve them all to open with momentum, or open one to unpick.</div>';
+  h+='<div class="tr-verbs"><button class="tr-vb safe" onclick="trSweepAll(this)">Approve all '+items.length+'</button></div>';
+  h+='<div style="margin-top:10px">'+items.map(trCard).join("")+'</div></div>';
+  return h;
+}
+async function trSweepAll(btn){
+  btn.disabled=true; btn.textContent="Approving…";
+  var sw=(TR.page.sweep||[]);
+  for(var i=0;i<sw.length;i++){ var it=sw[i]; var v=(it.verbs||[]).filter(function(x){return x.kind==="safe";})[0]||(it.verbs||[])[0]; if(!v) continue;
+    try{ await trPost({action:"triage_act",surface:TR.surface,verb:v.verb,item_type:it.type,item_ref:it.id,idempotency_key:trIdem("sw"),payload:v.payload||{}}); TR.decided++; TR.taps++; }catch(e){} }
+  trReopen();
+}
+function trOverdueSection(items, counts){
+  if(!items.length) return "";
+  var total=counts.overdue_total||items.length;
+  var h='<div class="tr-sec">Overdue<span class="tr-secn">'+items.length+(total>items.length? " of "+total:"")+'</span></div>';
+  h+='<div class="tr-card" style="background:var(--warn-bg);border-color:var(--warn-bg)"><div class="tr-commit" style="color:var(--warn)"><b>'+total+' overdue.</b> Re-anchor the pile so it stops shouting:</div>';
+  h+='<div class="tr-verbs"><button class="tr-vb secondary" onclick="trPushAll(this)">Push all to next week</button><button class="tr-vb discuss" onclick="trAskOverdue(event)">Ask Claude to re-propose</button></div></div>';
+  h+=items.map(trCard).join("");
+  return h;
+}
+async function trPushAll(btn){
+  btn.disabled=true; btn.textContent="Pushing…";
+  var od=(TR.page.ranked||[]).filter(function(x){return x.section==="overdue";}), nxt=trNextWeek();
+  for(var i=0;i<od.length;i++){ try{ await trPost({action:"triage_act",surface:TR.surface,verb:"task_pushdate",item_type:"task",item_ref:od[i].id,idempotency_key:trIdem("pa"),payload:{until:nxt}}); TR.decided++; TR.taps++; }catch(e){} }
+  trReopen();
+}
+async function trAskOverdue(ev){ var b=ev&&ev.currentTarget; if(b) b.disabled=true;
+  try{ var r=await trPost({action:"triage_act",surface:TR.surface,verb:"discuss",item_type:"task",item_ref:"task:bulk",idempotency_key:trIdem("ao"),payload:{blurb:"re-propose the overdue task dates"}}); TR.taps++; trShowToast("Queued for your next Claude sitting.", r.receipt); }catch(e){ alert(e&&e.message); }
+}
+function trFyiBlock(items){
+  if(!items.length) return "";
+  var h='<div class="tr-sec">FYI — no action<span class="tr-secn">'+items.length+'</span></div>';
+  h+=items.map(function(it){ var link=it.web_link?' <a href="'+esc(it.web_link)+'" target="_blank" style="color:var(--accent)">open ›</a>':"";
+    return '<div class="tr-card"><div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-weight:600;font-size:13px">'+esc(it.title||"")+link+'</div></div>'; }).join("");
+  return h;
+}
+function trlAfterRender(_body,_payload){ trSessionStart("ledger"); }
+
+/* ---- THE STACK ---- */
+function renderTriageStackPage(payload){
+  trEnsureStyles();
+  var p=(payload&&payload.page)||{}; TR.page=p; TR.surface="stack"; TR.id="triage_stack";
+  var t=p.tally||{}; var need=(t.need_you!=null)?t.need_you:0;
+  TR.deck=(p.sweep||[]).concat(p.ranked||[]); TR.idx=0;
+  var h='<div class="tr-hd"><div class="tr-tally"><b>'+esc(t.in||0)+'</b> in · <b>'+esc(t.auto_handled||0)+'</b> auto-handled · <b>'+esc(need)+'</b> need you</div>';
+  h+='<div class="tr-frame">data through '+trDate(p.data_through)+trSlot(p.slot)+'</div>';
+  h+='<div style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap">'+trNavChip("triage_ledger","Try The Ledger ›")+trNavChip("brain","The Brain ›")+'</div></div>';
+  h+='<div class="tr-stack-hero"><div class="tr-stack-n">'+need+'</div><div class="tr-frame" style="font-size:13px">to decide — one card at a time</div>';
+  if(need>0) h+='<div style="margin-top:16px"><button class="tr-vb safe" style="padding:13px 28px;font-size:15px" onclick="trStackStart()">Start ›</button></div>';
+  else h+=emptyState("✓","Nothing to deal","The next queue builds before your sitting.");
+  h+='</div><div id="tr-stack-body"></div>';
+  return h;
+}
+function trStackStart(){ var hero=document.querySelector(".tr-stack-hero"); if(hero) hero.style.display="none"; TR.idx=0; trRenderStackBody(); }
+function trStackAdvance(){ TR.idx++; trRenderStackBody(); }
+function trStackSkip(ev){ var it=TR.deck[TR.idx]; if(it) trTap(it.id,"later",it.type,"db",encodeURIComponent("{}"),ev); }
+function trRenderStackBody(){
+  trDwellEnd();
+  var body=document.getElementById("tr-stack-body"); if(!body) return;
+  if(TR.idx>=TR.deck.length){ body.innerHTML=trStackEnd(); trFlush(); return; }
+  var it=TR.deck[TR.idx], n=TR.deck.length, pct=Math.round(TR.idx/n*100);
+  var h='<div class="tr-prog"><i style="width:'+pct+'%"></i></div>';
+  h+='<div class="tr-frame" style="text-align:center;margin-bottom:6px">'+(TR.idx+1)+' of '+n+' · '+esc(it.why_here||"")+' '+trUrgencyChip(it.urgency)+'</div>';
+  h+='<div class="tr-scard'+(it.high_stakes?" stakes3":"")+'">';
+  h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-size:16px">'+esc(it.title||"")+'</div>';
+  if(it.recommendation) h+='<div class="tr-srec">'+esc(it.recommendation)+'</div>';
+  if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  if(it.provenance) h+='<div class="tr-commit"><b>from:</b> '+esc(it.provenance)+'</div>';
+  if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
+  if(it.brief) h+='<div class="tr-brief" style="margin-top:8px">'+esc(it.brief)+'</div>';
+  if(it.history) h+='<div class="tr-commit" style="margin-top:6px">'+esc(it.history)+'</div>';
+  h+='<div class="tr-commit" style="margin-top:6px;color:var(--ink-muted)">data through '+trDate(it.data_through)+'</div>';
+  h+='<div class="tr-sbar">'+trVerbs(it)+'</div></div>';
+  h+='<div style="text-align:center;margin-top:10px"><button class="tr-vb later" onclick="trStackSkip(event)">Skip (Later)</button></div>';
+  body.innerHTML=h;
+  trDwellStart(it.id);
+  if(it.high_stakes){ body.querySelectorAll(".tr-vb.safe").forEach(function(b){ b.classList.remove("safe"); b.classList.add("secondary"); }); }
+}
+function trStackEnd(){
+  var fyi=(TR.page.fyi||[]), mins=((Date.now()-TR.t0)/60000).toFixed(1);
+  var h='<div class="tr-scard" style="text-align:center"><div class="tr-stack-n" style="font-size:30px">✓</div><div class="tr-title">Hand cleared</div>';
+  h+='<div class="tr-frame" style="font-size:13px;margin:6px 0 12px">'+TR.decided+' decided · '+mins+' min</div>';
+  h+='<div class="tr-commit">Anything you approved is now a draft waiting in <b>Outlook Drafts</b> — open Outlook to review and send. Nothing was sent from here.</div>';
+  if(fyi.length){ h+='<div class="tr-sec" style="justify-content:center">FYI digest ('+fyi.length+')</div>'+fyi.map(function(x){return '<div class="tr-commit">· '+esc(x.title||"")+'</div>';}).join(""); }
+  h+='<div style="margin-top:14px">'+trNavChip("triage_ledger","See it as The Ledger ›")+'</div></div>';
+  return h;
+}
+function trsAfterRender(_body,_payload){ trSessionStart("stack"); }
+
+/* ---- owner home tile ---- */
+function renderTriageHomeTile(data){
+  if(!(data.manager && data.manager.role==="Owner")) return "";
+  var b='<div class="meallog-btn" style="cursor:pointer" onclick="openPage(\'triage_ledger\')"><span class="mlb-plus">▤</span><span class="mlb-txt"><b>Triage — The Ledger</b><span class="mlb-sub">Your morning queue as one sectioned scroll: sweep, decide, approve, confirm, overdue.</span></span><span class="chev">›</span></div>';
+  b+='<div class="meallog-btn" style="cursor:pointer;margin-top:8px" onclick="openPage(\'triage_stack\')"><span class="mlb-plus">▦</span><span class="mlb-txt"><b>Triage — The Stack</b><span class="mlb-sub">The same queue dealt one card at a time — a finite hand with a finish line.</span></span><span class="chev">›</span></div>';
+  return card("Work the queue", b, { info:"owner-only · two ways to try it · drafts-only", newBadge:true });
+}
+
+/* ---- injected styles (once) ---- */
+function trEnsureStyles(){
+  if(document.getElementById("tr-styles")) return;
+  var s=document.createElement("style"); s.id="tr-styles";
+  s.textContent=".tr-hd{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-tile);padding:12px 14px;margin:0 0 6px}"
+  +".tr-tally{font-size:12px;color:var(--ink-2);font-weight:700}.tr-tally b{color:var(--accent)}"
+  +".tr-frame{font-size:11px;color:var(--ink-muted);margin-top:3px}"
+  +".tr-sec{font-size:12px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-2);margin:18px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}"
+  +".tr-sec .tr-secn{color:var(--ink-muted);font-weight:700}"
+  +".tr-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin:0 0 10px;box-shadow:var(--sh-2)}"
+  +".tr-card.stakes3{border-left:3px solid var(--bad)}"
+  +".tr-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;cursor:pointer}"
+  +".tr-who{font-size:11px;color:var(--ink-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px}"
+  +".tr-title{font-size:14px;font-weight:800;color:var(--ink);margin:2px 0 3px;line-height:1.25}"
+  +".tr-prop{font-size:12.5px;color:var(--ink);font-weight:700}"
+  +".tr-why{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-right:5px}"
+  +".tr-chip{display:inline-block;font-size:10px;font-weight:900;border-radius:999px;padding:1px 7px}"
+  +".tr-chip.over{background:var(--bad-bg);color:var(--bad)}.tr-chip.soon{background:var(--warn-bg);color:var(--warn)}.tr-chip.none{background:var(--surface-2);color:var(--ink-muted)}"
+  +".tr-disc{display:inline-block;background:var(--warn-bg);color:var(--warn);font-size:10px;font-weight:800;border-radius:999px;padding:1px 7px}"
+  +".tr-body{display:none;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}"
+  +".tr-card.open .tr-body{display:block}"
+  +".tr-brief{font-size:12.5px;color:var(--ink-2);line-height:1.45;white-space:pre-wrap}"
+  +".tr-art{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin:8px 0;font-size:12.5px;color:var(--ink);white-space:pre-wrap}"
+  +".tr-commit{font-size:11px;color:var(--ink-2);margin:6px 0}.tr-commit b{color:var(--ink)}"
+  +".tr-verbs{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}"
+  +".tr-vb{font-size:12px;font-weight:800;padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--ink-2);cursor:pointer}"
+  +".tr-vb.safe{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}"
+  +".tr-vb.secondary{background:var(--surface-2);color:var(--ink)}"
+  +".tr-vb.danger{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-bg)}"
+  +".tr-vb.discuss{background:transparent;color:var(--accent);border-color:var(--accent)}"
+  +".tr-vb.later{background:transparent;color:var(--ink-muted)}"
+  +".tr-vb:disabled{opacity:.5}.tr-card.busy,.tr-scard.busy{opacity:.55;pointer-events:none}"
+  +".tr-done{font-size:12px;color:var(--good);font-weight:800;padding:6px 2px}"
+  +".tr-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:120;background:var(--ink);color:var(--surface);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:92vw}"
+  +".tr-toast button{background:transparent;color:var(--mc-gold,#f5c451);border:0;font-weight:900;font-size:13px;cursor:pointer}"
+  +".tr-stack-hero{text-align:center;padding:26px 12px}.tr-stack-n{font-size:40px;font-weight:900;color:var(--accent)}"
+  +".tr-prog{height:5px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin:2px 0 14px}.tr-prog>i{display:block;height:100%;background:var(--accent);transition:width .25s}"
+  +".tr-scard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--sh-2);min-height:50vh;display:flex;flex-direction:column}"
+  +".tr-scard.stakes3{border-top:4px solid var(--bad)}"
+  +".tr-srec{font-size:15px;font-weight:800;color:var(--ink);margin:6px 0 10px;line-height:1.3}"
+  +".tr-sbar{position:sticky;bottom:0;display:flex;gap:8px;margin-top:auto;padding-top:12px;background:var(--surface)}"
+  +".tr-sbar .tr-vb{flex:1;text-align:center;padding:13px 8px;font-size:13px}";
+  document.head.appendChild(s);
+}
 const PAGE_INFLIGHT = {};   // id -> promise (fast double-tap = one fetch)
 let ACTIVE_PAGE = null;
 let BOARD_BOOTED = false;
@@ -5727,6 +6031,9 @@ const MANIFEST = [
   // Opens the server-gathered brain hub (?page=brain); the fn requireOwner is the
   // real gate. The hub's ASK section reuses the ask box inline.
   { id:"today_ask_brain",  lane:"TODAY", title:"The Brain",               render: renderAskBrainTile,    newBadge:true },
+  // Triage bake-off (docs/plans/triage-interface) — owner-only tile linking both
+  // candidate surfaces (The Ledger / The Stack). Self-gates on role==='Owner'.
+  { id:"today_triage",     lane:"TODAY", title:"Work the queue",          render: renderTriageHomeTile,  newBadge:true },
   // v2-0.42: Employee Meals & Promos logger button (Eddie 2026-07-11 — "I dont
   // see my meal logger in the gm view"). Pure LINK tile: opens meal.html with
   // THIS board's token (meal-log accepts manager_page AND manager_page_ro —
