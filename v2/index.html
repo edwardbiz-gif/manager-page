@@ -9,6 +9,17 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.56 — TRIAGE FIXES (fn + shell lockstep v2-0.56, 2026-07-22): four fixes from
+  Eddie's first real Stack sitting. (1) A "✓ Complete" verb on every card (email/
+  task/dispute/receipt) — the universal resolve. (2) FIXED the Stack Discuss-
+  sometimes-unclickable bug: the fixed undo toast (bottom, z-index) overlapped the
+  Stack's sticky verb bar + Skip button and stole their taps — the toast is now
+  click-through (pointer-events:none, Undo stays tappable) AND lifted clear, and the
+  verb bar wraps so 5 buttons never cram. (3) "Open in Outlook" OWA deep-links on
+  every email-referencing card (system-constructed from the message id, text anchor,
+  new tab — no autolinking of untrusted text). (4) Merge chips render the DEDUP
+  (9x "Official Restaurant Visit" + 7x Paycor collapsed to one card + "N messages").
+
   v2-0.53 — C-1 TWO-WAY REPLY (fn + shell lockstep v2-0.53, conversation-surfaces
   Stage 2, 2026-07-21): every task row gets a Reply button + inline sheet posting
   action:"reply". The server parses (haiku) + routes: context/snooze/ack auto-apply
@@ -1127,7 +1138,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.55";
+const SHELL_VERSION = "v2-0.56";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4331,6 +4342,12 @@ function trSlot(slot){ if(!slot||!slot.prep_for) return ""; return " · slot "+e
 function trNextWeek(){ return new Date(Date.now()+7*864e5).toISOString().slice(0,10); }
 function trNavChip(pid,label){ return '<span onclick="openPage(\''+pid+'\')" style="cursor:pointer;display:inline-block;font-size:11px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:3px 10px">'+esc(label)+'</span>'; }
 function trUrgencyChip(u){ if(!u||!u.chip) return ""; return '<span class="tr-chip '+esc(u.tier||"none")+'">'+esc(u.chip)+'</span>'; }
+// dedup merge chips ('also an open task', '7 messages like this') — one card per underlying item.
+function trMergeChips(it){ var c=it&&it.merge_chips; if(!c||!c.length) return ""; return c.map(function(x){ return '<span class="tr-merge">'+esc(x)+'</span>'; }).join(""); }
+// "Open in Outlook" OWA deep-link. it.owa_link is SYSTEM-CONSTRUCTED by the fn from
+// email_archive.message_id (never autolinked from untrusted text), opens in a new tab.
+function trOpenLink(it){ if(!it||!it.owa_link) return ""; return '<a class="tr-owa" href="'+esc(it.owa_link)+'" target="_blank" rel="noopener">Open in Outlook ›</a>'; }
+function trOpenRow(it){ return (it&&it.owa_link)? '<div class="tr-owa-row">'+trOpenLink(it)+'</div>':""; }
 
 async function trPost(body){
   var r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
@@ -4425,7 +4442,7 @@ function trCard(it){
   var h='<div class="tr-card'+(it.high_stakes?" stakes3":"")+'" data-ref="'+esc(it.id)+'">';
   h+='<div class="tr-top" onclick="trToggle(this)"><div style="flex:1">';
   h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title">'+esc(it.title||"")+'</div>';
-  h+='<div><span class="tr-why">'+esc(it.why_here||"")+'</span>'+trUrgencyChip(it.urgency)+disc+'</div>';
+  h+='<div><span class="tr-why">'+esc(it.why_here||"")+'</span>'+trUrgencyChip(it.urgency)+disc+trMergeChips(it)+'</div>';
   if(it.recommendation) h+='<div class="tr-prop" style="margin-top:5px">'+esc(it.recommendation)+'</div>';
   h+='</div><span class="chev">›</span></div>';
   h+='<div class="tr-body">';
@@ -4434,6 +4451,7 @@ function trCard(it){
   if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
   if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
   if(it.history) h+='<div class="tr-commit">'+esc(it.history)+'</div>';
+  h+=trOpenRow(it);
   h+='<div class="tr-verbs">'+trVerbs(it)+'</div>';
   h+='<div class="tr-commit" style="margin-top:6px;color:var(--ink-muted)">data through '+trDate(it.data_through)+'</div>';
   h+='</div></div>';
@@ -4500,8 +4518,9 @@ async function trAskOverdue(ev){ var b=ev&&ev.currentTarget; if(b) b.disabled=tr
 function trFyiBlock(items){
   if(!items.length) return "";
   var h='<div class="tr-sec">FYI — no action<span class="tr-secn">'+items.length+'</span></div>';
-  h+=items.map(function(it){ var link=it.web_link?' <a href="'+esc(it.web_link)+'" target="_blank" style="color:var(--accent)">open ›</a>':"";
-    return '<div class="tr-card"><div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-weight:600;font-size:13px">'+esc(it.title||"")+link+'</div></div>'; }).join("");
+  h+=items.map(function(it){ var link=it.web_link?' <a href="'+esc(it.web_link)+'" target="_blank" rel="noopener" style="color:var(--accent)">open draft ›</a>':"";
+    var vb=(it.verbs&&it.verbs.length)?'<div class="tr-verbs">'+trVerbs(it)+'</div>':"";
+    return '<div class="tr-card" data-ref="'+esc(it.id)+'"><div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-weight:600;font-size:13px">'+esc(it.title||"")+link+'</div>'+trOpenRow(it)+vb+'</div>'; }).join("");
   return h;
 }
 function trlAfterRender(_body,_payload){ trSessionStart("ledger"); }
@@ -4533,12 +4552,14 @@ function trRenderStackBody(){
   h+='<div class="tr-frame" style="text-align:center;margin-bottom:6px">'+(TR.idx+1)+' of '+n+' · '+esc(it.why_here||"")+' '+trUrgencyChip(it.urgency)+'</div>';
   h+='<div class="tr-scard'+(it.high_stakes?" stakes3":"")+'">';
   h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-size:16px">'+esc(it.title||"")+'</div>';
+  if(it.merge_chips && it.merge_chips.length) h+='<div style="margin:5px 0">'+trMergeChips(it)+'</div>';
   if(it.recommendation) h+='<div class="tr-srec">'+esc(it.recommendation)+'</div>';
   if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
   if(it.provenance) h+='<div class="tr-commit"><b>from:</b> '+esc(it.provenance)+'</div>';
   if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
   if(it.brief) h+='<div class="tr-brief" style="margin-top:8px">'+esc(it.brief)+'</div>';
   if(it.history) h+='<div class="tr-commit" style="margin-top:6px">'+esc(it.history)+'</div>';
+  h+=trOpenRow(it);
   h+='<div class="tr-commit" style="margin-top:6px;color:var(--ink-muted)">data through '+trDate(it.data_through)+'</div>';
   h+='<div class="tr-sbar">'+trVerbs(it)+'</div></div>';
   h+='<div style="text-align:center;margin-top:10px"><button class="tr-vb later" onclick="trStackSkip(event)">Skip (Later)</button></div>';
@@ -4551,7 +4572,7 @@ function trStackEnd(){
   var h='<div class="tr-scard" style="text-align:center"><div class="tr-stack-n" style="font-size:30px">✓</div><div class="tr-title">Hand cleared</div>';
   h+='<div class="tr-frame" style="font-size:13px;margin:6px 0 12px">'+TR.decided+' decided · '+mins+' min</div>';
   h+='<div class="tr-commit">Anything you approved is now a draft waiting in <b>Outlook Drafts</b> — open Outlook to review and send. Nothing was sent from here.</div>';
-  if(fyi.length){ h+='<div class="tr-sec" style="justify-content:center">FYI digest ('+fyi.length+')</div>'+fyi.map(function(x){return '<div class="tr-commit">· '+esc(x.title||"")+'</div>';}).join(""); }
+  if(fyi.length){ h+='<div class="tr-sec" style="justify-content:center">FYI digest ('+fyi.length+')</div>'+fyi.map(function(x){return '<div class="tr-commit">· '+esc(x.title||"")+' '+trOpenLink(x)+'</div>';}).join(""); }
   h+='<div style="margin-top:14px">'+trNavChip("triage_ledger","See it as The Ledger ›")+'</div></div>';
   return h;
 }
@@ -4595,18 +4616,25 @@ function trEnsureStyles(){
   +".tr-vb.secondary{background:var(--surface-2);color:var(--ink)}"
   +".tr-vb.danger{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-bg)}"
   +".tr-vb.discuss{background:transparent;color:var(--accent);border-color:var(--accent)}"
+  +".tr-vb.complete{background:transparent;color:var(--good);border-color:var(--good);font-weight:900}"
   +".tr-vb.later{background:transparent;color:var(--ink-muted)}"
   +".tr-vb:disabled{opacity:.5}.tr-card.busy,.tr-scard.busy{opacity:.55;pointer-events:none}"
   +".tr-done{font-size:12px;color:var(--good);font-weight:800;padding:6px 2px}"
-  +".tr-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:120;background:var(--ink);color:var(--surface);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:92vw}"
-  +".tr-toast button{background:transparent;color:var(--mc-gold,#f5c451);border:0;font-weight:900;font-size:13px;cursor:pointer}"
+  +".tr-merge{display:inline-block;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);font-size:10px;font-weight:800;border-radius:999px;padding:1px 7px;margin-left:5px}"
+  +".tr-owa-row{margin:8px 0 2px}.tr-owa{display:inline-block;font-size:12px;font-weight:800;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:999px;padding:3px 11px}"
+  // FIX v2-0.56 (Discuss-sometimes-unclickable): the undo toast used to sit fixed at
+  // the very bottom over the Stack's sticky verb bar + Skip and steal their taps.
+  // Now it is CLICK-THROUGH (pointer-events:none — Undo re-enabled below) so it can
+  // never block a control, AND lifted well clear of the bottom bar. Both belt+braces.
+  +".tr-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:86px;z-index:120;pointer-events:none;background:var(--ink);color:var(--surface);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;max-width:92vw}"
+  +".tr-toast button{pointer-events:auto;background:transparent;color:var(--mc-gold,#f5c451);border:0;font-weight:900;font-size:13px;cursor:pointer;padding:4px 6px}"
   +".tr-stack-hero{text-align:center;padding:26px 12px}.tr-stack-n{font-size:40px;font-weight:900;color:var(--accent)}"
   +".tr-prog{height:5px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin:2px 0 14px}.tr-prog>i{display:block;height:100%;background:var(--accent);transition:width .25s}"
   +".tr-scard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--sh-2);min-height:50vh;display:flex;flex-direction:column}"
   +".tr-scard.stakes3{border-top:4px solid var(--bad)}"
   +".tr-srec{font-size:15px;font-weight:800;color:var(--ink);margin:6px 0 10px;line-height:1.3}"
-  +".tr-sbar{position:sticky;bottom:0;display:flex;gap:8px;margin-top:auto;padding-top:12px;background:var(--surface)}"
-  +".tr-sbar .tr-vb{flex:1;text-align:center;padding:13px 8px;font-size:13px}";
+  +".tr-sbar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:12px;padding-bottom:6px;background:var(--surface)}"
+  +".tr-sbar .tr-vb{flex:1 1 auto;min-width:84px;text-align:center;padding:13px 8px;font-size:13px}";
   document.head.appendChild(s);
 }
 const PAGE_INFLIGHT = {};   // id -> promise (fast double-tap = one fetch)
