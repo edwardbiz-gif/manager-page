@@ -9,6 +9,19 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.57 — STORE INCIDENT BANNER (fn + shell lockstep v2-0.57, 2026-07-22, Eddie's
+  Yorkville double over-temp directive: "put a flashing alert on top of their home
+  describing the situation and asking for an update; remove it if the temp resolves;
+  let sup-and-below follow the team's updates"). renderIncidentBanner paints a flashing
+  (prefers-reduced-motion aware) top-of-TODAY banner from data.incidents (open
+  store_incidents for the viewer's scope). It EXPLAINS the inferred-over-temp signal in
+  plain language, lists the units + readings + data-through, links the incident task,
+  and shows the team's live reply thread UNDER it. The over-then-SILENT variant (a unit
+  that read too warm then went dark) renders distinctly. Every store-scoped token sees
+  it incl. read-only (RO reads the thread; the Reply write is hidden for RO and rejected
+  server-side). Reuses the C-1 reply path (v2ReplySend). Gone the moment the incident
+  resolves. Backed by sync_store_incidents.py (auto open/refresh/resolve).
+
   v2-0.56 — TRIAGE FIXES (fn + shell lockstep v2-0.56, 2026-07-22): four fixes from
   Eddie's first real Stack sitting. (1) A "✓ Complete" verb on every card (email/
   task/dispute/receipt) — the universal resolve. (2) FIXED the Stack Discuss-
@@ -276,6 +289,31 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
    stranded card sits 7px low (imperceptible), never invisible. */
 @keyframes rise{from{transform:translateY(7px)}to{transform:none}}
 @media(prefers-reduced-motion:reduce){.card,.skel,.countup{animation:none!important}}
+/* ── STORE INCIDENT BANNER (v2-0.57, Eddie's over-temp directive) — a flashing,
+   attention-grabbing but tasteful emergency banner at the top of the affected
+   store's home. Pulses; respects prefers-reduced-motion (steady high-contrast). */
+.incident-banner{border:2px solid #d92d20;background:linear-gradient(180deg,#fff5f4,#ffe6e2);color:#4d150e;border-radius:14px;padding:14px 16px;margin:0 0 14px;animation:ibpulse 1.7s ease-in-out infinite}
+@keyframes ibpulse{0%,100%{box-shadow:0 0 0 3px rgba(217,45,32,.14)}50%{box-shadow:0 0 0 7px rgba(217,45,32,.34)}}
+.incident-banner.ib-silent{border-color:#7a1420;background:linear-gradient(180deg,#fff1f2,#ffd9dd)}
+.ib-flag{display:inline-block;font-weight:800;letter-spacing:.04em;font-size:12px;color:#fff;background:#d92d20;padding:3px 9px;border-radius:999px;animation:ibblink 1.15s step-start infinite}
+.incident-banner.ib-silent .ib-flag{background:#7a1420}
+@keyframes ibblink{0%,62%{opacity:1}63%,100%{opacity:.5}}
+.ib-title{font-weight:800;font-size:16px;margin:9px 0 4px}
+.ib-explain{font-size:13.5px;line-height:1.45;margin:2px 0 8px}
+.ib-units{margin:6px 0 8px;padding-left:18px;font-size:13.5px;line-height:1.5}
+.ib-do{font-size:13px;background:rgba(255,255,255,.62);border-radius:8px;padding:8px 10px;margin:6px 0}
+.ib-meta{font-size:11.5px;opacity:.82;margin-top:6px}
+.ib-ticket{font-size:11.5px;font-weight:700;margin-top:4px}
+.ib-reply{margin-top:10px;background:#d92d20;color:#fff;border:0;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
+.ib-reply:hover{background:#b42318}
+.ib-thread{margin-top:12px;border-top:1px solid rgba(217,45,32,.25);padding-top:8px}
+.ib-thread-h{font-size:12px;font-weight:700;opacity:.85;margin-bottom:6px}
+.ib-msg{background:rgba(255,255,255,.72);border-radius:8px;padding:7px 9px;margin-bottom:6px}
+.ib-au{font-weight:700;font-size:12.5px}
+.ib-at{font-size:11px;opacity:.7;margin-left:6px}
+.ib-bd{font-size:13px;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+.ib-empty{font-size:12.5px;opacity:.75;font-style:italic}
+@media(prefers-reduced-motion:reduce){.incident-banner,.ib-flag{animation:none!important}.incident-banner{box-shadow:0 0 0 3px rgba(217,45,32,.32)}}
 .chead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
 .ctitle{font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
  color:var(--accent);display:flex;align-items:center;gap:6px}
@@ -1138,7 +1176,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.56";
+const SHELL_VERSION = "v2-0.57";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -6173,6 +6211,80 @@ const MANIFEST = [
    ACTIVE_LANE, calls each module's render() (sect-isolated), paints #app.
    Exposed on window for the smoke test + future drill code.
    ========================================================================= */
+// ── STORE INCIDENT BANNER (v2-0.57) — the flashing top-of-home alert for an open
+// store_incidents row. EXPLAINS the signal in plain language (what an inferred over-
+// temp reading means, why it matters, what to do), links the incident task, and shows
+// the team's live reply thread UNDER it so the whole store (sup-and-below, incl. RO)
+// can follow. RO tokens see the banner + read the thread; the Reply write is hidden
+// for them (server rejects it anyway). Renders "over-then-SILENT" distinctly (worse).
+function ibWhen(ts){
+  if(!ts) return "";
+  try{ return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
+  catch(_e){ return String(ts).slice(0,16); }
+}
+function renderIncidentBanner(data){
+  var incs = (data && data.incidents) || [];
+  if(!incs.length) return "";
+  var ro = data && data.read_only === true;
+  return incs.map(function(inc){
+    var units = inc.units || [];
+    var anySilent = inc.has_silent === true;
+    var allSilent = inc.all_silent === true;
+    var unitRows = units.map(function(u){
+      var rf = (u.reading_f==null? "—" : u.reading_f+"°F");
+      if(u.silent){
+        return '<li><b>'+esc(u.sensor_name)+'</b> — last read <b>'+esc(rf)+'</b>, then the sensor went <b>SILENT</b> (no data since '+esc(u.data_through||"?")+'). Treat it as failing and unmonitored.</li>';
+      }
+      return '<li><b>'+esc(u.sensor_name)+'</b> — running <b>'+esc(rf)+'</b>, over the 40°F fridge / 0°F freezer limit.</li>';
+    }).join("");
+    var explain = anySilent
+      ? 'A refrigeration sensor read over the safe limit and then STOPPED REPORTING. A unit that was too warm and is now blind is worse, not better — treat it as failing until a probe proves otherwise. These are Jolt INFERRED product temps, so confirm with a real probe thermometer.'
+      : 'One or more refrigeration units have read over the safe temperature for a day or more — a new pattern. These are Jolt INFERRED product temps (the sensor estimates how cold the food is from air-temp trends), so a probe confirms it — but a new, sustained over-limit reading usually means a real problem worth checking now.';
+    var taskId = inc.linked_task_id;
+    var thread = inc.thread || [];
+    var threadHtml = thread.length
+      ? '<div class="ib-thread"><div class="ib-thread-h">Updates from the team ('+thread.length+')</div>'
+        + thread.map(function(t){ return '<div class="ib-msg"><span class="ib-au">'+esc(t.author||"Team")+'</span><span class="ib-at">'+esc(ibWhen(t.at))+'</span><div class="ib-bd">'+esc(t.body||"")+'</div></div>'; }).join("")
+        + '</div>'
+      : '<div class="ib-thread ib-empty">No updates yet — be the first to post what you find.</div>';
+    var replyBtn = (!ro && taskId!=null)
+      ? '<button class="ib-reply" onclick="v2IncidentReply(event,this,'+taskId+')">Reply with probe reading / update</button>'
+      : '';
+    var ticket = inc.ticket_ref ? '<div class="ib-ticket">Ticket '+esc(inc.ticket_ref)+'</div>' : '';
+    return '<div class="incident-banner'+(allSilent?" ib-silent":"")+'" role="alert" aria-live="assertive">'
+      + '<span class="ib-flag">'+(anySilent?"SENSOR SILENT · OVER TEMP":"REFRIGERATION OVER TEMP")+'</span>'
+      + '<div class="ib-title">'+esc(inc.title||"Refrigeration incident")+'</div>'
+      + '<div class="ib-explain">'+explain+'</div>'
+      + '<ul class="ib-units">'+unitRows+'</ul>'
+      + '<div class="ib-do"><b>What to do now:</b> verify each unit with a probe thermometer. If it reads over 41°F, move the product to a working cooler and call refrigeration service. Then post what you find below so your supervisor and the whole team can follow.</div>'
+      + '<div class="ib-meta">Data through <b>'+esc(inc.data_through||"?")+'</b> · '+esc(inc.source||"Jolt inferred product temps")+(taskId!=null?(' · task #'+taskId):'')+'</div>'
+      + ticket
+      + replyBtn
+      + threadHtml
+      + '</div>';
+  }).join("");
+}
+// Banner Reply — reuses the exact C-1 gated path (v2ReplySend keys off .t-reply-sheet
+// / .trBody). RO tokens never see this button; the server rejects the write regardless.
+function v2IncidentReply(ev, btn, id){
+  ev.stopPropagation();
+  var banner = btn.closest(".incident-banner"); if(!banner) return;
+  var open = banner.querySelector(".t-reply-sheet");
+  if(open){ open.remove(); return; }
+  var sheet = document.createElement("div");
+  sheet.className = "lb-form t-reply-sheet";
+  sheet.style.marginTop = "10px";
+  sheet.innerHTML = '<b>Post an update to #'+id+'</b>'
+    +'<textarea class="trBody" rows="3" placeholder="e.g. probed McCafe cooler at 43°F, moved milk to the walk-in, called service — tech ETA 2pm" style="width:100%"></textarea>'
+    +'<div class="lb-actions"><button class="lb-btn go" onclick="v2ReplySend(event,this,'+id+')">Send</button>'
+    +'<button class="lb-btn" onclick="event.stopPropagation();this.closest(\'.t-reply-sheet\').remove()">cancel</button></div>'
+    +'<div class="trMsg actsub"></div>';
+  sheet.addEventListener("click", function(e){ e.stopPropagation(); });
+  banner.appendChild(sheet);
+  var ta = sheet.querySelector(".trBody"); if(ta) ta.focus();
+}
+window.v2IncidentReply = v2IncidentReply;
+
 function renderBoard(payload){
   STATE = payload || STATE;
   // A full payload (e.g. a POST repaint, no ?lane=) carries every lane's data —
@@ -6190,6 +6302,8 @@ function renderBoard(payload){
   // data-through + one honest sentence. Calm-green when nothing is flagged,
   // amber when the priorities feed has items. The big number is the real count.
   if(ACTIVE_LANE === "TODAY"){
+    // Flashing incident banner FIRST — above the verdict (Eddie's over-temp directive).
+    try { html += renderIncidentBanner(data); } catch(_e){ /* a banner failure never blanks the board */ }
     const thru = todayThru(data) || "—";
     const who = data.scope_all ? "Portfolio" : ((data.stores && data.stores[0] && data.stores[0].name) || "Your store");
     let n = 0; try { n = computeTodayPriorities(data).length; } catch(_e){ n = 0; }
@@ -6247,6 +6361,8 @@ const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","
                            "grill_temps_home","check_in","_meta",
                            // v2-0.47 brain slices that ride the lean TODAY/NUMBERS gather:
                            "todays_brief","temp_watch","food_cost_avt",
+                           // v2-0.57 open store incidents → the flashing banner:
+                           "incidents",
                            // v2-0.48 top-level RO flag (gates the New Task / Ticket tile):
                            "read_only"];
 function mergePostPayload(payload, askedLanes){
