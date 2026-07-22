@@ -9,6 +9,25 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.58 — FOOD LOG PAGE + BOARD PROMPTS + LOGGING CONTEST (fn + shell lockstep
+  v2-0.58, 2026-07-22, Eddie's four directives). (1) NEW PAGE food_log (&p=food,
+  ?page=food_log) — task #966 meal/promo role views ported from
+  mockups/food-log/food-log-looks.html: Look B DIALS is the default (Eddie's pick),
+  &look=a|b|c keeps the Ledger-table and Exceptions-only looks; Owner=all 12,
+  Sup=patch, GM=own store, each vs the org norm; a shift-leader/RO token gets
+  flRenderSL — TODAY ONLY, OWN store, two dials (meal coverage + logged total),
+  NO norms, NO cross-store data (server-enforced). (2) Shift-leader prototype:
+  today_food home LINK tile (every tier incl. RO) + a nav chip on the sl_oepe
+  page, both opening &p=food. (3) BOARD PROMPTS — renderBoardPromptCards on
+  data.board_prompts (targeted explain-and-respond, e.g. the Eola promo card):
+  prompt body + textarea + Update button POSTing action:prompt_respond; after
+  responding (within the linger window) the card shows the recorded response(s)
+  + timestamp; owner gets renderPromptResponsesCard (data.prompt_responses,
+  last 72h). RO never sees prompts. (4) renderContestCard (data.food_contest):
+  30-day logging contest 7/23–8/21 standings (submissions per 1k GC, ranked,
+  top-3 highlighted, own store emphasized); pre-7/23 renders the rules state.
+  ALWAYS_MERGE_KEYS += board_prompts, prompt_responses, food_contest.
+
   v2-0.57 — STORE INCIDENT BANNER (fn + shell lockstep v2-0.57, 2026-07-22, Eddie's
   Yorkville double over-temp directive: "put a flashing alert on top of their home
   describing the situation and asking for an update; remove it if the temp resolves;
@@ -1176,7 +1195,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.57";
+const SHELL_VERSION = "v2-0.58";
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4355,6 +4374,10 @@ const PAGE_REGISTRY = {
   // single-scroll, The Stack is the one-card conveyor. Same verbs, same queue_actions.
   triage_ledger: { route:"triage-a", title:"Triage — The Ledger", render: renderTriageLedgerPage, after: trlAfterRender, ttlMs: 20*1000 },
   triage_stack:  { route:"triage-b", title:"Triage — The Stack",  render: renderTriageStackPage,  after: trsAfterRender, ttlMs: 20*1000 },
+  // v2-0.58: Food Log role views (task #966; &p=food, &look=a|b|c, default B
+  // dials — Eddie's pick). EVERY tier incl. RO — the fn gather self-scopes
+  // (RO/shift-leader = today-only own store, no norms, no cross-store data).
+  food_log:      { route:"food", title:"Food Log — Meals & Promos", render: renderFoodLogPage, ttlMs: 2*60*1000 },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -5012,15 +5035,19 @@ function slrRow(x, best, showStores){
 }
 
 function renderSlOepePage(payload){
+  flEnsureCss();
+  // v2-0.58: shift-leader surface → food-log dials chip (Eddie directive 2 —
+  // a leader lands on their two today dials from here in one tap).
+  const flChip = '<div><span class="fl-navchip" onclick="openPage(\'food_log\')">🍟 Today’s food log — meal + promo dials ›</span></div>';
   const p = (payload && payload.page) || {};
   const groups = p.groups || [];
   const any = groups.some(function(g){ return ((g.ranked || []).length + (g.building || []).length) > 0; });
   if(!any){
-    return '<div class="errbox">No shift leader data loaded yet for ' + esc(p.month_label || "this month")
+    return flChip + '<div class="errbox">No shift leader data loaded yet for ' + esc(p.month_label || "this month")
       + '. The ranker lights up when the QSRSoft shift-manager pull lands.</div>';
   }
   const minSh = p.min_shifts != null ? p.min_shifts : 3;
-  let h = '<div class="slrx">'
+  let h = flChip + '<div class="slrx">'
     + '<div class="slr-kicker">Month-to-date · faster is better</div>'
     + '<div class="slr-title">Shift Leader OEPE — ' + esc(p.month_label || "") + '</div>'
     + '<div class="slr-thru">' + esc(p.metric_label || "OEPE w/o parked") + ' · data thru <b>' + esc(p.data_through || "—") + '</b>'
@@ -5065,6 +5092,412 @@ function renderSlOepeHomeTile(data){
   }
   return card("Shift Leader OEPE — MTD", body,
     { icon:"⏱️", through: so.data_through, newBadge:true, drill:{ kind:"page:sl_oepe" } });
+}
+
+/* =========================================================================
+   FOOD LOG page (&p=food, task #966, v2-0.58) + home tiles + board prompts +
+   logging contest. Looks ported from mockups/food-log/food-log-looks.html:
+   A=Ledger table, B=Dials (DEFAULT — Eddie's pick), C=Exceptions-only, and
+   flRenderSL for shift-leader/RO mode (today only, own store, no norms).
+   Every class is fl-/bp- namespaced so nothing clobbers board styles.
+   ========================================================================= */
+var FL_LOOK = null;      // sticky for the session; seeded from &look=a|b|c
+var FL_PAYLOAD = null;   // last page payload so the look toggle repaints instantly
+function flEnsureCss(){
+  if(document.getElementById("fl-css")) return;
+  var s = document.createElement("style"); s.id = "fl-css";
+  s.textContent =
+    ".flx{font-size:14px}"
+   +".fl-seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin:2px 0 8px}"
+   +".fl-seg button{border:0;background:transparent;color:var(--ink-2);padding:6px 11px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}"
+   +".fl-seg button.on{background:var(--accent);color:#fff}"
+   +".fl-norms{display:flex;flex-wrap:wrap;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin:8px 0 10px;font-size:12.5px}"
+   +".fl-norms b{font-size:15px}.fl-norms .k{color:var(--ink-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}"
+   +".fl-dtl{color:var(--ink-2);font-size:11.5px;margin:8px 2px 2px;line-height:1.5}"
+   +".fl-tblwrap{overflow-x:auto}"
+   +".fl-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;min-width:680px}"
+   +".fl-tbl th{text-align:left;color:var(--ink-2);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}"
+   +".fl-tbl td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}"
+   +".fl-tbl th.num,.fl-tbl td.num{text-align:right;font-variant-numeric:tabular-nums}"
+   +".fl-tbl tr.fl-dark td{opacity:.72}"
+   +".fl-store b{font-weight:700}.fl-store span{color:var(--ink-2);font-size:11.5px}"
+   +".fl-nbar{position:relative;height:16px;background:var(--surface-2);border-radius:4px;min-width:90px;overflow:hidden}"
+   +".fl-nbar>i{position:absolute;top:0;bottom:0;left:0;border-radius:4px}"
+   +".fl-nbar>u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}"
+   +".fl-nbar em{position:relative;z-index:2;font-style:normal;font-size:10.5px;padding-left:5px;line-height:16px;color:var(--ink)}"
+   +".fl-chip{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:800;white-space:nowrap}"
+   +".fl-c-bad{background:rgba(255,106,94,.16);color:var(--bad)}.fl-c-warn{background:rgba(232,163,61,.16);color:var(--warn)}"
+   +".fl-c-good{background:rgba(67,211,158,.15);color:var(--good)}.fl-c-gray{background:var(--surface-2);color:var(--ink-2)}"
+   +".fl-pct{font-weight:800}.fl-pct.up{color:var(--bad)}.fl-pct.dn{color:var(--good)}.fl-pct.flat{color:var(--ink-2)}"
+   +".fl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:8px}"
+   +".fl-card{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 14px;position:relative}"
+   +".fl-card.fl-dark{border-color:rgba(255,106,94,.45)}"
+   +".fl-card h3{margin:0 0 1px;font-size:14.5px}.fl-card .fl-gm{color:var(--ink-2);font-size:11.5px;margin-bottom:9px}"
+   +".fl-ribbon{position:absolute;top:12px;right:12px}"
+   +".fl-dial{margin:9px 0}"
+   +".fl-dial .fl-dh{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);margin-bottom:3px}"
+   +".fl-dial .fl-dh b{color:var(--ink);font-size:13px}"
+   +".fl-track{height:9px;border-radius:6px;background:var(--surface-2);position:relative;overflow:visible}"
+   +".fl-track>i{position:absolute;top:0;bottom:0;left:0;border-radius:6px}"
+   +".fl-track>u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.6}"
+   +".fl-dots{display:flex;gap:4px;margin-top:10px;align-items:center}"
+   +".fl-dots small{color:var(--ink-2);font-size:10.5px;margin-right:3px}"
+   +".fl-dot{width:13px;height:13px;border-radius:3px;background:var(--surface-2)}"
+   +".fl-dot.on{background:var(--good)}.fl-dot.off{background:rgba(255,106,94,.5)}"
+   +".fl-exc{display:flex;flex-direction:column;gap:10px;margin-top:8px}"
+   +".fl-act{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--ink-2);border-radius:11px;padding:12px 14px}"
+   +".fl-act.red{border-left-color:var(--bad)}.fl-act.amber{border-left-color:var(--warn)}"
+   +".fl-act .fl-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}"
+   +".fl-act h4{margin:0;font-size:14.5px}.fl-act .fl-why{color:var(--ink-2);font-size:12.5px;margin:5px 0 0;line-height:1.5}"
+   +".fl-act .fl-aff{color:var(--accent);font-size:12px;margin-top:7px;font-weight:700}"
+   +".fl-ok{background:var(--surface);border:1px dashed var(--line);border-radius:11px;padding:11px 14px;color:var(--ink-2);font-size:12.5px}"
+   +".fl-sl{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;max-width:460px;margin-bottom:12px}"
+   +".fl-sl h3{margin:0 0 2px}.fl-sl .fl-asof{color:var(--ink-2);font-size:11.5px;margin-bottom:12px}"
+   +".fl-slrow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}"
+   +".fl-slrow:last-child{border-bottom:0}.fl-slrow b{font-size:16px}"
+   +".fl-note{color:var(--ink-2);font-size:11.5px;margin-top:12px;line-height:1.5}"
+   +".fl-navchip{cursor:pointer;display:inline-block;font-size:12px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:4px 12px;margin:0 0 10px}"
+   /* board prompts + owner responses + contest */
+   +".bp-card{border:2px solid var(--accent)}"
+   +".bp-body{font-size:13.5px;line-height:1.55;margin:4px 0 10px}"
+   +".bp-body ol,.bp-body ul{padding-left:20px;margin:8px 0}.bp-body li{margin:4px 0}.bp-body p{margin:7px 0}"
+   +".bp-ta{width:100%;box-sizing:border-box;min-height:96px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;font-size:13.5px}"
+   +".bp-btn{margin-top:8px;background:var(--accent);color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:800;font-size:13.5px;cursor:pointer}"
+   +".bp-btn:disabled{opacity:.55}"
+   +".bp-done{color:var(--good);font-weight:800;font-size:12.5px;margin:6px 0}"
+   +".bp-resp{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin:7px 0}"
+   +".bp-rt{font-size:13px;line-height:1.5;white-space:pre-wrap}"
+   +".bp-ra{color:var(--ink-2);font-size:11px;margin-top:5px}"
+   +".bp-more{color:var(--accent);font-size:12px;font-weight:800;cursor:pointer;margin-top:6px;display:inline-block}"
+   +".bp-msg{font-size:12px;margin-top:6px;color:var(--ink-2)}"
+   +".pr-row{border-bottom:1px solid var(--line);padding:9px 0}.pr-row:last-child{border-bottom:0}"
+   +".pr-h{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-2);flex-wrap:wrap}"
+   +".pr-h b{color:var(--ink);font-size:13px}"
+   +".pr-t{font-size:13px;line-height:1.5;margin-top:4px;white-space:pre-wrap}"
+   +".fc-tblwrap{overflow-x:auto}"
+   +".fc-tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:460px}"
+   +".fc-tbl th{text-align:left;color:var(--ink-2);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}"
+   +".fc-tbl td{padding:8px;border-bottom:1px solid var(--line)}"
+   +".fc-tbl th.num,.fc-tbl td.num{text-align:right;font-variant-numeric:tabular-nums}"
+   +".fc-top3 td{background:rgba(67,211,158,.10);font-weight:700}"
+   +".fc-mine td{outline:2px solid var(--accent);outline-offset:-2px}"
+   +".fc-rank{font-weight:900}"
+   +".fc-medal{font-size:14px}"
+   +".fc-rules{font-size:13px;line-height:1.6}.fc-rules li{margin:4px 0}";
+  document.head.appendChild(s);
+}
+/* ---- shared mini-helpers (ported from the mockup, namespaced) ---- */
+function flPctEl(v){
+  if(v==null || isNaN(Number(v))) return '<span class="fl-pct flat">–</span>';
+  var n = Math.round(Number(v));
+  var c = n>8?"up":n<-8?"dn":"flat";
+  return '<span class="fl-pct '+c+'">'+(n>0?"+"+n:n)+'%</span>';
+}
+function flStatusChip(r){
+  if(r.dark) return '<span class="fl-chip fl-c-gray">not logging</span>';
+  if(r.phigh) return '<span class="fl-chip fl-c-bad">promo high</span>';
+  if(r.mlow) return '<span class="fl-chip fl-c-warn">meals low</span>';
+  return '<span class="fl-chip fl-c-good">on norm</span>';
+}
+// normalized bar: value vs norm; the tick at 50% of the track IS the norm.
+function flNormBar(v, norm, unit){
+  var val = Number(v)||0, nm = Number(norm)||0;
+  var frac = nm>0 ? Math.min(1, val/(nm*2)) : 0;
+  var col = nm>0 && val>=nm*1.5 ? "var(--bad)" : nm>0 && val<=nm*0.5 ? "var(--warn)" : "var(--good)";
+  var label = unit==="$" ? "$"+val.toFixed(1) : val.toFixed(2);
+  return '<div class="fl-nbar"><i style="width:'+(frac*100).toFixed(0)+'%;background:'+col+'"></i>'
+    +'<u style="left:50%"></u><em>'+label+'</em></div>';
+}
+function flSpark(arr, norm){
+  arr = arr && arr.length ? arr : [0];
+  var w=64,h=18,n=arr.length,nm=Number(norm)||0,max=Math.max(nm*1.2,0.1);
+  for(var i=0;i<n;i++) max=Math.max(max, Number(arr[i])||0);
+  var pts=arr.map(function(v,i){ return ((n>1? i/(n-1):0)*w).toFixed(1)+","+(h-(Number(v)||0)/max*h).toFixed(1); }).join(" ");
+  var ny=(h-nm/max*h).toFixed(1);
+  return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="vertical-align:middle">'
+    +'<line x1="0" y1="'+ny+'" x2="'+w+'" y2="'+ny+'" stroke="var(--ink-2)" stroke-dasharray="2 2" stroke-width="1"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>';
+}
+function flDial(label, v, norm, vn, dark){
+  var val=Number(v)||0, nm=Number(norm)||0;
+  var frac = nm>0 ? Math.min(1, val/(nm*2)) : 0;
+  var col = dark?"var(--ink-2)": nm>0&&val>=nm*1.5?"var(--bad)": nm>0&&val<=nm*0.5?"var(--warn)":"var(--good)";
+  return '<div class="fl-dial"><div class="fl-dh"><span>'+esc(label)+'</span><b>'+(dark?'—':val.toFixed(3))+' '+flPctEl(vn)+'</b></div>'
+    +'<div class="fl-track"><i style="width:'+(frac*100).toFixed(0)+'%;background:'+col+'"></i><u style="left:50%"></u></div></div>';
+}
+// v_food_log_store_card row -> the mockup's compact shape
+function flRow(r){
+  return {
+    id:r.store_id, sn:r.store_number, loc:r.location_name, gm:r.gm_name||"",
+    sev:Number(r.severity)||0, dl:Number(r.days_logged_7d)||0, od:Number(r.operating_days_7d)||0,
+    pd:Number(r.person_days_7d)||0, gc:Number(r.guests_7d)||0,
+    meals:Number(r.crew_meals_7d)||0, mm:Number(r.mgmt_meals_7d)||0, promos:Number(r.promos_7d)||0,
+    mpc:Number(r.meals_per_clocked_in_7d)||0, p1k:Number(r.promos_per_1k_gc_7d)||0,
+    pd1k:Number(r.promo_dollars_per_1k_gc_7d)||0,
+    mvn:r.meals_vs_norm_pct==null?null:Number(r.meals_vs_norm_pct),
+    pvn:r.promos_vs_norm_pct==null?null:Number(r.promos_vs_norm_pct),
+    dark:r.flag_not_logging===true, phigh:r.flag_promo_high===true, mlow:r.flag_meals_low===true,
+    m15:Number(r.meals_15_plus_7d)||0, last:r.last_log_date||null
+  };
+}
+/* ---- Look A: Ledger table ---- */
+function flRenderA(rows, nm, series){
+  var h='<div class="fl-tblwrap"><table class="fl-tbl"><thead><tr><th>Store</th><th class="num">Meals / clocked-in</th>'
+    +'<th class="num">Promos / 1k GC</th><th class="num">vs norm</th><th>7d trend</th>'
+    +'<th class="num">$ promo/1k</th><th class="num">days logged</th><th>status</th></tr></thead><tbody>';
+  for(var i=0;i<rows.length;i++){ var r=rows[i];
+    h+='<tr class="'+(r.dark?'fl-dark':'')+'"><td class="fl-store"><b>'+esc(r.loc)+'</b> <span>#'+esc(r.sn)+' · '+esc(r.gm)+'</span></td>'
+      +'<td class="num">'+flNormBar(r.mpc, nm.norm_meals_per_clocked_in, "m")+'</td>'
+      +'<td class="num">'+flNormBar(r.p1k, nm.norm_promos_per_1k_gc, "p")+'</td>'
+      +'<td class="num">'+flPctEl(r.pvn)+'</td>'
+      +'<td>'+flSpark((series||{})[String(r.id)]||[], nm.norm_promos_per_1k_gc)+'</td>'
+      +'<td class="num">'+(r.dark?'–':'$'+r.pd1k.toFixed(1))+'</td>'
+      +'<td class="num">'+r.dl+'/'+r.od+'</td><td>'+flStatusChip(r)+'</td></tr>';
+  }
+  h+='</tbody></table></div><div class="fl-dtl">Bars: store value; the vertical tick is the org norm (center = norm). Red = ≥1.5× norm, amber = ≤0.5× norm. Trend sparkline = promos/1k over the last 7 days vs the dashed norm line.</div>';
+  return h;
+}
+/* ---- Look B: Dials (DEFAULT) ---- */
+function flRenderB(rows, nm){
+  var h='<div class="fl-grid">';
+  for(var i=0;i<rows.length;i++){ var r=rows[i];
+    var dots=''; for(var d=0;d<r.od;d++) dots+='<span class="fl-dot '+(d<r.dl?'on':'off')+'"></span>';
+    h+='<div class="fl-card '+(r.dark?'fl-dark':'')+'"><div class="fl-ribbon">'+flStatusChip(r)+'</div>'
+      +'<h3>'+esc(r.loc)+'</h3><div class="fl-gm">#'+esc(r.sn)+' · '+esc(r.gm)+'</div>'
+      +flDial("Meals per clocked-in", r.mpc, nm.norm_meals_per_clocked_in, r.mvn, r.dark)
+      +flDial("Promos per 1k GC", r.p1k, nm.norm_promos_per_1k_gc, r.pvn, r.dark)
+      +'<div class="fl-dots"><small>7d log</small>'+dots+'</div></div>';
+  }
+  h+='</div><div class="fl-dtl">Each dial fills to the store value; the tick marks the org norm. Squares = one per operating day in the last 7 (green = logged, red = silent). “Not logging” cards are outlined red.</div>';
+  return h;
+}
+/* ---- Look C: Exceptions only ---- */
+function flRenderC(rows, nm){
+  var dark=rows.filter(function(r){return r.dark;});
+  var phigh=rows.filter(function(r){return r.phigh;});
+  var mlow=rows.filter(function(r){return r.mlow && !r.phigh;});
+  var ok=rows.filter(function(r){return !r.dark && !r.phigh && !r.mlow;});
+  var h='<div class="fl-exc">';
+  if(dark.length){
+    h+='<div class="fl-act red"><div class="fl-top"><h4>'+dark.length+' store'+(dark.length>1?'s':'')+' logged nothing this week</h4>'
+      +'<span class="fl-chip fl-c-gray">completeness</span></div>'
+      +'<div class="fl-why">Crew clocked in every day, zero meal/promo receipts: '
+      +dark.map(function(r){return '<b>'+esc(r.loc)+'</b> ('+r.pd+' person-days)';}).join(", ")+'.</div>'
+      +'<div class="fl-aff">→ nudge each GM to start logging · '+dark.map(function(r){return esc(String(r.gm).split(' ')[0]);}).join(', ')+'</div></div>';
+  }
+  for(var i=0;i<phigh.length;i++){ var r=phigh[i];
+    h+='<div class="fl-act red"><div class="fl-top"><h4>'+esc(r.loc)+' — promo food '+(r.pvn!=null?(r.pvn>0?'+':'')+Math.round(r.pvn):'?')+'% vs norm</h4>'
+      +'<span class="fl-chip fl-c-bad">'+r.p1k.toFixed(2)+' / 1k GC</span></div>'
+      +'<div class="fl-why">'+r.promos+' promo incidents on '+r.gc.toLocaleString()+' guests (org norm '+Number(nm.norm_promos_per_1k_gc||0).toFixed(2)+'/1k). $'+r.pd1k.toFixed(0)+' of promo food per 1k GC. GM '+esc(r.gm)+'.</div></div>';
+  }
+  for(var j=0;j<mlow.length;j++){ var m=mlow[j];
+    h+='<div class="fl-act amber"><div class="fl-top"><h4>'+esc(m.loc)+' — meal logging low</h4>'
+      +'<span class="fl-chip fl-c-warn">'+m.mpc.toFixed(2)+' /clocked-in</span></div>'
+      +'<div class="fl-why">'+m.meals+' meals across '+m.pd+' clocked-in person-days (norm '+Number(nm.norm_meals_per_clocked_in||0).toFixed(2)+'). Likely under-logging, not under-eating.</div></div>';
+  }
+  if(ok.length) h+='<div class="fl-ok">✓ '+ok.length+' store'+(ok.length>1?'s':'')+' on-norm — '
+    +ok.slice().sort(function(a,b){return a.p1k-b.p1k;}).map(function(r){return esc(r.loc);}).join(", ")+'.</div>';
+  if(!dark.length && !phigh.length && !mlow.length && !ok.length) h+='<div class="fl-ok">No stores in scope.</div>';
+  h+='</div><div class="fl-dtl">Exception-first: only what’s off-norm gets a card, worst first. Everything healthy collapses to one line.</div>';
+  return h;
+}
+/* ---- Shift-leader / RO mode: OWN store, TODAY only, NO norms ---- */
+function flRenderSL(p){
+  var rows = p.today || [];
+  if(!rows.length){
+    return '<div class="flx">'+emptyState("🍟","No food log data yet today",
+      "Today's dials light up once the first meal or promo is logged (data refreshes every 2 hours).")+'</div>';
+  }
+  var h='<div class="flx">';
+  for(var i=0;i<rows.length;i++){ var t=rows[i];
+    var clk=Number(t.clocked_in)||0, cwm=Number(t.crew_with_meal)||0;
+    var cov = t.meal_coverage==null ? null : Number(t.meal_coverage);
+    var covPct = cov==null ? null : Math.min(1, cov);
+    var total = Number(t.logged_total)||0;
+    var totFrac = Math.min(1, total/20);
+    var asof = t.as_of ? new Date(t.as_of).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : String(t.business_date||"");
+    h+='<div class="fl-sl"><h3>'+esc(t.location_name)+' — today’s log</h3>'
+      +'<div class="fl-asof">'+esc(String(t.business_date||""))+' · as of '+esc(asof)+' · partial day (punches still landing)</div>'
+      +'<div class="fl-dial"><div class="fl-dh"><span>Meal coverage (crew w/ meal ÷ clocked-in)</span><b>'+(cov==null?'—':(cov*100).toFixed(0)+'%')+'</b></div>'
+      +'<div class="fl-track"><i style="width:'+(covPct==null?0:(covPct*100).toFixed(0))+'%;background:'+(covPct!=null&&covPct>=1?'var(--good)':'var(--accent)')+'"></i></div></div>'
+      +'<div class="fl-dial"><div class="fl-dh"><span>Logged today (meals + promos)</span><b>'+total+'</b></div>'
+      +'<div class="fl-track"><i style="width:'+(totFrac*100).toFixed(0)+'%;background:var(--good)"></i></div></div>'
+      +'<div class="fl-slrow"><span>Crew with a meal logged</span><b>'+cwm+'</b></div>'
+      +'<div class="fl-slrow"><span>Clocked in so far</span><b>'+(clk||'—')+'</b></div>'
+      +'<div class="fl-slrow"><span>Meals · promos</span><b>'+(Number(t.crew_meals)||0)+(Number(t.mgmt_meals)?'+'+Number(t.mgmt_meals)+' mgmt':'')+' · '+(Number(t.promos)||0)+'</b></div>'
+      +'<div class="fl-slrow"><span>Meal $ · promo $ today</span><b>$'+(Number(t.crew_meal_amount)||0).toFixed(0)+' · $'+(Number(t.promo_amount)||0).toFixed(0)+'</b></div>'
+      +'<div class="fl-note">Your store, <b>today only</b> — just whether today’s food is being logged. Coverage can read over 100% early in the day when a meal is logged before the punch registers.</div></div>';
+  }
+  h+='<div class="fl-dtl">Data through <b>'+esc(String(p.data_through||rows[0].business_date||"—"))+'</b> (today, partial; refreshed every 2h).</div></div>';
+  return h;
+}
+/* ---- the page ---- */
+function flLookFromUrl(){
+  try{ var l=new URL(location.href).searchParams.get("look"); return (l==="a"||l==="b"||l==="c")?l:null; }
+  catch(e){ return null; }
+}
+function renderFoodLogPage(payload){
+  flEnsureCss();
+  FL_PAYLOAD = payload;
+  var p = (payload && payload.page) || {};
+  if(p.mode === "shift_leader") return flRenderSL(p);
+  if(!FL_LOOK) FL_LOOK = flLookFromUrl() || "b";   // Eddie's default: B (dials)
+  var rows = (p.rows||[]).map(flRow);
+  var nm = p.norms || {};
+  var seg = ["a","b","c"].map(function(k){
+    var lbl = k==="a"?"A · Ledger":k==="b"?"B · Dials":"C · Exceptions";
+    return '<button class="'+(FL_LOOK===k?'on':'')+'" onclick="flSetLook(\''+k+'\')">'+lbl+'</button>';
+  }).join("");
+  var normsBox = '<div class="fl-norms">'
+    +'<div><div class="k">Org norm · promos / 1k GC</div><b>'+(nm.norm_promos_per_1k_gc!=null?Number(nm.norm_promos_per_1k_gc).toFixed(3):'—')+'</b></div>'
+    +'<div><div class="k">Org norm · meals / clocked-in</div><b>'+(nm.norm_meals_per_clocked_in!=null?Number(nm.norm_meals_per_clocked_in).toFixed(4):'—')+'</b></div>'
+    +'<div><div class="k">Org norm · $ promo / 1k GC</div><b>'+(nm.norm_promo_dollars_per_1k_gc!=null?'$'+Number(nm.norm_promo_dollars_per_1k_gc).toFixed(2):'—')+'</b></div>'
+    +'<div><div class="k">Norm basis</div><b>'+(nm.participating_stores!=null?nm.participating_stores+' stores':'—')+'</b></div>'
+    +'<div style="margin-left:auto;text-align:right"><div class="k">Data through</div><b>'+esc(String(p.data_through||"—"))+'</b></div>'
+    +'</div>';
+  var view = FL_LOOK==="a" ? flRenderA(rows, nm, p.series||{})
+           : FL_LOOK==="c" ? flRenderC(rows, nm)
+           : flRenderB(rows, nm);
+  if(!rows.length) view = emptyState("🍟","No store data yet","The food-log metrics table refreshes every 2 hours.");
+  return '<div class="flx"><div class="fl-seg">'+seg+'</div>'+normsBox+view
+    +'<div class="fl-dtl">Trailing 7 days vs the trailing-28d org norm (median of participating-store rates). meals per clocked-in = crew meals ÷ distinct crew clocked in (DataPass punch sessions). promos per 1k GC = promo incidents ÷ guests × 1000. Data through <b>'+esc(String(p.data_through||"—"))+'</b>.</div></div>';
+}
+function flSetLook(k){
+  FL_LOOK = (k==="a"||k==="b"||k==="c") ? k : "b";
+  try{ var u=new URL(location.href); u.searchParams.set("look", FL_LOOK); history.replaceState(history.state, "", u); }catch(e){}
+  var body=document.getElementById("pageBody");
+  if(body && ACTIVE_PAGE==="food_log" && FL_PAYLOAD) body.innerHTML = sect(function(){ return renderFoodLogPage(FL_PAYLOAD); });
+}
+window.flSetLook = flSetLook;
+/* ---- home LINK tile (every tier incl. RO/shift-leader; the page self-scopes) ---- */
+function renderFoodLogHomeTile(data){
+  var ro = data && data.read_only === true;
+  var body = ro
+    ? '<div class="cbody">Your store’s two today dials — meal coverage and what’s logged so far. Your store, today only.</div>'
+    : '<div class="cbody">Dials per store: meals per clocked-in + promos per 1k guests vs the org norm, plus the 7-day logging streak. Looks: dials · ledger · exceptions.</div>';
+  return card("Food Log — Meals & Promos", body,
+    { icon:"🍟", newBadge:true, drill:{ kind:"page:food_log" } });
+}
+/* =========================================================================
+   BOARD PROMPTS (v2-0.58) — targeted explain-and-respond cards on HOME.
+   data.board_prompts (fn: active prompts targeting THIS manager, already
+   linger-filtered per manager; never sent to RO). Un-responded -> body +
+   textarea + Update; responded (within linger) -> the recorded response(s)
+   + timestamp + an optional follow-up. body_html is fn/owner-authored
+   (board_prompts.body_html), same trust class as every fn-built string.
+   ========================================================================= */
+function bpWhen(ts){
+  if(!ts) return "";
+  try{ return new Date(ts).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); }
+  catch(e){ return String(ts).slice(0,16); }
+}
+function renderBoardPromptCards(data){
+  var ps = (data && data.board_prompts) || [];
+  if(!ps.length) return "";
+  flEnsureCss();
+  var out = "";
+  for(var i=0;i<ps.length;i++){ var p=ps[i];
+    var resp = p.responses || [];
+    var inner = '<div class="bp-body">'+(p.body_html||"")+'</div>';
+    if(resp.length){
+      inner += '<div class="bp-done">✓ Your update is on record — Eddie sees it on his board. This card clears about '+esc(String(p.linger_hours||24))+'h after your first response.</div>';
+      for(var j=0;j<resp.length;j++){
+        inner += '<div class="bp-resp"><div class="bp-rt">'+esc(resp[j].response_text)+'</div><div class="bp-ra">posted '+esc(bpWhen(resp[j].created_at))+'</div></div>';
+      }
+      inner += '<span class="bp-more" onclick="bpToggleMore(event,this)">+ Add a follow-up update</span>'
+        +'<div class="bp-form" style="display:none"><textarea class="bp-ta" placeholder="Add anything else Eddie should know…"></textarea>'
+        +'<button class="bp-btn" onclick="bpRespond(event,this,'+Number(p.id)+')">Update</button><div class="bp-msg"></div></div>';
+    } else {
+      inner += '<div class="bp-form"><textarea class="bp-ta" placeholder="Type your update — it goes straight to Eddie…"></textarea>'
+        +'<button class="bp-btn" onclick="bpRespond(event,this,'+Number(p.id)+')">Update</button><div class="bp-msg"></div></div>';
+    }
+    out += '<div class="card bp-card"><div class="chead"><div class="ctitle">📣 '+esc(p.title||"Please respond")+'<span class="newbadge">ACTION</span></div></div>'+inner+'</div>';
+  }
+  return out;
+}
+function bpToggleMore(ev, el){
+  ev.stopPropagation();
+  var f = el.parentElement.querySelector(".bp-form");
+  if(f){ f.style.display = f.style.display==="none" ? "" : "none"; }
+}
+window.bpToggleMore = bpToggleMore;
+async function bpRespond(ev, btn, promptId){
+  ev.stopPropagation();
+  var form = btn.closest(".bp-form") || btn.parentElement;
+  var ta = form.querySelector(".bp-ta");
+  var msg = form.querySelector(".bp-msg");
+  var text = (ta && ta.value || "").trim();
+  if(!text){ if(msg) msg.textContent = "Write your update first."; return; }
+  btn.disabled = true; if(msg) msg.textContent = "Posting…";
+  try{
+    var payload = await v2CallApi({ action:"prompt_respond", prompt_id: promptId, response_text: text });
+    if(payload && payload.result && payload.result.ok === false){
+      btn.disabled = false; if(msg) msg.textContent = payload.result.msg || "Could not post."; return;
+    }
+    renderBoard(payload);   // re-gathered board_prompts now shows the recorded response
+  }catch(e){
+    btn.disabled = false; if(msg) msg.textContent = "Failed: " + (e && e.message);
+  }
+}
+window.bpRespond = bpRespond;
+/* ---- OWNER: prompt responses card (last 72h; data.prompt_responses) ---- */
+function renderPromptResponsesCard(data){
+  var rs = data && data.prompt_responses;
+  if(!rs || !rs.length) return "";   // non-owner (null) or nothing in 72h
+  flEnsureCss();
+  var body = rs.map(function(r){
+    return '<div class="pr-row"><div class="pr-h"><b>'+esc(r.responder||"?")+'</b><span>'+esc(bpAgo(r.created_at))+'</span></div>'
+      +'<div class="pr-h"><span>'+esc(r.prompt_title||"")+'</span></div>'
+      +'<div class="pr-t">'+esc(r.response_text||"")+'</div></div>';
+  }).join("");
+  return card("Prompt responses", body, { icon:"📣", info:"updates from targeted managers · last 72h", newBadge:true });
+}
+function bpAgo(ts){
+  if(!ts) return "";
+  var ms = Date.now() - new Date(ts).getTime();
+  if(!(ms >= 0)) return bpWhen(ts);
+  var m = Math.round(ms/60000);
+  if(m < 60) return m + "m ago";
+  var h = Math.round(m/60);
+  if(h < 48) return h + "h ago";
+  return bpWhen(ts);
+}
+/* =========================================================================
+   LOGGING CONTEST card (v2-0.58) — data.food_contest (Owner/Sup/GM, never RO).
+   30-day window 7/23–8/21: combined employee-meal + promo submissions per 1k
+   guests, ranked. Pre-7/23 (view empty) -> the rules state.
+   ========================================================================= */
+function fcMd(iso){ if(!iso||String(iso).length<10) return String(iso||""); return Number(String(iso).slice(5,7))+"/"+Number(String(iso).slice(8,10)); }
+function renderContestCard(data){
+  var fc = data && data.food_contest;
+  if(!fc) return "";   // RO / non-eligible role
+  flEnsureCss();
+  var win = fcMd(fc.contest_start||"2026-07-23")+"–"+fcMd(fc.contest_end||"2026-08-21");
+  var rows = fc.rows || [];
+  if(!rows.length){
+    var body = '<div class="fc-rules"><b>Contest starts 7/23</b> — every employee meal and promo logged through the POS QR counts.<ul>'
+      +'<li>Window: <b>'+esc(win)+'</b> (30 days), all 12 stores.</li>'
+      +'<li>Score: <b>submissions per 1,000 guest counts</b> — employee meals + promos combined, so store size doesn’t matter.</li>'
+      +'<li>Log every employee meal and every promo/comp at the POS QR — days logged count too.</li>'
+      +'<li>Top 3 stores win. Standings update here every 2 hours once data lands.</li></ul></div>';
+    return card("Logging Contest — 30 days", body, { icon:"🏁", info:"window "+win+" · standings appear once 7/23 data lands", newBadge:true });
+  }
+  var mine = {}; (fc.my_store_ids||[]).forEach(function(id){ mine[String(id)]=true; });
+  var medals = {1:"🥇",2:"🥈",3:"🥉"};
+  var body = '<div class="fc-tblwrap"><table class="fc-tbl"><thead><tr><th></th><th>Store</th>'
+    +'<th class="num">Subs / 1k GC</th><th class="num">Submissions</th><th class="num">Days logged</th></tr></thead><tbody>';
+  for(var i=0;i<rows.length;i++){ var r=rows[i];
+    var rank = Number(r.contest_rank)||0;
+    var cls = (rank>=1&&rank<=3?"fc-top3 ":"") + (mine[String(r.store_id)]?"fc-mine":"");
+    body += '<tr class="'+cls+'"><td class="fc-rank">'+(medals[rank]?'<span class="fc-medal">'+medals[rank]+'</span> ':'')+rank+'</td>'
+      +'<td>'+esc(r.location_name)+' <span style="color:var(--ink-2);font-size:11px">#'+esc(r.store_number)+(mine[String(r.store_id)]?' · your store':'')+'</span></td>'
+      +'<td class="num"><b>'+(r.submissions_per_1k_gc!=null?Number(r.submissions_per_1k_gc).toFixed(2):'—')+'</b></td>'
+      +'<td class="num">'+(Number(r.submissions)||0)+'</td>'
+      +'<td class="num">'+(Number(r.days_logged)||0)+'/'+(Number(r.days_in_window)||0)+'</td></tr>';
+  }
+  body += '</tbody></table></div><div class="fl-dtl">Contest window <b>'+esc(win)+'</b> · employee meals + promos per 1,000 guest counts · top 3 win.</div>';
+  return card("Logging Contest — 30 days", body,
+    { icon:"🏁", through: fc.data_through || null, newBadge:true });
 }
 
 /* ---- the GRILL MIN-TEMPS home tile (TODAY lane; Owner/Sup/GM — v2-0.41) ----
@@ -6082,6 +6515,13 @@ const MANIFEST = [
   // pinned contest motivators (plan §2 "pinned to the top of TODAY").
   // v2-0.43: Supervisor GPS check-in — FIRST on the sup home (self-gates:
   // fn sends check_in to Supervisors only; everyone else renders nothing).
+  // v2-0.58: targeted explain-and-respond prompt cards FIRST (a prompt is a
+  // direct ask from Eddie — e.g. the Eola promo card for Nick + Maria). Self-
+  // gates on data.board_prompts (fn: never RO, linger-filtered per manager).
+  { id:"today_prompt",     lane:"TODAY", title:"Please respond",          render: renderBoardPromptCards, newBadge:true },
+  // v2-0.58: OWNER — responses to board prompts from the last 72h (self-gates
+  // on data.prompt_responses; Eddie sees updates without asking).
+  { id:"today_prompt_resp",lane:"TODAY", title:"Prompt responses",        render: renderPromptResponsesCard, newBadge:true },
   { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
   // v2-0.46: supervisor meal-break spotlight (5 weeks; self-removes when fn returns null).
   { id:"today_mealbreak",  lane:"TODAY", title:"Meal breaks not recorded", render: renderMealBreakTracker, newBadge:true },
@@ -6106,6 +6546,13 @@ const MANIFEST = [
   // shift-leader shared QRs are the primary loggers, so NO role gating here;
   // single-store scopes pass &store= so the page skips its picker).
   { id:"today_meal_log",   lane:"TODAY", title:"Employee Meals & Promos", render: renderMealLogTile,     newBadge:true },
+  // v2-0.58: 30-day logging contest standings (Owner/Sup/GM; self-gates on
+  // data.food_contest which the fn never sends to RO). Cross-store standings
+  // by design — competition (Eddie confirmed); own store emphasized.
+  { id:"today_contest",    lane:"TODAY", title:"Logging Contest — 30 days", render: renderContestCard,   newBadge:true },
+  // v2-0.58: Food Log page link tile — EVERY tier incl. RO/shift-leader (the
+  // fn gather self-scopes; a shift leader lands on their two today dials).
+  { id:"today_food",       lane:"TODAY", title:"Food Log — Meals & Promos", render: renderFoodLogHomeTile, newBadge:true },
   // v2-0.36: Q3 bonus tile (all manager roles; render self-gates on data.bonus_home
   // which the Fn never sends to RO/guest tokens). Whole card taps into the
   // bonus_ranker PAGE ("page:" drill prefix -> openPage). v2-0.37: richer tile —
@@ -6363,6 +6810,8 @@ const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","
                            "todays_brief","temp_watch","food_cost_avt",
                            // v2-0.57 open store incidents → the flashing banner:
                            "incidents",
+                           // v2-0.58 board prompts + owner responses + logging contest:
+                           "board_prompts","prompt_responses","food_contest",
                            // v2-0.48 top-level RO flag (gates the New Task / Ticket tile):
                            "read_only"];
 function mergePostPayload(payload, askedLanes){
