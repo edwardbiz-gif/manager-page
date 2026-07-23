@@ -1195,7 +1195,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.58";
+const SHELL_VERSION = "v2-0.59"; // Discuss instruction box (fn+shell lockstep, 2026-07-23)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4421,10 +4421,20 @@ function trReopen(){ if(!TR.id) return; TR._reopening=true; delete PAGE_CACHE[TR
 
 /* ---- tap + undo ---- */
 async function trTap(ref, verb, itype, side, payloadEnc, ev){
-  var btn = ev && ev.currentTarget; if(btn) btn.disabled=true;
-  var card = btn && btn.closest(".tr-card, .tr-scard"); if(card) card.classList.add("busy");
-  TR.taps++;
+  var btn = ev && ev.currentTarget;
+  var card = btn && btn.closest(".tr-card, .tr-scard");
+  if(!card && ref && window.CSS && CSS.escape) card = document.querySelector('.tr-card[data-ref="'+CSS.escape(ref)+'"], .tr-scard[data-ref="'+CSS.escape(ref)+'"]');
   var payload={}; try{ payload = payloadEnc ? JSON.parse(decodeURIComponent(payloadEnc)) : {}; }catch(e){}
+  // v2-0.59 (Eddie 2026-07-23): Discuss opens an instruction box first — his typed
+  // instructions land in payload.instructions ALONGSIDE the fn's own payload.blurb
+  // (the item summary), so the next sitting gets both context and his ask.
+  if(verb==="discuss" && !payload.instructions && !TR._discussBypass && card && !card.querySelector(".tr-discbox")){
+    trDiscussBox(card, ref, verb, itype, payloadEnc); return;
+  }
+  TR._discussBypass=false;
+  if(btn) btn.disabled=true;
+  if(card) card.classList.add("busy");
+  TR.taps++;
   try{
     var res = await trPost({ action:"triage_act", surface:TR.surface, verb:verb, item_type:itype, item_ref:ref, idempotency_key:trIdem("t"), payload:payload });
     if(!res.result || res.result.ok===false){ if(card) card.classList.remove("busy"); if(btn) btn.disabled=false; alert((res.result&&res.result.msg)||"Action failed"); return; }
@@ -4433,6 +4443,27 @@ async function trTap(ref, verb, itype, side, payloadEnc, ev){
     if(TR.surface==="ledger") trLedgerResolve(card, res);
     else trStackAdvance();
   }catch(e){ if(card) card.classList.remove("busy"); if(btn) btn.disabled=false; alert("Failed: "+(e&&e.message)); }
+}
+// v2-0.59 — the Discuss instruction box: inline textarea in the card; his text rides
+// queue_actions.payload.blurb (same key the bulk re-propose uses) to the next sitting.
+function trDiscussBox(card, ref, verb, itype, payloadEnc){
+  var body = card.querySelector(".tr-body") || card;
+  var box = document.createElement("div"); box.className="tr-discbox";
+  box.onclick=function(e){ e.stopPropagation(); };
+  box.innerHTML='<textarea class="tr-disc-ta" rows="3" placeholder="Tell Claude what to do or prep on this — your instructions ride along to the next sitting."></textarea>'
+    +'<div class="tr-verbs" style="margin-top:6px"><button class="tr-vb safe">Queue with instructions</button>'
+    +'<button class="tr-vb secondary">Queue without</button>'
+    +'<button class="tr-vb secondary">Cancel</button></div>';
+  var verbsRow = body.querySelector(".tr-verbs");
+  if(verbsRow && verbsRow.parentNode===body) body.insertBefore(box, verbsRow); else body.appendChild(box);
+  var ta=box.querySelector("textarea"), btns=box.querySelectorAll("button");
+  btns[0].onclick=function(e){ e.stopPropagation(); var t=(ta.value||"").trim(); if(!t){ ta.focus(); return; }
+    var base={}; try{ base = payloadEnc ? JSON.parse(decodeURIComponent(payloadEnc)) : {}; }catch(err){}
+    base.instructions=t; box.remove();
+    trTap(ref, verb, itype, "", encodeURIComponent(JSON.stringify(base)), null); };
+  btns[1].onclick=function(e){ e.stopPropagation(); box.remove(); TR._discussBypass=true; trTap(ref, verb, itype, "", payloadEnc||"", null); };
+  btns[2].onclick=function(e){ e.stopPropagation(); box.remove(); };
+  setTimeout(function(){ ta.focus(); }, 30);
 }
 function trShowToast(msg, receipt){
   trClearToast();
@@ -4677,6 +4708,8 @@ function trEnsureStyles(){
   +".tr-vb.secondary{background:var(--surface-2);color:var(--ink)}"
   +".tr-vb.danger{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-bg)}"
   +".tr-vb.discuss{background:transparent;color:var(--accent);border-color:var(--accent)}"
+  +".tr-discbox{margin-top:8px;padding:9px;border:1px solid var(--accent);border-radius:9px;background:var(--card-bg,transparent)}"
+  +".tr-disc-ta{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line,#ccc);border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:13px;resize:vertical}"
   +".tr-vb.complete{background:transparent;color:var(--good);border-color:var(--good);font-weight:900}"
   +".tr-vb.later{background:transparent;color:var(--ink-muted)}"
   +".tr-vb:disabled{opacity:.5}.tr-card.busy,.tr-scard.busy{opacity:.55;pointer-events:none}"
