@@ -9,6 +9,18 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.60 — TRIAGE CARD CONTEXT (fn + shell lockstep v2-0.60, 2026-07-23, Eddie's
+  three directives from today's sitting). (1) DATE LINE on every triage card
+  (Ledger + Stack): "started <origin_date> (Nd ago) · last touch <at> (rel) by
+  <who>" — absolute + relative, data-through law. (2) ATTACHMENT CHIPS —
+  filename + human size + the prep's 2-3 sentence summary + a Download link
+  (fn-minted 15-min signed URL) for stored files; unstored files render
+  name+summary with "no stored copy". (3) ALREADY-HANDLED state (the Bob Briski
+  class: triage proposed a reply Eddie had already sent) — green "you already
+  replied <date>" badge, the reply-draft block suppressed, verbs collapse to
+  Complete/Archive/Discuss. All fields optional: a pre-enrichment prep payload
+  renders exactly as v2-0.59 did.
+
   v2-0.58 — FOOD LOG PAGE + BOARD PROMPTS + LOGGING CONTEST (fn + shell lockstep
   v2-0.58, 2026-07-22, Eddie's four directives). (1) NEW PAGE food_log (&p=food,
   ?page=food_log) — task #966 meal/promo role views ported from
@@ -1195,7 +1207,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.59"; // Discuss instruction box (fn+shell lockstep, 2026-07-23)
+const SHELL_VERSION = "v2-0.60"; // Triage card context: date line + attachment chips + already-handled (fn+shell lockstep, 2026-07-23)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4409,6 +4421,43 @@ function trMergeChips(it){ var c=it&&it.merge_chips; if(!c||!c.length) return ""
 // email_archive.message_id (never autolinked from untrusted text), opens in a new tab.
 function trOpenLink(it){ if(!it||!it.owa_link) return ""; return '<a class="tr-owa" href="'+esc(it.owa_link)+'" target="_blank" rel="noopener">Open in Outlook ›</a>'; }
 function trOpenRow(it){ return (it&&it.owa_link)? '<div class="tr-owa-row">'+trOpenLink(it)+'</div>':""; }
+// v2-0.60 — card context (Eddie 2026-07-23): origin/last-touch date line, attachment
+// chips w/ signed download links, already-handled state. ALL fields are OPTIONAL —
+// a payload from a pre-enrichment prep run renders exactly as before (no date line,
+// no chips, no badge). Dates show absolute + relative (data-through law).
+function trAgo(iso){ if(!iso) return ""; var t=new Date(iso).getTime(); if(isNaN(t)) return "";
+  var h=(Date.now()-t)/36e5; if(h<1) return "just now"; if(h<24) return Math.round(h)+"h ago";
+  var d=Math.round(h/24); if(d<32) return d+"d ago"; return (d/30.4).toFixed(1).replace(/\.0$/,"")+"mo ago"; }
+function trWhen(iso){ if(!iso) return ""; var a=trAgo(iso); return trDate(iso)+(a?(" ("+esc(a)+")"):""); }
+function trBytes(n){ n=Number(n)||0; if(!n) return ""; if(n<1024) return n+" B"; if(n<1048576) return (n/1024).toFixed(n<10240?1:0)+" KB"; return (n/1048576).toFixed(1)+" MB"; }
+function trDateLine(it){
+  if(!it) return "";
+  var lt=it.last_touch||{}, parts=[];
+  if(it.origin_date) parts.push("started "+trWhen(it.origin_date));
+  if(lt.at) parts.push("last touch "+trWhen(lt.at)+(lt.by?(" by "+esc(lt.by)):""));
+  if(!parts.length) return "";
+  return '<div class="tr-dates">'+parts.join(" · ")+'</div>';
+}
+function trAttBlock(it){
+  var a=it&&it.attachments; if(!a||!a.length) return "";
+  return '<div class="tr-atts">'+a.map(function(x){
+    var dl=x.url?'<a class="tr-att-dl" href="'+esc(x.url)+'" target="_blank" rel="noopener">Download ↓</a>':'<span class="tr-att-nod">no stored copy</span>';
+    return '<div class="tr-att"><div class="tr-att-hd"><span class="tr-att-nm">📎 '+esc(x.filename||"attachment")+'</span>'
+      +(x.size_bytes?'<span class="tr-att-sz">'+esc(trBytes(x.size_bytes))+'</span>':"")+dl+'</div>'
+      +(x.summary?'<div class="tr-att-sum">'+esc(x.summary)+'</div>':"")+'</div>';
+  }).join("")+'</div>';
+}
+function trHandledBadge(it){
+  if(!it||!it.already_handled) return "";
+  var lt=it.last_touch||{};
+  return ' <span class="tr-ah">✓ you already replied'+(lt.at?(" "+trDate(lt.at)):"")+'</span>';
+}
+function trHandledRow(it){
+  if(!it||!it.already_handled) return "";
+  var lt=it.last_touch||{};
+  return '<div class="tr-ah-row">✓ Already handled'+(lt.at?(" — "+trWhen(lt.at)+(lt.by?(" by "+esc(lt.by)):"")):"")
+    +(it.already_handled_reason?('<div class="tr-ah-why">'+esc(it.already_handled_reason)+'</div>'):"")+'</div>';
+}
 
 async function trPost(body){
   var r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), {
@@ -4525,7 +4574,11 @@ function trFlush(){
 /* ---- shared card rendering ---- */
 function trVerbs(it){
   return (it.verbs||[]).map(function(v){
-    var pl = encodeURIComponent(JSON.stringify(v.payload||{}));
+    // v2-0.60 FIX (raw-apostrophe class, again): encodeURIComponent leaves ' RAW,
+    // and pl rides inside a single-quoted onclick arg — any payload containing an
+    // apostrophe ("McDonald's") killed the handler compile and the button went DEAD
+    // (16 of 40 Discuss buttons on the 7/23 queue). %27 round-trips via decodeURIComponent.
+    var pl = encodeURIComponent(JSON.stringify(v.payload||{})).replace(/'/g,"%27");
     return '<button class="tr-vb '+esc(v.kind||"secondary")+'" onclick="event.stopPropagation();trTap(\''+esc(it.id)+'\',\''+esc(v.verb)+'\',\''+esc(it.type)+'\',\''+esc(v.side)+'\',\''+pl+'\',event)">'+esc(v.label)+'</button>';
   }).join("");
 }
@@ -4534,13 +4587,16 @@ function trCard(it){
   var h='<div class="tr-card'+(it.high_stakes?" stakes3":"")+'" data-ref="'+esc(it.id)+'">';
   h+='<div class="tr-top" onclick="trToggle(this)"><div style="flex:1">';
   h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title">'+esc(it.title||"")+'</div>';
-  h+='<div><span class="tr-why">'+esc(it.why_here||"")+'</span>'+trUrgencyChip(it.urgency)+disc+trMergeChips(it)+'</div>';
+  h+='<div><span class="tr-why">'+esc(it.why_here||"")+'</span>'+trUrgencyChip(it.urgency)+trHandledBadge(it)+disc+trMergeChips(it)+'</div>';
   if(it.recommendation) h+='<div class="tr-prop" style="margin-top:5px">'+esc(it.recommendation)+'</div>';
   h+='</div><span class="chev">›</span></div>';
   h+='<div class="tr-body">';
+  h+=trHandledRow(it);
+  h+=trDateLine(it);
   if(it.brief) h+='<div class="tr-brief">'+esc(it.brief)+'</div>';
   if(it.provenance) h+='<div class="tr-commit"><b>from:</b> '+esc(it.provenance)+'</div>';
-  if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  if(it.artifact && it.artifact.text && !it.already_handled) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  h+=trAttBlock(it);
   if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
   if(it.history) h+='<div class="tr-commit">'+esc(it.history)+'</div>';
   h+=trOpenRow(it);
@@ -4643,10 +4699,13 @@ function trRenderStackBody(){
   var h='<div class="tr-prog"><i style="width:'+pct+'%"></i></div>';
   h+='<div class="tr-frame" style="text-align:center;margin-bottom:6px">'+(TR.idx+1)+' of '+n+' · '+esc(it.why_here||"")+' '+trUrgencyChip(it.urgency)+'</div>';
   h+='<div class="tr-scard'+(it.high_stakes?" stakes3":"")+'">';
-  h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-size:16px">'+esc(it.title||"")+'</div>';
+  h+='<div class="tr-who">'+esc(it.who||"")+'</div><div class="tr-title" style="font-size:16px">'+esc(it.title||"")+trHandledBadge(it)+'</div>';
   if(it.merge_chips && it.merge_chips.length) h+='<div style="margin:5px 0">'+trMergeChips(it)+'</div>';
+  h+=trHandledRow(it);
+  h+=trDateLine(it);
   if(it.recommendation) h+='<div class="tr-srec">'+esc(it.recommendation)+'</div>';
-  if(it.artifact && it.artifact.text) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  if(it.artifact && it.artifact.text && !it.already_handled) h+='<div class="tr-art">'+esc(it.artifact.text)+'</div>';
+  h+=trAttBlock(it);
   if(it.provenance) h+='<div class="tr-commit"><b>from:</b> '+esc(it.provenance)+'</div>';
   if(it.commitments && it.commitments.length) h+='<div class="tr-commit"><b>pinned:</b> '+it.commitments.map(esc).join(" · ")+'</div>';
   if(it.brief) h+='<div class="tr-brief" style="margin-top:8px">'+esc(it.brief)+'</div>';
@@ -4716,6 +4775,19 @@ function trEnsureStyles(){
   +".tr-done{font-size:12px;color:var(--good);font-weight:800;padding:6px 2px}"
   +".tr-merge{display:inline-block;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);font-size:10px;font-weight:800;border-radius:999px;padding:1px 7px;margin-left:5px}"
   +".tr-owa-row{margin:8px 0 2px}.tr-owa{display:inline-block;font-size:12px;font-weight:800;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:999px;padding:3px 11px}"
+  // v2-0.60 — date line, attachment chips, already-handled badge/row
+  +".tr-dates{font-size:11px;color:var(--ink-2);font-weight:700;margin:6px 0}"
+  +".tr-atts{margin:8px 0}"
+  +".tr-att{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 6px}"
+  +".tr-att-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}"
+  +".tr-att-nm{font-size:12px;font-weight:800;color:var(--ink);word-break:break-all}"
+  +".tr-att-sz{font-size:10px;color:var(--ink-muted);font-weight:700;white-space:nowrap}"
+  +".tr-att-dl{margin-left:auto;font-size:11px;font-weight:800;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:999px;padding:2px 10px;white-space:nowrap}"
+  +".tr-att-nod{margin-left:auto;font-size:10px;color:var(--ink-muted);font-weight:700;white-space:nowrap}"
+  +".tr-att-sum{font-size:11.5px;color:var(--ink-2);margin-top:4px;line-height:1.4}"
+  +".tr-ah{display:inline-block;background:var(--good-bg);color:var(--good);font-size:10px;font-weight:900;border-radius:999px;padding:1px 7px;margin-left:5px}"
+  +".tr-ah-row{background:var(--good-bg);color:var(--good);font-size:12px;font-weight:800;border-radius:10px;padding:8px 10px;margin:8px 0}"
+  +".tr-ah-why{font-size:11px;color:var(--ink-2);font-weight:600;margin-top:3px}"
   // FIX v2-0.56 (Discuss-sometimes-unclickable): the undo toast used to sit fixed at
   // the very bottom over the Stack's sticky verb bar + Skip and steal their taps.
   // Now it is CLICK-THROUGH (pointer-events:none — Undo re-enabled below) so it can
