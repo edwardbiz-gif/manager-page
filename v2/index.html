@@ -1202,16 +1202,26 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
   // MUST exclude our own button/panel: their copy contains the word "error", so a
   // naive body scrape reported the panel's own helper text as the page error
   // (caught in browser E2E, 2026-07-27).
+  // Read the LIVE rendered text with our own UI hidden. Do NOT cloneNode here: a
+  // detached clone is unrendered, so innerText degrades to textContent and drags in
+  // the contents of every <script> tag — the second thing browser E2E caught, after
+  // the panel's own copy (both 2026-07-27).
   function pageText() {
+    var ids = ["opsIssueBtn", "opsIssuePanel"];
+    var prev = [];
     try {
-      var clone = document.body.cloneNode(true);
-      ["opsIssueBtn", "opsIssuePanel", "opsIssueBtnRoot"].forEach(function (id) {
-        var n = clone.querySelector("#" + id);
-        if (n && n.parentNode) n.parentNode.removeChild(n);
+      ids.forEach(function (id) {
+        var n = document.getElementById(id);
+        prev.push([n, n ? n.style.display : null]);
+        if (n) n.style.display = "none";
       });
-      return (clone.innerText || clone.textContent || "").trim();
+      return (document.body.innerText || "").trim();
     } catch (_) {
-      try { return (document.body.innerText || "").trim(); } catch (__) { return ""; }
+      return "";
+    } finally {
+      try {
+        prev.forEach(function (p) { if (p[0]) p[0].style.display = p[1] || ""; });
+      } catch (__) {}
     }
   }
   function visibleError() {
