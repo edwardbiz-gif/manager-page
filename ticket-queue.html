@@ -87,10 +87,25 @@
     try { return new URLSearchParams(location.search).get("t") || ""; } catch (_) { return ""; }
   }
   // Best-effort scrape of whatever the page is currently showing the user.
+  // MUST exclude our own button/panel: their copy contains the word "error", so a
+  // naive body scrape reported the panel's own helper text as the page error
+  // (caught in browser E2E, 2026-07-27).
+  function pageText() {
+    try {
+      var clone = document.body.cloneNode(true);
+      ["opsIssueBtn", "opsIssuePanel", "opsIssueBtnRoot"].forEach(function (id) {
+        var n = clone.querySelector("#" + id);
+        if (n && n.parentNode) n.parentNode.removeChild(n);
+      });
+      return (clone.innerText || clone.textContent || "").trim();
+    } catch (_) {
+      try { return (document.body.innerText || "").trim(); } catch (__) { return ""; }
+    }
+  }
   function visibleError() {
     try {
-      var t = (document.body && document.body.innerText || "").trim();
-      var m = t.match(/[^\n]*(invalid token|not valid|denied|error|failed|unable|unavailable|no access|expired)[^\n]*/i);
+      var t = pageText();
+      var m = t.match(/[^\n]*(invalid token|not valid|denied|failed|unable|unavailable|no access|expired|went wrong|error)[^\n]*/i);
       if (m) return m[0].slice(0, 300);
       return t.length < 200 ? t.slice(0, 200) : "";
     } catch (_) { return ""; }
