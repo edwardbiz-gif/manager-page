@@ -574,7 +574,7 @@ const VIEW = new URLSearchParams(location.search).get("view") || "";   // "meeti
 // Visible deploy marker — bump on every shell push so propagation is verifiable
 // at a glance. The backend (Edge Fn) version comes from data.fn_version; if the
 // two ever disagree (e.g. one deployed, the other still CDN-cached), it's shown red.
-const SHELL_VERSION = "v94"; // graduated OSAT Bonus renderer (v94); carries the previously staged v91 Advisor Brain + v92 correlations + v93 extended-hours panels
+const SHELL_VERSION = "v95"; // v2 auto-upgrade: Owner/Supervisor/GM tokens redirect to the v2 board (Departments + read-only stay here). 2026-07-28
 const VOICE_ORDER = ["Overall Quality","Accuracy","Fast","Friendliness","Overall Cleanliness","Taste of Food"];
 const VISIT_LABEL = {
   ecosure_food_safety:"EcoSure Food Safety", ecosure_safety_audit:"EcoSure Safety Audit",
@@ -4453,6 +4453,32 @@ async function init(){
     if(r.status === 401){ showError("This link has expired or is invalid. Text Eddie for a fresh one."); return; }
     if(!r.ok) throw new Error("HTTP " + r.status);
     const payload = await r.json();
+
+    // ── v2 AUTO-UPGRADE (Eddie, 2026-07-28) ────────────────────────────────
+    // Every link gen_manager_tokens.py ever printed points at THIS root shell
+    // (v1). The current board is /v2/. Rather than re-issue ~70 live tokens, we
+    // upgrade in place: same token, same link, redirect to v2.
+    //
+    // ROLE-GATED ON PURPOSE. Only Owner / Supervisor / GM go to v2 — that is the
+    // tier v2 was built for. Department managers (33 live tokens) are supposed to
+    // get department-specialized views, NOT a GM clone, and read-only guest
+    // viewers are deliberately parked here too. Both stay on v1 until their own
+    // v2 tier ships.
+    //
+    // location.replace, not assign: no history entry, so Back does not bounce the
+    // user between boards. Guarded so a failure here can never block the v1 render.
+    try{
+      const _role = String(((payload && payload.data && payload.data.manager) || {}).role || "");
+      const _ro   = !!(payload && payload.data && payload.data.read_only);
+      if(!_ro && (_role === "Owner" || _role === "Supervisor" || _role === "GM")){
+        // RELATIVE on purpose: this shell lives at <base>/index.html and v2 at
+        // <base>/v2/index.html, so "v2/index.html" resolves correctly whether the
+        // base is /manager-page/ on GH Pages or a local server root.
+        location.replace("v2/index.html?t=" + encodeURIComponent(TOKEN));
+        return;
+      }
+    }catch(_e){ /* upgrade is best-effort; fall through to the v1 board */ }
+
     setBoard(payload);
   }catch(e){
     showError("Could not load board: " + (e && e.message));
