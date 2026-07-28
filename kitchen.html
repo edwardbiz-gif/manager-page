@@ -189,8 +189,8 @@ function buildCards(d){
     const k=d.kvs;
     cards.push({a:"red",h:kick2(
         esc(k.month)+' KVS Race · month-to-date','Carrera KVS · '+esc(mes(k.month))+' · mes en curso')+
-      title2es('Make-line speed — seconds per order · faster is better',
-               'Velocidad de línea — segundos por orden · más rápido es mejor')+
+      title2es('KVS (Kitchen Speed) — seconds per order · faster is better',
+               'KVS (Velocidad de Cocina) — segundos por orden · más rápido es mejor')+
       (k.rank!=null?'<div class="sub" style="font-size:3.2vh">'+esc(d.loc)+': <b>'+ord(k.rank)+' of '+k.total+'</b> · '+esc(k.mine_s)+'s</div>':'')+
       '<div class="board compact">'+
       k.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.kvs_s)+'<span class="un">s</span></span></div>').join("")+'</div>'+
