@@ -1373,7 +1373,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.61"; // NUMBERS P&L: per-store selector for Sup/Owner + "data thru <store>" label fixed (shell-only, 2026-07-28)
+const SHELL_VERSION = "v2-0.62"; // Projection UX: keep the selected month through a save, hold scroll position, + Update PAC button (fn+shell lockstep, 2026-07-28)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2455,13 +2455,20 @@ function renderPacLedger(data){
         ? '<button class="lockbtn unlock" onclick="v2ProjectionLock(event,false,'+f.store_id+',\''+esc(projMonth)+'\')">Unlock</button>'
         : '<button class="lockbtn" onclick="v2ProjectionLock(event,true,'+f.store_id+',\''+esc(projMonth)+'\')">🔒 Lock month</button>')
     : "";
+  // v2-0.62 — "Update PAC": recompute PAC from the lines on file. Saves now do this
+  // automatically, so this is the manual refresh for a month penciled before that
+  // shipped (the engine wrote PAC off its OWN sales forecast and never revisited it —
+  // Randy's patch read $33,311 light on 2026-07-28). GM/Sup/Owner, unlocked months.
+  const actualizeCtl = ((role==="GM"||role==="Supervisor"||role==="Owner") && !fin.read_only && !monthLocked && projMonth)
+    ? '<button class="lockbtn" onclick="v2ProjectionActualize(event,'+f.store_id+',\''+esc(projMonth)+'\')" title="Recompute PAC from the projection lines on file">↻ Update PAC</button>'
+    : "";
   const lockBar = monthLocked
     ? '<div class="lockbar locked"><span class="lkic">🔒</span><span class="lkmeta">Projection LOCKED for this month — read-only'
-        + ((meta.locked_by||(lockedRow&&lockedRow.locked_by))?'<small>Locked by '+esc(meta.locked_by||lockedRow.locked_by)+((meta.locked_at||(lockedRow&&lockedRow.locked_at))?' · '+esc(String(meta.locked_at||lockedRow.locked_at).slice(0,10)):'')+'</small>':'')+'</span>'+ownerCtl+'</div>'
+        + ((meta.locked_by||(lockedRow&&lockedRow.locked_by))?'<small>Locked by '+esc(meta.locked_by||lockedRow.locked_by)+((meta.locked_at||(lockedRow&&lockedRow.locked_at))?' · '+esc(String(meta.locked_at||lockedRow.locked_at).slice(0,10)):'')+'</small>':'')+'</span>'+actualizeCtl+ownerCtl+'</div>'
     : allPending
-      ? '<div class="lockbar open"><span class="lkic">✏️</span><span class="lkmeta">Projection PENDING'+(canEdit?' — tap a Projection cell to pencil it':'')+'; owner-locked (~the 20th)<small>'+(canEdit?'Enter $ or % of sales — the other computes from projected net sales.':'The pnl_projection table is empty for this month until the meeting (§9).')+'</small></span>'+ownerCtl+'</div>'
+      ? '<div class="lockbar open"><span class="lkic">✏️</span><span class="lkmeta">Projection PENDING'+(canEdit?' — tap a Projection cell to pencil it':'')+'; owner-locked (~the 20th)<small>'+(canEdit?'Enter $ or % of sales — the other computes from projected net sales.':'The pnl_projection table is empty for this month until the meeting (§9).')+'</small></span>'+actualizeCtl+ownerCtl+'</div>'
       : '<div class="lockbar open"><span class="lkic">✏️</span><span class="lkmeta">Projection OPEN'+(canEdit?' — tap a cell to edit':'')+'; penciled by GM/sup until the owner locks (~the 20th)'
-        + (openRow&&openRow.entered_by?'<small>Penciled by '+esc(openRow.entered_by)+' · awaiting owner lock</small>':'')+'</span>'+ownerCtl+'</div>';
+        + (openRow&&openRow.entered_by?'<small>Penciled by '+esc(openRow.entered_by)+' · awaiting owner lock</small>':'')+'</span>'+actualizeCtl+ownerCtl+'</div>';
 
   // data attrs the inline editor reads (store, line, current value+type, derived,
   // projected net sales, label, the month being projected).
@@ -7129,10 +7136,16 @@ function mergePostPayload(payload, askedLanes){
   STATE.result = payload ? payload.result : null;
   return { result: STATE.result, data: STATE.data };
 }
-async function v2CallApi(body){
+// opts.finMonth — carry the month the user is LOOKING at through a write.
+// Without it the Edge Fn re-gathers financials for its default month, so every
+// projection save silently bounced the ledger back to the current month and the
+// user had to re-pick it for the next line (Eddie, 2026-07-28: "you have to reset
+// the month each time"). v2-0.62.
+async function v2CallApi(body, opts){
   const lanes = ["TODAY","NUMBERS"];
   if(LANE_KEYS[ACTIVE_LANE] && lanes.indexOf(ACTIVE_LANE) < 0) lanes.push(ACTIVE_LANE);
-  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&lane=" + lanes.join(","), {
+  const finQs = (opts && opts.finMonth) ? "&fin_month=" + encodeURIComponent(opts.finMonth) : "";
+  const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&lane=" + lanes.join(",") + finQs, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body || {}),
@@ -7281,9 +7294,16 @@ function projDerive(value, valueType, netSales){
   return { text:moneyKD(netSales*value/100)+" dollars", ok:true };
 }
 
+// Where the reader was BEFORE the editor sheet opened. Capturing at save time is
+// too late: opening the overlay already moves the window (the sheet changes document
+// height), so v2HoldScroll would faithfully restore the bottom of the page — which is
+// exactly the "it scrolls to the bottom" complaint (Eddie, 2026-07-28). v2-0.62.
+let PROJ_SCROLL_Y = null;
+
 // open the inline editor (in the drill sheet) for one projection line.
 function v2EditProjection(el, ev){
   if(ev) ev.stopPropagation();   // don't also trigger the card-level PAC drill
+  PROJ_SCROLL_Y = window.scrollY || document.documentElement.scrollTop || 0;
   const d = el.dataset;
   const store = Number(d.pjStore), line = d.pjLine, label = d.pjLabel, month = d.pjMonth;
   const ns = d.pjNs!=="" ? Number(d.pjNs) : null;
@@ -7359,13 +7379,20 @@ async function v2ProjSave(btn, store, line, month, ns){
   const value_type = v2ProjType();
   btn.disabled = true; btn.textContent = "Saving…";
   try{
-    const payload = await v2CallApi({ action:"projection_save", store_id:store, period_month:month, pnl_line:line, value:String(val), value_type });
+    // pass the month being edited so the repaint comes back on THAT month
+    const payload = await v2CallApi({ action:"projection_save", store_id:store, period_month:month, pnl_line:line, value:String(val), value_type }, { finMonth: month });
     if(payload && payload.result && payload.result.ok===false){
       btn.disabled=false; btn.textContent="Save projection";
       errEl.textContent = payload.result.msg || "Could not save."; errEl.classList.add("show"); return;
     }
     closeSheet();
-    renderBoard(payload);   // repaint with the fresh derived counterpart + state
+    // Hold the user's place. renderBoard repaints the whole board, which threw them
+    // to the top/bottom after every single line — brutal when penciling 20 lines in
+    // a row (Eddie, 2026-07-28). Restore scroll on the next frame, after paint.
+    // restore to where the reader was before the editor sheet opened, not to where
+    // the overlay left the window
+    const _y0 = PROJ_SCROLL_Y; PROJ_SCROLL_Y = null;
+    v2HoldScroll(()=>renderBoard(payload), _y0);   // repaint, keeping the user's place
   }catch(e){
     btn.disabled=false; btn.textContent="Save projection";
     errEl.textContent = "Save failed: "+(e&&e.message); errEl.classList.add("show");
@@ -7375,6 +7402,44 @@ window.v2ProjSave = v2ProjSave;
 
 // OWNER-only: lock / unlock the whole store-month projection. Once locked the
 // cells render read-only and projection_save rejects writes (server-enforced).
+// v2-0.62 — manual PAC refresh. Recomputes PAC from the projection lines on file
+// (human pencil where entered, engine value otherwise) and repaints in place.
+// v2-0.62 — hold the reader's place across a full repaint.
+// renderBoard rebuilds the whole board, so penciling 20 projection lines used to
+// fling the page to the bottom after EVERY line (Eddie, 2026-07-28: "once a value is
+// saved it scrolls to the bottom of the page"). Restoring on a single rAF is not
+// enough: the new DOM has not been laid out yet, so the browser clamps the scroll to
+// the old (shorter) height. Restore across two frames AND once more after layout,
+// clamped to the document's real max scroll.
+function v2HoldScroll(fn, yOverride){
+  // yOverride: a position captured BEFORE an overlay moved the page (see PROJ_SCROLL_Y).
+  const y = (yOverride != null) ? yOverride
+          : (window.scrollY || document.documentElement.scrollTop || 0);
+  try{ fn(); } finally {
+    const put = () => {
+      try{
+        const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        window.scrollTo(0, Math.min(y, max));
+      }catch(_e){}
+    };
+    requestAnimationFrame(()=>{ put(); requestAnimationFrame(put); });
+    setTimeout(put, 140);
+  }
+}
+window.v2HoldScroll = v2HoldScroll;
+
+async function v2ProjectionActualize(ev, store, month){
+  if(ev) ev.stopPropagation();
+  try{
+    const payload = await v2CallApi({ action:"projection_actualize", store_id:store, period_month:month }, { finMonth: month });
+    if(payload && payload.result && payload.result.ok===false){
+      alert(payload.result.msg || "Could not update PAC."); return;
+    }
+    v2HoldScroll(()=>renderBoard(payload));
+  }catch(e){ alert("Update failed: "+(e&&e.message)); }
+}
+window.v2ProjectionActualize = v2ProjectionActualize;
+
 async function v2ProjectionLock(ev, lock, store, month){
   if(ev) ev.stopPropagation();
   const verb = lock ? "Lock" : "Unlock";
