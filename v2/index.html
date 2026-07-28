@@ -1373,7 +1373,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.60"; // Triage card context: date line + attachment chips + already-handled (fn+shell lockstep, 2026-07-23)
+const SHELL_VERSION = "v2-0.61"; // NUMBERS P&L: per-store selector for Sup/Owner + "data thru <store>" label fixed (shell-only, 2026-07-28)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2207,11 +2207,23 @@ function pct1(p){ return (p==null||isNaN(p)) ? "—" : Number(p).toFixed(1)+"%";
 function pct2(p){ return (p==null||isNaN(p)) ? "—" : Number(p).toFixed(2)+"%"; }
 
 // resolve the focal store the single-store cards (ledger/waterfall/bullets) draw:
-// the only in-scope store for a GM, else the largest by net sales (best signal).
+// the only in-scope store for a GM, else the store the user explicitly picked in the
+// NUMBERS store selector (v2-0.61), else the largest by net sales (best signal).
+//
+// Why the selector exists: projections are entered PER STORE — pnl_projection keys on
+// (store_id, period_month, pnl_line) and there is no patch-level projection object at
+// all. Before this, a supervisor's ledger silently defaulted to his biggest store
+// (Randy always landed on Boulder Hill) with no way to switch and no label saying
+// which store he was editing. Eddie, 2026-07-28.
+let FIN_STORE_SEL = null;   // store_id explicitly chosen in the NUMBERS store selector
 function finFocus(fin){
   const ps = fin.per_store || [];
   if(!ps.length) return null;
   if(ps.length === 1) return ps[0];
+  if(FIN_STORE_SEL != null){
+    const pick = ps.find(p => String(p.store_id) === String(FIN_STORE_SEL));
+    if(pick) return pick;   // stale pick (month switch changed scope) falls through
+  }
   return ps.slice().sort((a,b)=>((b.ytd&&b.ytd.net_sales)||0)-((a.ytd&&a.ytd.net_sales)||0))[0];
 }
 // the data-through line shared across NUMBERS cards (YTD roll is the hard date).
@@ -2382,7 +2394,7 @@ function renderNumbersRollup(data){
   }).join("");
   return card(data.scope_all?"By store":"Stores in patch",
     rows + '<div class="cap">Worst-PAC-first. All read the precomputed pac_pct level (never recomputed). Tap a store for its line detail.</div>',
-    { icon:"🏪", through: thru ? ("YTD · thru "+thru) : "YTD" });
+    { icon:"🏪", info: thru ? ("YTD · data thru "+thru) : "YTD" });
 }
 
 // MODULE — the up-to-PAC ledger: MTD actual · YTD actual · monthly projection.
@@ -2609,7 +2621,19 @@ function renderPacLedger(data){
   const selMoLabel = f.selected_month_label || fin.selected_month_label || "";
   const prevMoLabel = f.prev_month_label || fin.prev_month_label || "";
   const orgN = (fin.org && fin.org.store_count) || 12;
-  const body = monthCtl + lockBar
+  // ── STORE SELECTOR (v2-0.61) — Supervisor/Owner only. Projections are per store,
+  // so the ledger has to let a supervisor choose which store he is filling in.
+  // Purely client-side: every per_store row is already in the payload, so this needs
+  // no refetch and no loading state (unlike the month switch, which does refetch).
+  const psAll = fin.per_store || [];
+  const canPickStore = psAll.length > 1 && (role === "Supervisor" || role === "Owner");
+  const storeCtl = canPickStore
+    ? '<div class="finmonth"><label>Store</label><select onchange="v2SelectFinStore(this.value)">'
+      + psAll.slice().sort((a,b)=>String(a.store_name||"").localeCompare(String(b.store_name||"")))
+          .map(p=>'<option value="'+esc(p.store_id)+'"'+(String(p.store_id)===String(f.store_id)?' selected':'')
+            +'>'+esc(p.store_name||("Store "+(p.nsn||"")))+(p.nsn?' #'+esc(p.nsn):'')+'</option>').join("")
+      + '</select></div>' : '';
+  const body = storeCtl + monthCtl + lockBar
     + '<div class="lhdr"><span>Line (Withum)</span><span>Prev</span><span>'+(isFut?"Actual":"MTD")+'</span><span class="hproj">Projection</span><span>Δ vs proj</span></div>'
     + '<div class="ledger">'+ledger+'</div>'
     + '<div class="cap"><b>'+(isFut?"This is a FUTURE month — no actuals yet; pencil your projection.":"<b>"+(prelim?"MTD (preliminary)":"Actual")+"</b> = "+esc(selMoLabel)+" actual"+(prelim?" so far (R365 re-keys open periods)":""))+'</b> · '
@@ -2617,7 +2641,16 @@ function renderPacLedger(data){
       + 'MTD % is <b style="color:var(--good)">colored vs the '+orgN+'-store org average</b>; an <b style="color:var(--warn);font-style:italic">~amber "est"</b> value is a placeholder until a reasonable number posts (the Total Control &amp; PAC totals include estimates). '
       + 'Every <b>Withum line</b> is itemized from the R365 GL detail; YTD avg/month is in the line detail (tap the card). Use <b>Month</b> above to review a prior month or project next month.</div>';
   const title = (selMoLabel ? selMoLabel + " P&L" : "P&L");
-  return card(title, body, { icon:"📊", through: f.store_name, newBadge:true, drill:{kind:"pac", store_id:f.store_id} });
+  // `through` is reserved for a real data-through DATE — card() prefixes it with
+  // "data thru", so passing the store name here rendered the nonsense "data thru
+  // Boulder Hill" (Eddie, 2026-07-28). Store name is context, so it goes in `info`
+  // alongside the actual date.
+  return card(title, body, {
+    icon:"📊",
+    info: (f.store_name || "") + (thru ? " · data thru " + thru : ""),
+    newBadge:true,
+    drill:{kind:"pac", store_id:f.store_id}
+  });
 }
 
 // MODULE — Sales→PAC waterfall (precomputed columns; never recompute PAC).
@@ -2638,7 +2671,9 @@ function renderNumbersWaterfall(data){
   const body = waterfall(steps)
     + '<div class="cap">Where every sales dollar goes ('+(wf.basis==="mtd"?"MTD current month":"YTD")+'). Labor is the dominant controllable ('+laborPct+' of sales). '
     + 'Green/red reserved for the PAC outcome only (IBCS). PAC read from the precomputed column.</div>';
-  return card("Sales → PAC", body, { icon:"💧", through: f.store_name+" · "+(wf.basis==="mtd"?"MTD":"YTD")+(finThru(fin)?" thru "+finThru(fin):""), drill:{kind:"waterfall", store_id:f.store_id} });
+  // store name + basis are CONTEXT, not a data-through date -> `info` (card() prefixes
+  // `through` with "data thru", which produced "data thru Boulder Hill · MTD thru …")
+  return card("Sales → PAC", body, { icon:"💧", info: f.store_name+" · "+(wf.basis==="mtd"?"MTD":"YTD")+(finThru(fin)?" · data thru "+finThru(fin):""), drill:{kind:"waterfall", store_id:f.store_id} });
 }
 
 // MODULE — cost-% bullet bars (LEVEL only; no target source yet, §6.4).
@@ -2656,7 +2691,7 @@ function renderNumbersBullets(data){
         return bullet(c.label, c.pct, c.target, null, "%", note);
       }).join("")
     + '</div><div class="cap">Bars show the <b>YTD level</b>. The target mark is a <b>stretch target = the 12-store org average −8%</b> (8% better than the org; no sourced target column yet, plan §6.4). Colored by favorability (lower = better).</div>';
-  return card("Cost discipline", body, { icon:"📏", through: f.store_name+" · YTD"+(finThru(fin)?" thru "+finThru(fin):""), drill:{kind:"bullets", store_id:f.store_id} });
+  return card("Cost discipline", body, { icon:"📏", info: f.store_name+" · YTD"+(finThru(fin)?" · data thru "+finThru(fin):""), drill:{kind:"bullets", store_id:f.store_id} });
 }
 
 // MODULE — MTD invoice tracker (posted vs in-flight).
@@ -2736,7 +2771,7 @@ function renderNumbersDoorDash(data){
   const body = '<div class="ddhdr"><span>Store</span><span>prior → current</span><span>±</span></div>'+rows
     + '<div class="cap"><b>'+nDown+'</b> down <span class="qdown">↓</span> · <b>'+nUp+'</b> up <span class="qup">↑</span> · rest flat. Rate keys off <b>ADWT</b>. DashPass &amp; Drive base constant across all 12. From <b>doordash_commission_rates</b>.</div>'
     + (dd.missing_latest_quarter ? '<div class="dd-misswarn">⚠ '+dd.missing_latest_quarter+' store'+(dd.missing_latest_quarter>1?"s":"")+' missing the latest-quarter DoorDash email — those rows show the prior quarter.</div>':"");
-  return card("DoorDash rates", body, { icon:"🛵", through: "current vs prior quarter on file", newBadge:true, drill:{kind:"dd"} });
+  return card("DoorDash rates", body, { icon:"🛵", info: "current vs prior quarter on file", newBadge:true, drill:{kind:"dd"} });
 }
 
 // MODULE — LTO leaderboard (org-wide units per 1,000 guests; viewer's stores hi-lit).
@@ -2758,7 +2793,7 @@ function renderNumbersLto(data){
     return '<div class="ltoseg">'+esc(p.label)+'</div>'+rows;
   }).join("");
   return card("LTO leaderboard", body + '<div class="cap">Units per 1,000 guests by promo, org-wide. Your store(s) highlighted. From v_datapass_lto_rank.</div>',
-    { icon:"🏆", through: lto.data_through ? ("data thru "+lto.data_through) : null, drill:{kind:"lto"} });
+    { icon:"🏆", through: lto.data_through || null, drill:{kind:"lto"} });   // card() adds "data thru" — don't double it
 }
 
 /* ---- NUMBERS drill: every card opens a detail sheet (plan §10) ---------------
@@ -7530,6 +7565,14 @@ async function bootBoard(){
 // further picks are QUEUED (latest wins) instead of racing, and the ledger card
 // paints a loading skeleton (FIN_MONTH_LOADING → renderPacLedger). Fast clicking
 // can no longer double-paint or land an out-of-order (stale) month.
+// STORE SELECTOR (NUMBERS P&L, v2-0.61): Supervisor/Owner pick which store's ledger
+// they are looking at and penciling. Purely client-side — every per_store row is
+// already in the payload — so no fetch, no skeleton, no race with the month switch.
+function v2SelectFinStore(storeId){
+  FIN_STORE_SEL = (storeId === "" || storeId == null) ? null : storeId;
+  renderBoard();
+}
+
 let FIN_MONTH_INFLIGHT = false;   // a fetch is pending
 let FIN_MONTH_PENDING = null;     // the newest pick queued while in flight
 let FIN_MONTH_REQUESTED = null;   // what the skeleton's selector should show
