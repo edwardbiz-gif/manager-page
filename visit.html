@@ -1,0 +1,644 @@
+<!doctype html>
+<!-- visit.html v1 (2026-08-07) - Cross-Visit Checklist (trial run, round 2026-Q3).
+     Eddie + the three supervisors each score their 3 assigned stores on the
+     round's most-missed CFV / food-safety items. TRIAL RUN: no bonus, no
+     contest - the tracker below the form is shared progress visibility (who
+     has visited what, scores as information, open findings), not a leaderboard.
+     Mobile-first: visitors fill it standing in the store.
+     Served from GH Pages because the Supabase gateway rewrites Edge Fn
+     text/html to text/plain (house rule: an Edge Fn never serves a page).
+     API: the checklist-visit Edge Function v1 (capability token ?t=, JSON+CORS).
+     The server recomputes score / applicable / perfect - this page's tallies
+     are display only.
+     Item N/A convention: any item can be marked N/A, but only rank 11
+     (SL2-KITCHEN, second certified shift manager in the kitchen) shows the
+     N/A control prominently; the rest hide it behind a small link.
+     NOTE: keep every JS string apostrophe-safe - a raw apostrophe in a
+     single-quoted string once bricked a whole board shell. -->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex"><title>Cross-Visit Checklist</title>
+<style>
+  :root{--bg:#101010;--card:#1c1c1c;--line:#333;--ink:#f4f4f4;--mut:#9aa0a6;--gold:#FFC72C;--red:#DA291C;--ok:#2eae4f;--na:#5b8dbf}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto}
+  h1{font-size:21px;margin:4px 0 2px;letter-spacing:.3px}
+  h1 .accent{color:var(--gold)}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .trialnote{background:rgba(91,141,191,.12);border:1px solid var(--na);color:#9ec5ea;border-radius:10px;padding:10px;font-size:13px;margin-bottom:12px}
+  .storebtn{display:block;width:100%;padding:16px 14px;margin:10px 0;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font-size:17px;font-weight:800;cursor:pointer;text-align:left}
+  .storebtn small{display:block;font-weight:400;font-size:12px;margin-top:4px;color:var(--mut)}
+  .storebtn.open{border-color:var(--gold)}
+  .storebtn.done{opacity:.75;cursor:default;border-color:var(--ok)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;vertical-align:middle}
+  .badge.ok{background:rgba(46,174,79,.16);color:var(--ok);border:1px solid var(--ok)}
+  .badge.todo{background:rgba(255,199,44,.12);color:var(--gold);border:1px solid var(--gold)}
+  .badge.napill{background:rgba(91,141,191,.14);color:#9ec5ea;border:1px solid var(--na)}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+  .item .ttl{font-size:14px;font-weight:700;margin-bottom:2px}
+  .item .code{font-size:11px;color:var(--mut);letter-spacing:.05em;margin-bottom:8px}
+  .togglerow{display:flex;gap:8px}
+  .tog{flex:1;padding:14px 6px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px;font-weight:800;cursor:pointer;text-align:center}
+  .tog.pass.on{background:var(--ok);border-color:var(--ok);color:#fff}
+  .tog.fail.on{background:var(--red);border-color:var(--red);color:#fff}
+  .tog.na.on{background:var(--na);border-color:var(--na);color:#fff}
+  .smallrow{margin-top:8px;font-size:12px}
+  .linkish{background:none;border:none;color:var(--mut);font-size:12px;cursor:pointer;padding:2px 0;text-decoration:underline}
+  .itemnote{display:none;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;background:var(--bg);color:var(--ink);margin-top:8px;min-height:44px;resize:vertical}
+  textarea.visitnotes{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px;background:var(--bg);color:var(--ink);min-height:64px;resize:vertical}
+  .tally{position:sticky;bottom:0;background:rgba(16,16,16,.96);border-top:1px solid var(--line);padding:10px 4px;font-size:14px;font-weight:700;color:var(--gold)}
+  .submit{width:100%;margin-top:12px;padding:15px 0;border:none;border-radius:12px;background:var(--gold);color:#111;font-size:17px;font-weight:800;cursor:pointer}
+  .submit:disabled{opacity:.45}
+  .confirmbar{display:none;background:rgba(255,199,44,.12);border:1px solid var(--gold);border-radius:10px;padding:12px;margin-top:12px;font-size:14px}
+  .confirmbar .row{display:flex;gap:8px;margin-top:10px}
+  .confirmbar button{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:15px;font-weight:800;cursor:pointer}
+  .confirmbar .yes{background:var(--gold);color:#111}
+  .confirmbar .no{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .back{background:none;border:none;color:var(--mut);font-size:14px;cursor:pointer;padding:8px 0;margin-top:4px}
+  .err{display:none;background:rgba(218,41,28,.14);border:1px solid var(--red);color:#ff8d81;border-radius:10px;padding:10px;font-size:14px;margin-top:12px;word-break:break-word}
+  .ok-card{text-align:center;padding:30px 14px}
+  .ok-card .tick{font-size:48px;line-height:1}
+  .ok-card h2{margin:10px 0 4px;font-size:20px}
+  .sum{margin:14px auto 0;max-width:340px;text-align:left;font-size:14px;color:var(--mut)}
+  .sum b{color:var(--ink)}
+  .sum .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .dead{text-align:center;padding:44px 12px;color:var(--mut)}
+  .loading{text-align:center;padding:44px 12px;color:var(--mut)}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+  h2.sect{font-size:16px;margin:20px 0 8px;color:var(--gold)}
+  .visitrow{border-bottom:1px solid var(--line);padding:10px 0}
+  .visitrow:last-child{border-bottom:none}
+  .visitrow .top{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+  .visitrow .top b{font-size:15px}
+  .visitrow .meta{color:var(--mut);font-size:12px;margin-top:2px}
+  .visitrow .score{font-weight:800;font-size:16px;white-space:nowrap}
+  .visitrow .score.full{color:var(--ok)}
+  .visitrow .score.part{color:var(--gold)}
+  .findings{margin-top:6px;font-size:12.5px;color:#ff8d81}
+  .findings div{margin-top:2px}
+  .owes{font-size:14px;margin-top:4px}
+  .owes b{color:var(--ink)}
+  .datathrough{color:var(--mut);font-size:12px;margin-top:10px}
+</style></head><body>
+<!-- ops issue-report button v1 (2026-07-27) — SHARED SNIPPET, keep copies in sync.
+     Source of truth: edge-functions/_shared/issue-report-button.html
+     Injected by inject_issue_button.py into every INTERACTIVE surface (crew TVs excluded
+     per Eddie 2026-07-27 — nobody types a bug report at a glanceable screen).
+
+     DESIGN RULES (all three exist because of the 2026-07-27 Brandon incident, where his
+     ticket queue rendered "invalid token" and he had no way to report it but email):
+       1. Static + inline + FIRST in <body>. It must not depend on the app's JS, which is
+          exactly what may already be broken.
+       2. It must NOT need a valid capability token. A dead token is the failure we are
+          catching, so the endpoint is unauthenticated.
+       3. It must never leak the raw token. We send it so the server can hash it into a
+          12-char hint; the server redacts the URL and stores no raw credential.
+     Everything is wrapped in try/catch so a failure in THIS code can never take down a
+     page that was otherwise fine. -->
+<div id="opsIssueBtnRoot"></div>
+<script>
+(function () {
+  "use strict";
+  var SURFACE = "visit";
+  var ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/issue-report";
+  var errs = [];
+  try {
+    window.addEventListener("error", function (e) {
+      try { errs.push(String(e && e.message || e)); if (errs.length > 8) errs.shift(); } catch (_) {}
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      try { errs.push("promise: " + String((e && e.reason && e.reason.message) || (e && e.reason) || e)); if (errs.length > 8) errs.shift(); } catch (_) {}
+    });
+  } catch (_) {}
+
+  function tokenFromUrl() {
+    try { return new URLSearchParams(location.search).get("t") || ""; } catch (_) { return ""; }
+  }
+  // Best-effort scrape of whatever the page is currently showing the user.
+  // MUST exclude our own button/panel: their copy contains the word "error", so a
+  // naive body scrape reported the panel's own helper text as the page error
+  // (caught in browser E2E, 2026-07-27).
+  // Read the LIVE rendered text with our own UI hidden. Do NOT cloneNode here: a
+  // detached clone is unrendered, so innerText degrades to textContent and drags in
+  // the contents of every <script> tag — the second thing browser E2E caught, after
+  // the panel's own copy (both 2026-07-27).
+  function pageText() {
+    var ids = ["opsIssueBtn", "opsIssuePanel"];
+    var prev = [];
+    try {
+      ids.forEach(function (id) {
+        var n = document.getElementById(id);
+        prev.push([n, n ? n.style.display : null]);
+        if (n) n.style.display = "none";
+      });
+      return (document.body.innerText || "").trim();
+    } catch (_) {
+      return "";
+    } finally {
+      try {
+        prev.forEach(function (p) { if (p[0]) p[0].style.display = p[1] || ""; });
+      } catch (__) {}
+    }
+  }
+  function visibleError() {
+    try {
+      var t = pageText();
+      var m = t.match(/[^\n]*(invalid token|not valid|denied|failed|unable|unavailable|no access|expired|went wrong|error)[^\n]*/i);
+      if (m) return m[0].slice(0, 300);
+      return t.length < 200 ? t.slice(0, 200) : "";
+    } catch (_) { return ""; }
+  }
+
+  function build() {
+    try {
+      if (document.getElementById("opsIssueBtn")) return;
+      var css = document.createElement("style");
+      css.textContent =
+        "#opsIssueBtn{position:fixed;right:14px;bottom:14px;z-index:2147483647;background:#b42318;color:#fff;" +
+        "border:none;border-radius:999px;padding:10px 16px;font:600 13px/1.2 system-ui,Segoe UI,Arial,sans-serif;" +
+        "cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3)}" +
+        "#opsIssueBtn:hover{background:#912018}" +
+        "#opsIssuePanel{position:fixed;right:14px;bottom:62px;z-index:2147483647;width:310px;max-width:92vw;" +
+        "background:#fff;color:#111;border:1px solid #d0d5dd;border-radius:10px;padding:14px;display:none;" +
+        "box-shadow:0 8px 28px rgba(0,0,0,.28);font:13px/1.45 system-ui,Segoe UI,Arial,sans-serif}" +
+        "#opsIssuePanel h4{margin:0 0 4px;font-size:14px}" +
+        "#opsIssuePanel p{margin:0 0 8px;color:#475467;font-size:12px}" +
+        "#opsIssuePanel textarea,#opsIssuePanel input{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;" +
+        "border-radius:6px;padding:7px;font:13px system-ui,Segoe UI,Arial,sans-serif;margin-bottom:8px;background:#fff;color:#111}" +
+        "#opsIssuePanel textarea{height:78px;resize:vertical}" +
+        "#opsIssueSend{background:#b42318;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}" +
+        "#opsIssueCancel{background:none;border:none;color:#475467;cursor:pointer;padding:8px;font-size:12px}" +
+        "#opsIssueMsg{font-size:12px;margin-top:6px}";
+      document.head ? document.head.appendChild(css) : document.documentElement.appendChild(css);
+
+      var btn = document.createElement("button");
+      btn.id = "opsIssueBtn"; btn.type = "button";
+      btn.textContent = "⚠ Report issue";
+
+      var panel = document.createElement("div");
+      panel.id = "opsIssuePanel";
+      panel.innerHTML =
+        '<h4>Report a problem</h4>' +
+        '<p>Tell us what went wrong. We attach the page and any error automatically.</p>' +
+        '<textarea id="opsIssueText" placeholder="What happened? e.g. the page says invalid token"></textarea>' +
+        '<input id="opsIssueWho" type="text" placeholder="Your name (optional)">' +
+        '<button id="opsIssueSend" type="button">Send</button>' +
+        '<button id="opsIssueCancel" type="button">Cancel</button>' +
+        '<div id="opsIssueMsg"></div>';
+
+      document.body.appendChild(btn);
+      document.body.appendChild(panel);
+
+      btn.onclick = function () {
+        panel.style.display = panel.style.display === "block" ? "none" : "block";
+        try { document.getElementById("opsIssueText").focus(); } catch (_) {}
+      };
+      document.getElementById("opsIssueCancel").onclick = function () { panel.style.display = "none"; };
+      document.getElementById("opsIssueSend").onclick = function () {
+        var msgEl = document.getElementById("opsIssueMsg");
+        var text = (document.getElementById("opsIssueText").value || "").trim();
+        var who = (document.getElementById("opsIssueWho").value || "").trim();
+        var ve = visibleError();
+        if (!text && !ve) { msgEl.style.color = "#b42318"; msgEl.textContent = "Please describe the problem."; return; }
+        msgEl.style.color = "#475467"; msgEl.textContent = "Sending...";
+        var payload = {
+          surface: SURFACE, message: text, reporter_label: who,
+          visible_error: ve, page_path: location.href, token: tokenFromUrl(),
+          diagnostics: {
+            errors: errs.slice(-5), title: document.title,
+            viewport: (window.innerWidth || 0) + "x" + (window.innerHeight || 0),
+            online: navigator.onLine, ts: new Date().toISOString()
+          }
+        };
+        try {
+          fetch(ENDPOINT, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }).then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+              if (j && j.ok) {
+                msgEl.style.color = "#067647";
+                msgEl.textContent = "Thank you. Eddie has been notified.";
+                document.getElementById("opsIssueText").value = "";
+                setTimeout(function () { panel.style.display = "none"; msgEl.textContent = ""; }, 2200);
+              } else {
+                msgEl.style.color = "#b42318";
+                msgEl.textContent = "Could not send. Please text Eddie.";
+              }
+            })
+            .catch(function () {
+              msgEl.style.color = "#b42318";
+              msgEl.textContent = "Could not send. Please text Eddie.";
+            });
+        } catch (_) {
+          msgEl.style.color = "#b42318";
+          msgEl.textContent = "Could not send. Please text Eddie.";
+        }
+      };
+    } catch (_) { /* the report button must never break the page */ }
+  }
+
+  try {
+    if (document.body) build();
+    else document.addEventListener("DOMContentLoaded", build);
+  } catch (_) {}
+})();
+</script>
+<!-- /ops issue-report button v1 -->
+
+<div class="wrap">
+  <h1><span class="accent">Cross-Visit</span> Checklist</h1>
+  <p class="sub" id="headline">&nbsp;</p>
+
+  <div id="scr-loading" class="card loading">Loading&hellip;</div>
+
+  <div id="scr-dead" class="card dead" style="display:none">This link is not valid or has expired. Please ask Eddie for a fresh link.</div>
+
+  <div id="scr-home" style="display:none">
+    <div class="trialnote">Trial run with the supervisors &mdash; scores are shared information to tune the process. No bonus is attached to this round.</div>
+    <div class="card">
+      <b>Your assigned stores</b>
+      <div id="mystores"></div>
+      <p class="hint">Pick a store when you are standing in it. Score what you see &mdash; the point is a true read, not a high number.</p>
+    </div>
+  </div>
+
+  <div id="scr-view" style="display:none">
+    <div class="trialnote">This link is view-only for the checklist program &mdash; the tracker below shows every recorded visit.</div>
+  </div>
+
+  <div id="scr-form" style="display:none">
+    <div class="card" style="padding:12px 16px">
+      <b id="form-store"></b>
+      <div class="hint" id="form-sub"></div>
+    </div>
+    <div id="items"></div>
+    <div class="card">
+      <b>Overall notes (optional)</b>
+      <textarea id="visitnotes" class="visitnotes" maxlength="2000" placeholder="Anything else worth flagging from this visit"></textarea>
+    </div>
+    <div class="tally" id="tally"></div>
+    <button class="submit" id="go">Review &amp; submit</button>
+    <div class="confirmbar" id="confirmbar">
+      <div id="confirmtext"></div>
+      <div class="row">
+        <button class="no" id="confirm-no" type="button">Back</button>
+        <button class="yes" id="confirm-yes" type="button">Record visit</button>
+      </div>
+    </div>
+    <div class="err" id="err"></div>
+    <button class="back" id="cancel">&larr; Back to stores</button>
+  </div>
+
+  <div id="scr-done" class="card ok-card" style="display:none">
+    <div class="tick">&#9989;</div>
+    <h2>Visit recorded</h2>
+    <div class="sum" id="summary"></div>
+    <div class="hint" id="doneline" style="margin-top:12px"></div>
+    <button class="submit" id="again">Back to stores</button>
+  </div>
+
+  <div id="tracker" style="display:none">
+    <h2 class="sect">Program tracker</h2>
+    <div class="card">
+      <b id="tr-title">Recorded visits</b>
+      <div id="tr-visits"></div>
+      <div class="datathrough" id="tr-through"></div>
+    </div>
+    <div class="card">
+      <b>Still to visit</b>
+      <div id="tr-owes"></div>
+    </div>
+    <p class="hint">Shared progress visibility for everyone with a board link &mdash; scores are information for the trial, not a contest.</p>
+  </div>
+</div>
+
+<script>
+var FN = 'https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/checklist-visit';
+var NA_PROMINENT_RANK = 11;   // SL2-KITCHEN - N/A is a first-class answer here
+
+var params = new URLSearchParams(location.search);
+var tok = params.get('t') || '';
+var boot = null;               // GET payload
+var current = null;            // the assignment being scored
+var answers = {};              // rank -> {pass:true|false|null, na:bool, note:string}
+
+function el(id){ return document.getElementById(id); }
+function show(id){
+  ['scr-loading','scr-dead','scr-home','scr-view','scr-form','scr-done'].forEach(function(x){
+    el(x).style.display = (x === id) ? 'block' : 'none';
+  });
+}
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+function fmtDate(iso){
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return mo + ' ' + d.getDate() + ', ' + d.getFullYear();
+  } catch (_) { return String(iso).slice(0, 10); }
+}
+
+// ---- bootstrap ------------------------------------------------------------
+function loadBoot(afterSubmit){
+  if (!afterSubmit) show('scr-loading');
+  fetch(FN + '?t=' + encodeURIComponent(tok))
+  .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) { show('scr-dead'); return; }
+    boot = res.j;
+    el('headline').textContent = boot.viewer.name + ' · round ' + boot.round;
+    renderTracker();
+    if (!afterSubmit) {
+      if (boot.viewer.can_submit) { renderHome(); show('scr-home'); }
+      else { show('scr-view'); }
+    } else if (boot.viewer.can_submit) {
+      renderHome();
+    }
+  })
+  .catch(function(){ show('scr-dead'); });
+}
+
+function renderHome(){
+  var box = el('mystores'); box.innerHTML = '';
+  (boot.my_assignments || []).forEach(function(a){
+    var b = document.createElement('button');
+    var done = a.status === 'visited' || a.visited_at;
+    b.className = 'storebtn ' + (done ? 'done' : 'open');
+    var v = findVisit(a.assignment_id);
+    var badge = done
+      ? '<span class="badge ok">Visited ' + esc(v ? fmtDate(v.visited_at) : fmtDate(a.visited_at)) +
+        (v ? ' · ' + v.score + '/' + v.applicable : '') + '</span>'
+      : '<span class="badge todo">To visit</span>';
+    b.innerHTML = esc(a.store_name) + ' · #' + esc(a.store_number) + '<small>' + badge + '</small>';
+    if (!done) b.onclick = function(){ openForm(a); };
+    box.appendChild(b);
+  });
+}
+
+function findVisit(assignmentId){
+  var vs = boot.visits || [];
+  for (var i = 0; i < vs.length; i++) {
+    if (vs[i].assignment_id === assignmentId) return vs[i];
+  }
+  return null;
+}
+
+// ---- the scoring form -----------------------------------------------------
+function openForm(a){
+  current = a;
+  answers = {};
+  (boot.items || []).forEach(function(it){
+    answers[it.rank] = { pass: null, na: false, note: '' };
+  });
+  el('form-store').textContent = a.store_name + ' · #' + a.store_number;
+  el('form-sub').textContent = 'Round ' + boot.round + ' · ' + (boot.items || []).length +
+    ' items · scored by ' + boot.viewer.name;
+  el('visitnotes').value = '';
+  el('err').style.display = 'none';
+  el('confirmbar').style.display = 'none';
+  el('go').disabled = false;
+  renderItems();
+  refreshTally();
+  show('scr-form');
+  window.scrollTo(0, 0);
+}
+
+function renderItems(){
+  var box = el('items'); box.innerHTML = '';
+  (boot.items || []).forEach(function(it){
+    var d = document.createElement('div');
+    d.className = 'item'; d.id = 'item-' + it.rank;
+    var prominentNA = (it.rank === NA_PROMINENT_RANK);
+    var h = '';
+    h += '<div class="ttl">' + it.rank + '. ' + esc(it.title) + '</div>';
+    h += '<div class="code">' + esc(it.code) + '</div>';
+    h += '<div class="togglerow">';
+    h += '<button type="button" class="tog pass" data-rank="' + it.rank + '" data-val="pass">PASS</button>';
+    h += '<button type="button" class="tog fail" data-rank="' + it.rank + '" data-val="fail">FAIL</button>';
+    if (prominentNA) {
+      h += '<button type="button" class="tog na" data-rank="' + it.rank + '" data-val="na">N/A</button>';
+    }
+    h += '</div>';
+    h += '<div class="smallrow">';
+    h += '<button type="button" class="linkish" data-note="' + it.rank + '">add note</button>';
+    if (!prominentNA) {
+      h += ' &nbsp;·&nbsp; <button type="button" class="linkish" data-rank="' + it.rank + '" data-val="na">mark n/a</button>';
+    } else {
+      h += ' <span class="hint">N/A = no second certified shift manager on the floor</span>';
+    }
+    h += '</div>';
+    h += '<textarea class="itemnote" id="note-' + it.rank + '" maxlength="500" placeholder="What you saw (optional)"></textarea>';
+    d.innerHTML = h;
+    box.appendChild(d);
+  });
+  box.onclick = function(ev){
+    var t = ev.target;
+    if (!t || !t.getAttribute) return;
+    var noteRank = t.getAttribute('data-note');
+    if (noteRank) {
+      var ta = el('note-' + noteRank);
+      ta.style.display = (ta.style.display === 'block') ? 'none' : 'block';
+      if (ta.style.display === 'block') ta.focus();
+      return;
+    }
+    var rank = t.getAttribute('data-rank');
+    var val = t.getAttribute('data-val');
+    if (!rank || !val) return;
+    setAnswer(parseInt(rank, 10), val);
+  };
+}
+
+function setAnswer(rank, val){
+  var a = answers[rank];
+  if (!a) return;
+  if (val === 'na') {
+    a.na = !a.na;              // tap again to un-mark
+    if (a.na) a.pass = null;
+  } else {
+    a.na = false;
+    a.pass = (val === 'pass');
+  }
+  paintItem(rank);
+  refreshTally();
+}
+
+function paintItem(rank){
+  var a = answers[rank];
+  var d = el('item-' + rank);
+  if (!d || !a) return;
+  var togs = d.querySelectorAll('.tog');
+  for (var i = 0; i < togs.length; i++) {
+    var v = togs[i].getAttribute('data-val');
+    var on = (v === 'pass' && a.pass === true && !a.na) ||
+             (v === 'fail' && a.pass === false && !a.na) ||
+             (v === 'na' && a.na);
+    togs[i].className = togs[i].className.replace(' on', '');
+    if (on) togs[i].className += ' on';
+  }
+  // small-link n/a state for the non-prominent items
+  var links = d.querySelectorAll('.linkish[data-val="na"]');
+  for (var j = 0; j < links.length; j++) {
+    links[j].textContent = a.na ? 'marked n/a - tap to undo' : 'mark n/a';
+  }
+}
+
+function tallyNow(){
+  var scored = 0, passes = 0, na = 0, total = 0;
+  (boot.items || []).forEach(function(it){
+    total++;
+    var a = answers[it.rank];
+    if (!a) return;
+    if (a.na) { na++; scored++; return; }
+    if (a.pass !== null) { scored++; if (a.pass) passes++; }
+  });
+  return { scored: scored, passes: passes, na: na, total: total,
+           applicable: total - na, done: scored === total };
+}
+
+function refreshTally(){
+  var t = tallyNow();
+  var txt = t.scored + ' of ' + t.total + ' answered · ' + t.passes + ' pass';
+  if (t.na) txt += ' · ' + t.na + ' n/a';
+  el('tally').textContent = txt;
+  el('go').disabled = false;
+}
+
+function showErr(msg){ var e = el('err'); e.textContent = msg; e.style.display = 'block'; }
+
+el('cancel').onclick = function(){ show('scr-home'); };
+el('again').onclick = function(){ show('scr-home'); window.scrollTo(0, 0); };
+
+el('go').onclick = function(){
+  el('err').style.display = 'none';
+  var t = tallyNow();
+  if (!t.done) {
+    showErr('Answer every item first - ' + (t.total - t.scored) + ' still blank. Each item needs PASS, FAIL, or N/A.');
+    return;
+  }
+  el('confirmtext').innerHTML = 'Record <b>' + t.passes + ' of ' + t.applicable +
+    '</b> applicable items passed' + (t.na ? ' (' + t.na + ' n/a)' : '') +
+    ' for <b>' + esc(current.store_name) + '</b>? A visit can only be submitted once.';
+  el('confirmbar').style.display = 'block';
+  el('confirmbar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+el('confirm-no').onclick = function(){ el('confirmbar').style.display = 'none'; };
+el('confirm-yes').onclick = function(){
+  var btn = el('confirm-yes');
+  btn.disabled = true; btn.textContent = 'Recording…';
+  var items = (boot.items || []).map(function(it){
+    var a = answers[it.rank];
+    var noteEl = el('note-' + it.rank);
+    return {
+      rank: it.rank,
+      pass: a.na ? null : a.pass,
+      na: !!a.na,
+      note: (noteEl && noteEl.value.trim()) ? noteEl.value.trim() : null
+    };
+  });
+  var body = {
+    t: tok,
+    assignment_id: current.assignment_id,
+    items: items,
+    notes: el('visitnotes').value.trim() || null
+  };
+  fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.j.ok) throw new Error(res.j && res.j.error ? res.j.error : 'HTTP error');
+    var j = res.j;
+    var s = '';
+    s += '<div class="row"><span>Store</span><b>' + esc(j.store_name) + ' #' + esc(j.store_number) + '</b></div>';
+    s += '<div class="row"><span>Score</span><b>' + j.score + ' of ' + j.applicable + ' applicable</b></div>';
+    var naCount = items.filter(function(x){ return x.na; }).length;
+    if (naCount) s += '<div class="row"><span>N/A items</span><b>' + naCount + '</b></div>';
+    s += '<div class="row"><span>Visited</span><b>' + esc(fmtDate(j.visited_at)) + '</b></div>';
+    s += '<div class="row"><span>Visit id</span><b>#' + esc(j.id) + '</b></div>';
+    el('summary').innerHTML = s;
+    el('doneline').textContent = j.perfect
+      ? 'All applicable items passed. Logged to the shared tracker.'
+      : 'Logged to the shared tracker - the misses are listed there as open findings.';
+    show('scr-done');
+    window.scrollTo(0, 0);
+    loadBoot(true);          // refresh tracker + store badges in the background
+  })
+  .catch(function(ex){
+    showErr('Could not record it: ' + ex.message);
+    el('confirmbar').style.display = 'none';
+  })
+  .then(function(){ btn.disabled = false; btn.textContent = 'Record visit'; });
+};
+
+// ---- the shared tracker ---------------------------------------------------
+function titleForRank(rank){
+  var its = boot.items || [];
+  for (var i = 0; i < its.length; i++) if (its[i].rank === rank) return its[i].title;
+  return null;
+}
+
+function renderTracker(){
+  var vs = boot.visits || [];
+  var box = el('tr-visits'); box.innerHTML = '';
+  if (!vs.length) {
+    box.innerHTML = '<div class="hint" style="margin-top:8px">No visits recorded yet - the round is just getting started.</div>';
+  }
+  vs.forEach(function(v){
+    var d = document.createElement('div');
+    d.className = 'visitrow';
+    var cls = (v.score === v.applicable && v.applicable > 0) ? 'full' : 'part';
+    var h = '<div class="top"><span><b>' + esc(v.store_name) + '</b> · ' + esc(v.visitor) + '</span>' +
+            '<span class="score ' + cls + '">' + v.score + '/' + v.applicable + '</span></div>';
+    h += '<div class="meta">' + esc(fmtDate(v.visited_at)) + ' · round ' + esc(v.round);
+    if (v.na_count) h += ' · ' + v.na_count + ' n/a';
+    if (v.perfect) h += ' · <span class="badge ok">all applicable passed</span>';
+    h += '</div>';
+    if (v.fails && v.fails.length) {
+      h += '<div class="findings">';
+      v.fails.forEach(function(f){
+        var ttl = (v.round === boot.round && titleForRank(f.rank)) || f.code;
+        h += '<div>&#10007; ' + f.rank + '. ' + esc(ttl) + (f.note ? ' - ' + esc(f.note) : '') + '</div>';
+      });
+      h += '</div>';
+    }
+    if (v.notes) h += '<div class="meta">' + esc(v.notes) + '</div>';
+    d.innerHTML = h;
+    box.appendChild(d);
+  });
+
+  // who still owes visits (this round)
+  var owes = {};
+  (boot.assignments || []).forEach(function(a){
+    var done = a.status === 'visited' || findVisit(a.assignment_id);
+    if (done) return;
+    if (!owes[a.visitor]) owes[a.visitor] = [];
+    owes[a.visitor].push(a.store_name);
+  });
+  var ob = el('tr-owes'); ob.innerHTML = '';
+  var names = Object.keys(owes);
+  if (!names.length) {
+    ob.innerHTML = '<div class="hint" style="margin-top:8px">Every assigned store has been visited this round.</div>';
+  } else {
+    names.forEach(function(n){
+      var d = document.createElement('div');
+      d.className = 'owes';
+      d.innerHTML = '<b>' + esc(n) + ':</b> ' + esc(owes[n].join(', '));
+      ob.appendChild(d);
+    });
+  }
+
+  el('tr-title').textContent = 'Recorded visits (' + vs.length + ')';
+  var through = boot.tracker_through
+    ? 'Visits recorded through ' + fmtDate(boot.tracker_through)
+    : 'No visits recorded yet';
+  el('tr-through').textContent = through + ' · tracker loaded ' + fmtDate(boot.generated_at) + '.';
+  el('tracker').style.display = 'block';
+}
+
+if (!tok) { show('scr-dead'); } else { loadBoot(false); }
+</script></body></html>
