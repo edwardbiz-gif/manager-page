@@ -1373,7 +1373,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.62"; // Projection UX: keep the selected month through a save, hold scroll position, + Update PAC button (fn+shell lockstep, 2026-07-28)
+const SHELL_VERSION = "v2-0.64"; // Food-log contest % basis: Score / % meals / % promos vs POS, per-1k secondary (fn+shell lockstep, 2026-08-10)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -5776,11 +5776,15 @@ function bpAgo(ts){
   return bpWhen(ts);
 }
 /* =========================================================================
-   LOGGING CONTEST card (v2-0.58) — data.food_contest (Owner/Sup/GM, never RO).
-   30-day window 7/23–8/21: combined employee-meal + promo submissions per 1k
-   guests, ranked. Pre-7/23 (view empty) -> the rules state.
+   LOGGING CONTEST card (v2-0.58; BASIS CHANGED v2-0.64, Eddie 2026-08-10) —
+   data.food_contest (Owner/Sup/GM, never RO). 30-day window 7/23–8/21:
+   contest_rank now ranks pct_logged_score = avg(% employee meals logged,
+   % promos logged) vs the POS actuals (QSRSoft security feed), POS-covered
+   days only (pos_data_through). Per-1k is the demoted secondary stat.
+   Pre-7/23 (view empty) -> the rules state.
    ========================================================================= */
 function fcMd(iso){ if(!iso||String(iso).length<10) return String(iso||""); return Number(String(iso).slice(5,7))+"/"+Number(String(iso).slice(8,10)); }
+function fcPct(v){ return v!=null ? Number(v).toFixed(1)+'%' : '—'; }
 function renderContestCard(data){
   var fc = data && data.food_contest;
   if(!fc) return "";   // RO / non-eligible role
@@ -5788,29 +5792,35 @@ function renderContestCard(data){
   var win = fcMd(fc.contest_start||"2026-07-23")+"–"+fcMd(fc.contest_end||"2026-08-21");
   var rows = fc.rows || [];
   if(!rows.length){
-    var body = '<div class="fc-rules"><b>Contest starts 7/23</b> — every employee meal and promo logged through the POS QR counts.<ul>'
+    var body = '<div class="fc-rules"><b>Logging contest</b> — every employee meal and promo logged through the POS QR counts.<ul>'
       +'<li>Window: <b>'+esc(win)+'</b> (30 days), all 12 stores.</li>'
-      +'<li>Score: <b>submissions per 1,000 guest counts</b> — employee meals + promos combined, so store size doesn’t matter.</li>'
-      +'<li>Log every employee meal and every promo/comp at the POS QR — days logged count too.</li>'
-      +'<li>Top 3 stores win. Standings update here every 2 hours once data lands.</li></ul></div>';
-    return card("Logging Contest — 30 days", body, { icon:"🏁", info:"window "+win+" · standings appear once 7/23 data lands", newBadge:true });
+      +'<li>Score: <b>% of employee meals logged and % of promos logged</b> vs the POS actuals (QSRSoft) — averaged, so store size does not matter.</li>'
+      +'<li>Log every employee meal and every promo/comp at the POS QR.</li>'
+      +'<li>Top 3 stores win. Standings update here once data lands.</li></ul></div>';
+    return card("Logging Contest — 30 days", body, { icon:"🏁", info:"window "+win+" · standings appear once data lands", newBadge:true });
   }
   var mine = {}; (fc.my_store_ids||[]).forEach(function(id){ mine[String(id)]=true; });
   var medals = {1:"🥇",2:"🥈",3:"🥉"};
-  var body = '<div class="fc-tblwrap"><table class="fc-tbl"><thead><tr><th></th><th>Store</th>'
-    +'<th class="num">Subs / 1k GC</th><th class="num">Submissions</th><th class="num">Days logged</th></tr></thead><tbody>';
+  var body = '<div class="fc-note" style="font-size:12px;color:var(--ink-2);margin:0 0 6px"><b>New basis 8/10:</b> ranked on <b>% logged vs the POS actuals</b> (was: submissions per 1k guests).</div>'
+    +'<div class="fc-tblwrap"><table class="fc-tbl"><thead><tr><th></th><th>Store</th>'
+    +'<th class="num">Score</th><th class="num">Meals logged</th><th class="num">Promos logged</th><th class="num">Subs / 1k GC</th></tr></thead><tbody>';
   for(var i=0;i<rows.length;i++){ var r=rows[i];
     var rank = Number(r.contest_rank)||0;
     var cls = (rank>=1&&rank<=3?"fc-top3 ":"") + (mine[String(r.store_id)]?"fc-mine":"");
+    var sub = function(n,d){ return '<div style="font-size:10px;color:var(--ink-2)">'+(n!=null?Number(n):0)+'/'+(d!=null?Number(d):0)+'</div>'; };
     body += '<tr class="'+cls+'"><td class="fc-rank">'+(medals[rank]?'<span class="fc-medal">'+medals[rank]+'</span> ':'')+rank+'</td>'
       +'<td>'+esc(r.location_name)+' <span style="color:var(--ink-2);font-size:11px">#'+esc(r.store_number)+(mine[String(r.store_id)]?' · your store':'')+'</span></td>'
-      +'<td class="num"><b>'+(r.submissions_per_1k_gc!=null?Number(r.submissions_per_1k_gc).toFixed(2):'—')+'</b></td>'
-      +'<td class="num">'+(Number(r.submissions)||0)+'</td>'
-      +'<td class="num">'+(Number(r.days_logged)||0)+'/'+(Number(r.days_in_window)||0)+'</td></tr>';
+      +'<td class="num"><b>'+fcPct(r.pct_logged_score)+'</b></td>'
+      +'<td class="num">'+fcPct(r.pct_meals_logged)+sub(r.logged_meals_pos_days,r.pos_emp_meals)+'</td>'
+      +'<td class="num">'+fcPct(r.pct_promos_logged)+sub(r.logged_promos_pos_days,r.pos_promos)+'</td>'
+      +'<td class="num">'+(r.submissions_per_1k_gc!=null?Number(r.submissions_per_1k_gc).toFixed(2):'—')+'</td></tr>';
   }
-  body += '</tbody></table></div><div class="fl-dtl">Contest window <b>'+esc(win)+'</b> · employee meals + promos per 1,000 guest counts · top 3 win.</div>';
+  body += '</tbody></table></div><div class="fl-dtl">Contest window <b>'+esc(win)+'</b> · Score = average of % meals logged (of POS employee + manager meals) and % promos logged (of POS manager-rung promos; automatic app/delivery promos excluded), each capped at 100 · scored on POS-covered days only'
+    +(fc.pos_data_through ? ', % data through <b>'+esc(fcMd(fc.pos_data_through))+'</b>' : '')
+    +(fc.data_through ? ' · per-1k through '+esc(fcMd(fc.data_through)) : '')
+    +' · top 3 win.</div>';
   return card("Logging Contest — 30 days", body,
-    { icon:"🏁", through: fc.data_through || null, newBadge:true });
+    { icon:"🏁", through: fc.pos_data_through || fc.data_through || null, newBadge:true });
 }
 
 /* ---- the GRILL MIN-TEMPS home tile (TODAY lane; Owner/Sup/GM — v2-0.41) ----
