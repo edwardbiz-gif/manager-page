@@ -1373,7 +1373,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.64"; // Food-log contest % basis: Score / % meals / % promos vs POS, per-1k secondary (fn+shell lockstep, 2026-08-10)
+const SHELL_VERSION = "v2-0.65"; // Shift-leader leaderboard ranks on the daypart-norm index (100 = org norm for the daypart mix), raw SPLH as context (fn+shell lockstep, 2026-08-11)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -3335,18 +3335,27 @@ function renderTeamTurnover(data){
     { icon:"🔄", through: rows[0].latest_month?fmtDate(rows[0].latest_month):null, drill:{kind:"turnover"} });
 }
 
-// MODULE — shift-leader leaderboard (SPLH rank + scorecard).
+// MODULE — shift-leader leaderboard (daypart-normalized rank; v2-0.65, Eddie
+// standing directive 2026-08-11). Raw SPLH structurally penalizes openers —
+// breakfast runs ~10% under lunch by schedule, not performance — so ranking is
+// on splh_idx: leader SPLH vs the org daypart-average SPLH, hours-weighted
+// across that leader daypart mix (100 = org norm). Raw SPLH stays as context.
+// Falls back to raw SPLH if the fn predates splh_idx (deploy-order tolerance).
 function renderTeamShiftLeaders(data){
   const sl = data.shiftLeaders;
   if(!sl || !sl.leaderboard || !sl.leaderboard.length){
     return card("Shift-leader leaderboard", '<div class="empline">No shift-leader scorecard rows for your scope yet.</div>', { icon:"🏅" });
   }
-  const rows = sl.leaderboard.slice().sort((a,b)=>(b.splh||0)-(a.splh||0)).slice(0,8).map((l,i)=>
+  const hasIdx = sl.leaderboard.some(l=>l.splh_idx!=null);
+  const rows = sl.leaderboard.slice().sort((a,b)=>hasIdx?((b.splh_idx||0)-(a.splh_idx||0)):((b.splh||0)-(a.splh||0))).slice(0,8).map((l,i)=>
     '<div class="ltorow"><span class="lmedal">'+(i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1))+'</span>'
-    + '<span class="lname2">'+esc(l.leader||("GEID "+l.geid))+'<small>'+(l.shifts_owned||0)+' shifts · GC '+(l.avg_gc||"?")+'</small></span>'
-    + '<span class="lval">'+(l.splh!=null?Number(l.splh).toFixed(1):"—")+'<small>SPLH</small></span></div>').join("");
+    + '<span class="lname2">'+esc(l.leader||("GEID "+l.geid))+'<small>'+(l.shifts_owned||0)+' shifts · SPLH '+(l.splh!=null?Number(l.splh).toFixed(1):"—")+' · GC '+(l.avg_gc||"?")+'</small></span>'
+    + '<span class="lval">'+(hasIdx?(l.splh_idx!=null?Math.round(Number(l.splh_idx)):"—"):(l.splh!=null?Number(l.splh).toFixed(1):"—"))+'<small>'+(hasIdx?"vs daypart":"SPLH")+'</small></span></div>').join("");
   return card("Shift-leader leaderboard", rows
-    + '<div class="cap">Ranked by sales-per-labor-hour (SPLH) over '+esc(sl.window||"accrued history")+'. From the shift-leader scorecard (DataPass, calibrated to QSRSoft).</div>',
+    + '<div class="cap">'+(hasIdx
+      ? 'Ranked by SPLH vs the org daypart norm — 100 = the org-average SPLH for the same daypart mix (hours-weighted), so openers are not penalized for the breakfast schedule. Raw SPLH shown for context.'
+      : 'Ranked by sales-per-labor-hour (SPLH).')
+    + ' Over '+esc(sl.window||"accrued history")+'. From the shift-leader scorecard (DataPass, calibrated to QSRSoft).</div>',
     { icon:"🏅", through: sl.data_through?fmtDate(sl.data_through):null, drill:{kind:"shiftleaders"} });
 }
 
@@ -4362,11 +4371,16 @@ function openLaneSheet(kind, arg){
           "TTM "+(r.latest_ttm_pct!=null?Math.round(r.latest_ttm_pct)+"%":"—")+" · monthly "+(r.latest_monthly_pct!=null?Math.round(r.latest_monthly_pct)+"%":"—")+" · roster "+(r.latest_roster||"?"))).join("")
       + '<div class="cap">Trailing-12-month + latest-month annualized turnover. From turnover_monthly.</div>';
   } else if(kind==="shiftleaders"){
+    // v2-0.65 — ranked by the daypart-normalized index (see renderTeamShiftLeaders).
     const sl = data.shiftLeaders || {}; title="Shift-leader leaderboard"; crumb="Team › <b>Shift leaders</b>";
+    const hasIdx = (sl.leaderboard||[]).some(l=>l.splh_idx!=null);
     body = '<div class="crumb">'+crumb+'</div>'
-      + (sl.leaderboard||[]).slice().sort((a,b)=>(b.splh||0)-(a.splh||0)).map((l,i)=>dr("#"+(i+1)+" "+esc(l.leader||("GEID "+l.geid)),
-          "SPLH "+(l.splh!=null?Number(l.splh).toFixed(1):"—")+" · "+(l.shifts_owned||0)+" shifts · GC "+(l.avg_gc||"?"))).join("")
-      + '<div class="cap">Ranked by sales-per-labor-hour over '+esc(sl.window||"")+'. From the shift-leader scorecard. Data thru '+esc(sl.data_through?fmtDate(sl.data_through):"—")+'.</div>';
+      + (sl.leaderboard||[]).slice().sort((a,b)=>hasIdx?((b.splh_idx||0)-(a.splh_idx||0)):((b.splh||0)-(a.splh||0))).map((l,i)=>dr("#"+(i+1)+" "+esc(l.leader||("GEID "+l.geid)),
+          (hasIdx?("vs daypart "+(l.splh_idx!=null?Number(l.splh_idx).toFixed(1):"—")+" · "):"")+"SPLH "+(l.splh!=null?Number(l.splh).toFixed(1):"—")+" · "+(l.shifts_owned||0)+" shifts · GC "+(l.avg_gc||"?"))).join("")
+      + '<div class="cap">'+(hasIdx
+        ? 'Ranked by SPLH vs the org daypart norm (100 = org-average SPLH for the same daypart mix, hours-weighted — openers are not penalized for the breakfast schedule). Raw SPLH shown for context.'
+        : 'Ranked by sales-per-labor-hour.')
+      + ' Over '+esc(sl.window||"")+'. From the shift-leader scorecard. Data thru '+esc(sl.data_through?fmtDate(sl.data_through):"—")+'.</div>';
   } else if(kind==="operations"){
     const op = data.operations || {}; title="Operations (Jolt) · detail"; crumb="Team › <b>Operations</b>";
     // v2-0.41: grill rows gated out for Owner/Sup/GM — moved to the Today home tile.
