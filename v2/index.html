@@ -672,6 +672,10 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .meallog-btn .mlb-plus{font-size:26px;font-weight:900;color:#FFC72C;line-height:1}
 .meallog-btn .mlb-txt{flex:1;display:flex;flex-direction:column;gap:2px}
 .meallog-btn .mlb-sub{font-size:12px;opacity:.75}
+.qrs-chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px}
+.qrs-chip{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;color:inherit}
+.qrs-fallback{margin-top:6px;font-size:11px;color:var(--ink-muted)}
+.qrs-fallback a{color:inherit}
 .thm-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid rgba(128,128,128,.15)}
 .thm-name{flex:0 0 34%;font-size:13px}
 .thm-bar{flex:1;height:8px;border-radius:5px;background:rgba(128,128,128,.15);overflow:hidden}
@@ -1373,7 +1377,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.65"; // Shift-leader leaderboard ranks on the daypart-norm index (100 = org norm for the daypart mix), raw SPLH as context (fn+shell lockstep, 2026-08-11)
+const SHELL_VERSION = "v2-0.66"; // Meal & Promo QR sheet opens via the Google Docs viewer (a direct .pdf tap on phones silently downloaded, no visible response - Eddie 2026-08-11) + per-store sheet links for multi-store scopes + direct-PDF fallback (fn+shell lockstep, 2026-08-12)
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -5983,22 +5987,37 @@ function renderMealLogTile(data){
 // renderMealLogTile: per-store sheet meal-qr/<store number>.pdf, or the ALL-STORES
 // sheet for multi-store scopes. No fn dependency (renders from data.stores); the
 // PDFs are hosted next to this shell on GH Pages. The printed sheet's QR opens the
-// meal/promo logger. SHELL_VERSION intentionally unchanged (data-compatible).
+// meal/promo logger.
+// v2-0.66: sheets open through the Google Docs viewer — a direct .pdf tap on
+// phones (Android Chrome esp.) silently DOWNLOADS with no visible response
+// (Eddie 2026-08-11 "nothing happens" trying to reach Lake St this way). The
+// viewer always paints a tab; a direct-PDF fallback link stays underneath, and
+// multi-store scopes get per-store links (the ALL-STORES 12-pager was the only
+// path to one store's sheet).
 function renderMealQrSheetTile(data){
   const stores = (data && data.stores) || [];
   const base = "https://edwardbiz-gif.github.io/manager-page/meal-qr/";
-  let url, label;
+  const view = u => "https://docs.google.com/viewer?url=" + encodeURIComponent(u);
+  const pdfUrl = n => base + encodeURIComponent(n) + ".pdf";
+  let url, label, extra = "";
   if (stores.length === 1 && stores[0].number != null) {
-    url = base + encodeURIComponent(stores[0].number) + ".pdf";
-    label = "Print this store's Meal & Promo QR sheet";
+    url = pdfUrl(stores[0].number);
+    label = "View & print this store's Meal & Promo QR sheet";
   } else {
     url = base + "ALL-STORES-meal-qr.pdf";
-    label = "Print the Meal & Promo QR sheets (all 12 stores)";
+    label = "View & print the Meal & Promo QR sheets (all 12 stores)";
+    const chips = stores.filter(s => s.number != null).map(s =>
+      '<a class="qrs-chip" href="' + view(pdfUrl(s.number)) + '" target="_blank" rel="noopener">'
+      + esc(s.name || ("#" + s.number)) + '</a>').join("");
+    if (chips) extra = '<details class="stexp"><summary>One store&#39;s sheet</summary>'
+      + '<div class="qrs-chips">' + chips + '</div></details>';
   }
-  const body = '<a class="meallog-btn" href="'+url+'" target="_blank" rel="noopener">'
-    + '<span class="mlb-plus">🖨</span><span class="mlb-txt"><b>'+esc(label)+'</b>'
-    + '<span class="mlb-sub">Post it at the register — crew scan the QR to log a meal or promo in ~30 seconds.</span></span>'
-    + '<span class="chev">›</span></a>';
+  const body = '<a class="meallog-btn" href="' + view(url) + '" target="_blank" rel="noopener">'
+    + '<span class="mlb-plus">🖨</span><span class="mlb-txt"><b>' + esc(label) + '</b>'
+    + '<span class="mlb-sub">Opens in a viewer tab - print from there and post at the register; crew scan the QR to log a meal or promo in ~30 seconds.</span></span>'
+    + '<span class="chev">›</span></a>'
+    + '<div class="qrs-fallback">Sheet not loading? <a href="' + url + '" target="_blank" rel="noopener">Download the PDF directly</a></div>'
+    + extra;
   return card("Meal & Promo QR sheet", body,
     { info: "print & post at the POS - the QR opens the meal/promo logger", newBadge: true });
 }
