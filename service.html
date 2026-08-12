@@ -1,5 +1,9 @@
 <!doctype html>
-<!-- service.html v9 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v10 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+     v10 (2026-08-12): the &today=YYYY-MM-DD test override (documented in v5) is now actually
+     forwarded to the fn (validated YYYY-MM-DD; anything else ignored) — it was silently dropped
+     by the fetch, so the documented winner-card test path did nothing. Production unaffected
+     (server decides showWinner by real CT date when no override).
      v9 (2026-07-13, Eddie ruling): Shift Showdown empty rows prefer fn-provided `state_copy`
      (fn v11) — the late-night row now reads "Not enough overnight surveys / Pocas encuestas
      nocturnas" (Base 12a-5a retired as a daily expectation; "Data delayed" implied data was
@@ -405,7 +409,8 @@ function render(d){
   const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
   setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; els[i].classList.add("on"); },12000);
 }
-fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
+const todayParam=/^\d{4}-\d{2}-\d{2}$/.test(qs.get("today")||"")?"&today="+qs.get("today"):""; // test-only date override (header note)
+fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444")+todayParam)
   .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Service screen: '+esc(d.error||"unavailable")+'. Check the link.</div>';return;} render(d); })
   .catch(e=>{document.body.innerHTML='<div id="err">Service screen offline — retrying…</div>';setTimeout(()=>location.reload(),30000);});
 setTimeout(()=>location.reload(),600000); // refresh data every 10 min
