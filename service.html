@@ -56,6 +56,12 @@
     text-align:center;padding:4vh 6vw;opacity:0;transition:opacity .8s ease;gap:2.2vh}
   .card.on{opacity:1}
   .card.blue{background:radial-gradient(circle at 50% 28%,#103a6e,#0a1424 75%)}
+  .card.gold{background:radial-gradient(circle at 50% 30%,#4d3800,#0d0d0d 75%)}
+  .wl-arch{width:18vh;height:auto;margin-bottom:2.2vh}
+  .wl-kick{font-size:3.1vh;letter-spacing:.35em;color:#ffc72c;font-weight:800;text-transform:uppercase}
+  .wl-name{font-size:8.5vh;font-weight:900;color:#fff;line-height:1.05;margin:1.4vh 0 .6vh}
+  .wl-ln{font-size:3.2vh;color:#e9e9e9;margin-top:1vh;max-width:82vw;text-align:center}
+  .wl-ln.mocni{color:#ffc72c;font-weight:700;letter-spacing:.06em}
   .card.teal{background:radial-gradient(circle at 50% 28%,#0c4f4a,#0a1424 75%)}
   .card.gold{background:radial-gradient(circle at 50% 28%,#5a4500,#0a1424 75%)}
   /* winner-announcement card: celebratory deep-gold spotlight (month-rollover only) */
@@ -399,7 +405,17 @@ function buildCards(d){
   });
 
   // 9..N) EDITABLE manual cards
-  (d.editable||[]).forEach(c=>cards.push({a:"blue",h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'}));
+  (d.editable||[]).forEach(c=>{
+    if((c.section||"").toLowerCase()==="welcome"){
+      const ls=c.lines||[];
+      cards.push({a:"gold",h:'<img class="wl-arch" src="assets/mcd-arches.png" alt="">'
+        +'<div class="wl-kick">'+esc(ls[0]||"WELCOME · BIENVENIDO")+'</div>'
+        +'<div class="wl-name">'+esc(c.title)+'</div>'
+        +ls.slice(1).map(l=>'<div class="wl-ln'+(/MOCNI/.test(l)?' mocni':'')+'">'+esc(l)+'</div>').join("")});
+      return;
+    }
+    cards.push({a:"blue",h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'});
+  });
   return cards;
 }
 function render(d){
