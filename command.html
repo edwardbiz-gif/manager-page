@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Command Center — Schmitt Ops</title>
+<style>
+  :root{
+    --bg0:#0a0e13; --card:#1b2632; --card2:#141b24; --ink:#eef4fb; --muted:#8aa0b4;
+    --accent:#ffc72c; --accent-dim:#caa12a; --ok:#43d39e; --red:#e5484d; --line:#26323f;
+    --track:#33424f; --redsoft:#3a1412; --redink:#ff8a80; --goldsoft:#33290a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(900px 520px at 80% -12%,#15314a,var(--bg0) 62%);
+    color:var(--ink);font-family:system-ui,"Segoe UI",Arial,sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:22px 16px 80px}
+  .num{font-variant-numeric:tabular-nums}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .top{display:flex;align-items:center;gap:13px;margin-bottom:18px}
+  .arch{width:46px;height:46px;border-radius:13px;background:var(--accent);display:grid;
+    place-items:center;color:var(--red);font-weight:900;font-size:28px;flex:none}
+  h1{font-size:21px;margin:0;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px;margin:1px 0 0}
+  .dt{color:var(--muted);font-size:11px;margin-top:2px;opacity:.85}
+  .lbl{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:999px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+  .pill.src{text-transform:none;letter-spacing:0}
+  .lev{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:12px;
+    color:#3a2a00;background:var(--accent);padding:3px 10px;border-radius:999px}
+  .lev.sm{font-size:11px;padding:2px 8px}
+  button{font-family:inherit;cursor:pointer}
+  .btn{border:1px solid var(--line);background:var(--card2);color:var(--ink);border-radius:11px;
+    padding:11px 15px;font-size:14px;font-weight:700;min-height:44px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#3a2a00;border-color:var(--accent)}
+  .btn.primary:hover{background:#ffd454}
+  .btn.ghost{background:transparent}
+  .frog{border:1px solid var(--accent-dim);background:
+    linear-gradient(180deg,rgba(255,199,44,.06),rgba(255,199,44,0) 120px),var(--card);
+    border-radius:18px;padding:18px;position:relative;overflow:hidden}
+  .frog .eye{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .frog .eyebrow{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--accent);font-weight:800}
+  .frog h2{font-size:22px;line-height:1.25;margin:2px 0 10px;font-weight:800}
+  .stakes{background:var(--redsoft);border:1px solid #5b2420;border-radius:11px;padding:10px 12px;
+    font-size:14px;color:#ffd9d4;margin-bottom:11px}
+  .stakes .k{color:var(--redink);font-weight:800;text-transform:uppercase;font-size:10.5px;letter-spacing:1px;display:block;margin-bottom:2px}
+  .metarow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+  .plan{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+  .plan input{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:11px;
+    color:var(--ink);padding:11px 12px;font-size:14px;min-height:44px;font-family:inherit}
+  .plan input:focus{outline:none;border-color:var(--accent)}
+  .saved{color:var(--ok);font-size:12px;font-weight:700;white-space:nowrap;opacity:0;transition:opacity .2s}
+  .saved.on{opacity:1}
+  .focus{display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--accent-dim);
+    color:var(--accent);background:rgba(255,199,44,.05);border-radius:11px;padding:9px 12px;
+    font-size:13px;font-weight:700;margin-bottom:13px;min-height:44px}
+  .focus.set{border-style:solid;background:var(--goldsoft)}
+  .frog .acts{display:flex;gap:9px;flex-wrap:wrap}
+  .frog .acts .btn{flex:1;min-width:120px;text-align:center}
+  .calhead{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px}
+  .cal{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .slot{flex:none;min-width:128px;border:1px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--card2)}
+  .slot .tm{font-size:11px;color:var(--muted);font-weight:700}
+  .slot .ttl{font-size:13px;margin-top:3px}
+  .slot.open{border:1px dashed var(--accent-dim);background:rgba(255,199,44,.05)}
+  .slot.open .ttl{color:var(--accent);font-weight:700}
+  .slot.now{border-color:var(--ok)}
+  .slot.now .tm{color:var(--ok)}
+  .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .rwrap{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+  .ring{--p:0;--rc:var(--accent);width:104px;height:104px;border-radius:50%;
+    background:conic-gradient(var(--rc) calc(var(--p)*1%),var(--track) 0);
+    display:grid;place-items:center;position:relative;transition:background .6s cubic-bezier(.2,.7,.2,1)}
+  .ring::before{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--card)}
+  .ring .rv{position:relative;font-size:1.7rem;font-weight:800;line-height:1}
+  .ring .ru{position:relative;font-size:10px;color:var(--muted);margin-top:2px;font-weight:600}
+  .rcap{font-size:12px;color:var(--muted);max-width:130px}
+  .pips{display:flex;gap:4px;justify-content:center;margin-top:-2px}
+  .pip{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .pip.off{background:var(--track)}
+  .sec{margin-top:22px}
+  .sech{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px}
+  .sech .hint{font-size:12px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
+  .row{display:flex;gap:11px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:none}
+  .row .tick{flex:none;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--track);
+    background:transparent;color:var(--ok);display:grid;place-items:center;font-size:14px;margin-top:1px}
+  .row .tick:hover{border-color:var(--ok)}
+  .row .body{flex:1;min-width:0}
+  .row .rt{font-size:14.5px;font-weight:600;line-height:1.3}
+  .row .rs{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .row .rm{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .row.done .rt{text-decoration:line-through;opacity:.5}
+  .row.done .tick{background:var(--ok);border-color:var(--ok);color:#06311f}
+  .due{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+  .due.over{background:var(--redsoft);color:var(--redink);border-color:#5b2420}
+  .due.soon{background:var(--goldsoft);color:var(--accent);border-color:#5a4a16}
+  .qhead{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);
+    border:1px solid var(--line);border-radius:13px;padding:13px 15px;color:var(--muted);font-weight:700;font-size:13.5px;min-height:48px}
+  .qbody{display:none;padding:2px 4px 0}
+  .qbody.open{display:block}
+  .qrow{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .qrow:first-child{border-top:none}
+  .qrow .tick{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--track);background:none;color:var(--ok)}
+  .qrow.done span{text-decoration:line-through;opacity:.5}
+  .qrow .qsrc{margin-left:auto}
+  .hz{display:flex;gap:11px;align-items:center;padding:11px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .hz:first-child{border-top:none}
+  .hz .d{flex:none;width:62px;font-size:11.5px;font-weight:800;color:var(--accent)}
+  .hz .k{margin-left:auto}
+  .foot{margin-top:26px;color:var(--muted);font-size:11.5px;line-height:1.6;border-top:1px solid var(--line);padding-top:14px}
+  .foot b{color:var(--ink)}
+  .cele{position:fixed;inset:0;background:rgba(6,9,13,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .cele.on{display:flex}
+  .celebox{text-align:center;max-width:360px}
+  .celecheck{width:84px;height:84px;border-radius:50%;background:var(--ok);color:#06311f;display:grid;place-items:center;
+    font-size:46px;font-weight:900;margin:0 auto 16px}
+  .celebox h3{font-size:22px;margin:0 0 8px;font-weight:800}
+  .celebox p{color:var(--muted);margin:0 0 16px;font-size:14px}
+  .celecount{font-size:40px;font-weight:900;color:var(--accent)}
+  .conf{position:fixed;top:-12px;width:9px;height:14px;border-radius:2px;z-index:49;will-change:transform,opacity}
+  @keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.2}}
+  @media (max-width:560px){ .rings{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<h1 class="sr">Command Center: your day ranked by leverage, with today's big task and schedule.</h1>
+<div class="wrap">
+  <div class="top">
+    <div class="arch">M</div>
+    <div>
+      <h1>Command Center</h1>
+      <div class="sub">Your day, ranked by leverage — not by what's loudest.</div>
+      <div class="dt" id="dt"></div>
+    </div>
+  </div>
+  <div id="app"></div>
+  <div class="foot" id="foot"></div>
+</div>
+<div class="cele" id="cele" aria-live="polite">
+  <div class="celebox">
+    <div class="celecheck">&#10003;</div>
+    <h3 id="celemsg">Boss down.</h3>
+    <p>You cleared the hardest thing on the board.</p>
+    <div class="lbl">Big-task points this week</div>
+    <div class="celecount num" id="celecount">42</div>
+    <div style="margin-top:18px"><button class="btn primary" onclick="closeCele()">Keep the momentum</button></div>
+  </div>
+</div>
+<script>
+const esc = s => String(s ?? "").replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+const REDUCE = matchMedia('(prefers-reduced-motion:reduce)').matches;
+const D = {
+  meta:{ date:"Thursday, Jun 19", data_through:{tasks:"Jun 19", labor:"Jun 17", voice:"Jun 1"} },
+  rings:{ week_done:4, week_total:6, points:42, points_target:60, streak:3, freeze:2 },
+  calendar:[
+    {tm:"now", ttl:"8:42a", kind:"now"},
+    {tm:"9:30-11:00a", ttl:"Open - protect", kind:"open"},
+    {tm:"11:00a", ttl:"Call: Withum (Lindsey)", kind:"mtg"},
+    {tm:"1:00p", ttl:"Supervisor check-in", kind:"mtg"},
+    {tm:"3:00-4:30p", ttl:"Open", kind:"open"}
+  ],
+  frog:{ id:1204, title:"Build Store 72 labor plan + AM coaching",
+    stakes:"Store 72 punch labor ~24% vs 20% target - about $3,200/wk, and it's run hot 3 weeks.",
+    leverage:24, due:"Due tomorrow", age_days:6, store:"Store 72", source:"Labor signal", plan:"", focus:null },
+  medium:[
+    {id:1190, title:"Approve AC-condenser vendor quote (3 stores)", leverage:14,
+      stakes:"3 roofs flagged; rainy-season risk", due:"Jun 22", duecls:"soon", source:"Campaign", store:null},
+    {id:1177, title:"Resolve aged complaint cluster, Store 3444", leverage:12,
+      stakes:"Oldest open ~11 days; OSAT exposure", due:"Today", duecls:"over", source:"Complaints", store:"3444"},
+    {id:1162, title:"R365 access for 2 GMs", leverage:7,
+      stakes:"Blocks their priorities view", due:"Jun 24", duecls:"", source:"Email", store:null}
+  ],
+  small:[
+    {id:1201, title:"Forward Adyen statement to Renee", source:"Invoice"},
+    {id:1199, title:"Confirm Brandon TV-install window", source:"Manual"},
+    {id:1188, title:"Archive newsletter batch", source:"Email"}
+  ],
+  horizon:[
+    {d:"Next wk", title:"FSV with Haroon (rescheduled)", k:"Franchising"},
+    {d:"Jun 22", title:"Verde install - Yorkville #4188", k:"Vendor"},
+    {d:"Jun 24", title:"Verde install - Lisle #3199", k:"Vendor"},
+    {d:"Jun 24", title:"Virtual PBS assessment (#35354)", k:"Compliance"},
+    {d:"Aug 15", title:"New Restaurant BAP due (#43407)", k:"Franchising"}
+  ]
+};
+const SRC_ICON = {"Labor signal":"\u{1F4CA}",Campaign:"\u{1F4F8}",Complaints:"\u{1F4AC}",Email:"✉️",Invoice:"\u{1F9FE}",Manual:"✎",Vendor:"\u{1F527}",Franchising:"\u{1F3DB}️",Compliance:"✅"};
+function srcTag(s){ return '<span class="pill src">'+(SRC_ICON[s]||"•")+' from: '+esc(s)+'</span>'; }
+function ringEl(p, rc, val, unit, cap, cls, pips){
+  const pp = '<div class="ring '+cls+'" style="--p:'+p+';--rc:'+rc+'"><div class="rv num">'+val+'</div>'+(unit?'<div class="ru">'+unit+'</div>':'')+'</div>';
+  const pipHtml = pips!=null ? '<div class="pips">'+Array.from({length:3},(_,i)=>'<span class="pip '+(i<pips?'':'off')+'"></span>').join('')+'</div>' : '';
+  return '<div class="rwrap">'+pp+pipHtml+'<div class="rcap">'+cap+'</div></div>';
+}
+function render(){
+  const r=D.rings, f=D.frog;
+  document.getElementById('dt').textContent = "Data through - tasks "+D.meta.data_through.tasks+" · labor "+D.meta.data_through.labor+" · guest "+D.meta.data_through.voice;
+  let h="";
+  h+='<div class="frog" id="frogcard">'+
+    '<div class="eye"><span class="eyebrow">\u{1F438} Today’s big one</span><span class="lev">⚡ Leverage '+f.leverage+'</span></div>'+
+    '<h2>'+esc(f.title)+'</h2>'+
+    '<div class="stakes"><span class="k">Why this matters</span>'+esc(f.stakes)+'</div>'+
+    '<div class="metarow">'+
+      '<span class="pill">'+esc(f.store)+'</span>'+
+      '<span class="due soon">'+esc(f.due)+'</span>'+
+      '<span class="pill">open '+f.age_days+' days</span>'+
+      srcTag(f.source)+
+    '</div>'+
+    '<div class="plan"><input id="plan" placeholder="My plan: When ___ , I’ll ___" value="'+esc(f.plan)+'">'+
+      '<span class="saved" id="plansaved">✓ saved</span></div>'+
+    '<button class="focus" id="focusbtn" onclick="setFocus()">⏱ Protect 90 min - 9:30-11:00 is open</button>'+
+    '<div class="acts">'+
+      '<button class="btn primary" onclick="doneFrog()">Mark done</button>'+
+      '<button class="btn ghost" onclick="swapFrog()">Swap</button>'+
+      '<button class="btn ghost" onclick="snoozeFrog()">Snooze</button>'+
+    '</div></div>';
+  h+='<div class="sec"><div class="calhead"><span class="lbl">Today · '+D.meta.date+'</span>'+
+     '<span class="hint">'+D.calendar.filter(s=>s.kind==="open").length+' open block(s)</span></div>'+
+     '<div class="cal">'+D.calendar.map(s=>'<div class="slot '+(s.kind==="open"?"open":s.kind==="now"?"now":"")+'">'+
+        '<div class="tm">'+esc(s.tm)+'</div><div class="ttl">'+esc(s.ttl)+'</div></div>').join('')+'</div></div>';
+  h+='<div class="sec"><div class="rings">'+
+    ringEl(Math.round(r.week_done/r.week_total*100), "var(--ok)", r.week_done+"/"+r.week_total, "this wk", "Must-dos this week", "ring1", null)+
+    ringEl(Math.round(r.points/r.points_target*100), "var(--accent)", '<span id="ptsv">'+r.points+'</span>', "/"+r.points_target+" pts", "Big-task points", "ring2", null)+
+    ringEl(100, "var(--accent)", r.streak, "weeks", "Big-rock streak", "ring3", r.freeze)+
+    '</div></div>';
+  h+='<div class="sec"><div class="sech"><span class="lbl">Moving the needle</span><span class="hint">ranked by leverage, not due date</span></div>'+
+     '<div id="medlist">'+D.medium.map(rowHtml).join('')+'</div></div>';
+  h+='<div class="sec"><button class="qhead" onclick="toggleQ()"><span>⚡ Quick wins - clear the deck ('+D.small.length+')</span><span id="qchev">▾</span></button>'+
+     '<div class="qbody" id="qbody">'+D.small.map(s=>'<div class="qrow" data-id="'+s.id+'"><button class="tick" onclick="doneSmall('+s.id+',this)">&#10003;</button><span>'+esc(s.title)+'</span><span class="qsrc">'+srcTag(s.source)+'</span></div>').join('')+'</div></div>';
+  h+='<div class="sec card"><div class="sech"><span class="lbl">On the horizon</span><span class="hint">from your calendar &amp; deadlines</span></div>'+
+     D.horizon.map(x=>'<div class="hz"><span class="d">'+esc(x.d)+'</span><span>'+esc(x.title)+'</span><span class="k"><span class="pill">'+esc(x.k)+'</span></span></div>').join('')+'</div>';
+  document.getElementById('app').innerHTML=h;
+  document.getElementById('foot').innerHTML='<b>Prototype - sample data.</b> Live v1 wires: tasks (manual + email-extracted + complaint/invoice/franchising) · your Outlook calendar · store health (complaints, labor, OSAT) driving the Leverage score &amp; stakes line. Gamification is gain-framed only (no punishing resets); the celebration honors reduced-motion. Supervisor ranking deferred to the Q3 bonus build.';
+  const pi=document.getElementById('plan'); if(pi) pi.addEventListener('blur',savePlan);
+}
+function rowHtml(t){
+  return '<div class="row" data-id="'+t.id+'"><button class="tick" onclick="doneMed('+t.id+',this)" aria-label="Mark done">&#10003;</button>'+
+    '<div class="body"><div class="rt">'+esc(t.title)+'</div>'+
+    '<div class="rs">'+esc(t.stakes)+'</div>'+
+    '<div class="rm"><span class="lev sm">⚡ '+t.leverage+'</span>'+
+      (t.store?'<span class="pill">Store '+esc(t.store)+'</span>':'<span class="pill">Cross-store</span>')+
+      '<span class="due '+(t.duecls||'')+'">'+esc(t.due)+'</span>'+srcTag(t.source)+'</div></div></div>';
+}
+function savePlan(){ D.frog.plan=document.getElementById('plan').value; if(D.frog.plan.trim()){const s=document.getElementById('plansaved');s.classList.add('on');setTimeout(()=>s.classList.remove('on'),1600);} }
+function setFocus(){ const b=document.getElementById('focusbtn'); D.frog.focus="9:30-11:00"; b.classList.add('set'); b.innerHTML="✓ Blocked 9:30-11:00 - protected for your big one"; }
+function toggleQ(){ document.getElementById('qbody').classList.toggle('open'); document.getElementById('qchev').textContent=document.getElementById('qbody').classList.contains('open')?'▴':'▾'; }
+function doneSmall(id,el){ el.closest('.qrow').classList.toggle('done'); }
+function doneMed(id,el){ el.closest('.row').classList.add('done'); }
+function snoozeFrog(){ alert('Snoozed to tomorrow (demo). Your next-highest leverage task takes the slot.'); }
+function swapFrog(){ alert('Swap (demo): the Leverage ranking suggests "Approve AC-condenser quote" (leverage 14) next.'); }
+function doneFrog(){
+  const before=D.rings.points; D.rings.points += D.frog.leverage;
+  showCele(before, D.rings.points);
+  const next = D.medium.shift();
+  if(next){ D.frog={id:next.id,title:next.title,stakes:next.stakes,leverage:next.leverage,due:next.due,age_days:1,store:next.store?('Store '+next.store):'Cross-store',source:next.source,plan:"",focus:null}; }
+  setTimeout(render, 60);
+}
+function showCele(from,to){
+  const box=document.getElementById('cele');
+  const msgs=["Boss down.","That was the heavy one. Done.","Biggest rock of the day - moved."];
+  document.getElementById('celemsg').textContent=msgs[to%msgs.length];
+  box.classList.add('on');
+  const el=document.getElementById('celecount'); let v=from; const step=Math.max(1,Math.round((to-from)/18));
+  el.textContent=from;
+  if(!REDUCE){ const t=setInterval(()=>{ v+=step; if(v>=to){v=to;clearInterval(t);} el.textContent=v; }, 28); confetti(); }
+  else { el.textContent=to; }
+}
+function closeCele(){ document.getElementById('cele').classList.remove('on'); }
+function confetti(){
+  const cols=["#ffc72c","#43d39e","#da291c","#7fb0ff","#eef4fb"]; const N=40;
+  for(let i=0;i<N;i++){ const c=document.createElement('div'); c.className='conf';
+    c.style.left=(Math.random()*100)+'vw'; c.style.background=cols[i%cols.length];
+    const dur=700+Math.random()*200; c.style.animation='fall '+dur+'ms cubic-bezier(.2,.7,.2,1) forwards';
+    c.style.transform='translateY(0) rotate('+(Math.random()*180)+'deg)';
+    document.body.appendChild(c); c.addEventListener('animationend',()=>c.remove());
+  }
+}
+render();
+</script>
+</body>
+</html>
