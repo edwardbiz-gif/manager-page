@@ -9,6 +9,23 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.67 — BOARD PRUNE + TOP TABS (fn+shell lockstep, 2026-09-09, Eddie's board
+  review). REMOVED, all shell-side: the TODAY verdict/BLUF zone, Today's Brief,
+  What needs you (+ computeTodayPriorities), Temp watch, the pinned June
+  Cleanliness Race and the OSAT Bonus tile (+ contestBody/contestVoiceLabel),
+  MTD Invoice Tracker (card + drill), Open complaints on GUESTS (the TODAY card
+  stays), Crew flight risk, the DataPass Shift-Leader Scorecard (card + drill),
+  Fridge & Freezer Temps on TEAM (the jolt_temps PAYLOAD stays — the Jolt Ops
+  drill and operations sheet still read it), and Submission campaigns.
+  CHANGED: (1) PAC%% trend renders CLOSED MONTHS ONLY — an open month's costs have
+  barely posted, so its MTD PAC%% is not comparable (September read -5.70%% against
+  a 27–31%% closed band); (2) the five lane tabs moved OUT of the bottom thumb dock
+  INTO the sticky top chrome; (3) the Voice / SMG card gains a LOCATION toggle —
+  the fn always sent every in-scope entity, the shell was pinned to entities[0],
+  so a supervisor only ever saw one of their stores. Single-entity viewers get no
+  toggle row. Fn carries NO logic change; its version stamp moves in lockstep so
+  the shell's version chip does not read "mismatch".
+
   v2-0.60 — TRIAGE CARD CONTEXT (fn + shell lockstep v2-0.60, 2026-07-23, Eddie's
   three directives from today's sitting). (1) DATE LINE on every triage card
   (Ledger + Stack): "started <origin_date> (Nd ago) · last touch <at> (rel) by
@@ -291,7 +308,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
  padding:18px 10px 40px;-webkit-text-size-adjust:100%;
  font-feature-settings:"tnum" 1,"cv01" 1}
 .phone{max-width:448px;margin:0 auto;background:var(--paper);
- border:1px solid var(--line-2);border-radius:26px;padding:0 0 86px;
+ border:1px solid var(--line-2);border-radius:26px;padding:0 0 16px;
  box-shadow:var(--sh-3);overflow:hidden;position:relative;min-height:560px}
 
 /* ---- top chrome ---- */
@@ -728,7 +745,11 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .segb{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);
  background:var(--surface);color:var(--ink-2);cursor:pointer}
 .segb.on{background:var(--accent);color:var(--on-accent);border-color:transparent}
-.segb:active{transform:translateY(1px)}
+.segb:active{transform:translateY(1px)}
+/* location row of the Voice card (Eddie 2026-09-09) — sits above the daypart row
+   and reads as the outer tier: tighter, muted until selected. */
+.segloc{margin:0 0 7px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.segloc .segb{font-size:9px;padding:4px 8px}
 
 /* scorecard rows */
 .scrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer}
@@ -944,9 +965,9 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
  background:var(--surface-3);border:1px solid var(--line);border-radius:999px;padding:2px 7px;flex:none}
 
 /* ---- bottom tab bar (5 fixed lanes, thumb zone, 48px targets) ---- */
-.tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;
- background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);
- border-top:1px solid var(--line);padding:7px 6px calc(7px + env(safe-area-inset-bottom));z-index:45}
+.tabbar{display:flex;margin:10px -16px -11px;
+ background:color-mix(in srgb,var(--surface) 92%,transparent);
+ border-top:1px solid var(--line);padding:6px 6px 7px;z-index:45}
 .tab{flex:1;text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.4px;
  color:var(--ink-muted);padding:6px 2px;border-radius:11px;cursor:pointer;
  border:0;background:transparent;min-height:48px}
@@ -1344,15 +1365,14 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
       <div class="crowr"><span class="vstamp" id="vstamp">v2</span><button class="themebtn" id="themebtn" title="Toggle theme">◐</button></div>
     </div>
     <div class="tabline" id="tabline">Today · <b id="scopeLabel">…</b></div>
+    <!-- lane tabs — TOP of the chrome (Eddie 2026-09-09; were bottom-docked) -->
+    <div class="tabbar" id="tabbar"></div>
   </div>
 
   <!-- ============ BOARD (manifest walker paints here) ============ -->
   <div id="app"><div class="loading">Loading…</div></div>
 
   <div class="foot" id="foot"></div>
-
-  <!-- ============ bottom tab bar — the five fixed lanes ============ -->
-  <div class="tabbar" id="tabbar"></div>
 
   <!-- ============ DRILL SHEET (clickable-detail-everywhere, plan §10) ============ -->
   <div class="veil" id="veil" onclick="closeSheet()"></div>
@@ -1377,7 +1397,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.66"; // Meal & Promo QR sheet opens via the Google Docs viewer (a direct .pdf tap on phones silently downloaded, no visible response - Eddie 2026-08-11) + per-store sheet links for multi-store scopes + direct-PDF fallback (fn+shell lockstep, 2026-08-12)
+const SHELL_VERSION = "v2-0.67"; // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -1439,7 +1459,7 @@ const LANES = [
 const LANE_KEYS = {
   GUESTS: ["customer_feedback", "voice_trend", "voice_view", "voice_comments_recent", "pace_current"],
   TEAM:   ["manager_scorecards", "operations", "newHireTraining", "datapass_labor", "datapass_food",
-           "datapass_sales", "service_times", "turnover", "shiftLeaders", "shiftLeaderMetrics",
+           "datapass_sales", "service_times", "turnover", "shiftLeaders",
            "manager_rank", "bonus_results", "bonus_adjustments", "waste_compliance", "sales_summary",
            "cash_integrity", "pmix", "speed_vs_labor", "crew_readouts", "visits", "labor",
            // v2-0.30 Jolt cards. NOT in LANE_DISTINCTIVE — like voice_trend they
@@ -1450,11 +1470,8 @@ const LANE_KEYS = {
            // v2-0.35 owner-only bonus (Q3 shadow). Owner-gated + null for non-owners,
            // so it's kept OUT of LANE_DISTINCTIVE (can't prove a TEAM load). Listed
            // here so a lazy TEAM fetch actually copies data.bonus into STATE.
-           "bonus",
-           // v2-0.47 crew flight risk (Owner/Sup/GM, RO excluded → role-gated,
-           // so NOT in LANE_DISTINCTIVE; listed so the lazy TEAM fetch copies it).
-           "flight_risk"],
-  MORE:   ["campaigns", "rgr", "check_in", "meeting", "contacts", "owner_pulse", "manual_reports",
+           "bonus"],
+  MORE:   ["rgr", "check_in", "meeting", "contacts", "owner_pulse", "manual_reports",
            "advisor_briefing", "key_dates", "hazel"],
 };
 // DISTINCTIVE keys = keys that are strictly null UNLESS their lane was gathered
@@ -1525,16 +1542,6 @@ function emptyState(icon, head, sub){
   return '<div class="empty"><div class="eic">'+esc(icon)+'</div>'
     + '<div class="eh">'+esc(head)+'</div>'
     + '<div class="es">'+esc(sub)+'</div></div>';
-}
-
-// VERDICT pill / BLUF block. {kind:'good'|'warn'|'bad'}
-function verdict(num, unit, subHtml, kind="good"){
-  const bg = kind==="bad" ? "var(--bad-bg)" : kind==="warn" ? "var(--warn-bg)" : "var(--good-bg)";
-  return '<div class="verdict" style="background:linear-gradient(180deg,'+bg+',var(--surface) 80%)">'
-    + '<div class="vk">Verdict</div>'
-    + '<div class="vhero"><span class="vnum countup">'+esc(num)+'</span>'
-    + (unit?'<span class="vsub" style="padding-bottom:5px">'+esc(unit)+'</span>':'')+'</div>'
-    + '<div class="vsub">'+subHtml+'</div></div>';
 }
 
 // GLANCE TILE trio
@@ -1728,144 +1735,6 @@ const CT_DAY_FMT = new Intl.DateTimeFormat("en-CA", { timeZone:"America/Chicago"
 function ctDay(ts){ try{ return CT_DAY_FMT.format(ts==null ? new Date() : new Date(ts)); }catch(_e){ return ""; } }
 function ctDayPlus(days){ const p = ctDay().split("-").map(Number); return new Date(Date.UTC(p[0], p[1]-1, p[2]+days)).toISOString().slice(0,10); }
 
-// Severity ranks for sorting the exception feed (lower = more urgent).
-const SEV_RANK = { bad:0, warn:1, info:2 };
-
-// --- the advisory priorities-scoring engine (client-side synthesis, §7.5) -----
-// Returns a severity-ranked array of {sev, title, why, meta} exception items
-// from the data already in the payload — purely advisory in Phase 1 (no writes).
-function computeTodayPriorities(data){
-  const items = [];
-  const stores = data.stores || [];
-  const nameById = new Map(stores.map(s=>[s.id, s.name]));
-  const now = _now();
-
-  // (1) Open complaints — SLA-keyed off the linked task's 72h due_at.
-  for(const c of (data.complaints||[])){
-    const due = c.due_at ? new Date(c.due_at).getTime() : null;
-    const overdue = due!=null && due < now;
-    const dueToday = due!=null && !overdue && ctDay(due) === ctDay();   // CT calendar day, not a 24h window
-    if(!overdue && !dueToday && !c.recovery_needed) continue;  // only surface the pressured ones
-    const issue = c.issue_subcode || c.issue_reason || c.issue_category || "Guest complaint";
-    const sev = overdue ? "bad" : (dueToday || c.recovery_needed) ? "warn" : "info";
-    const st = c.store_name || (c.store_id!=null ? (nameById.get(c.store_id)||"") : "");
-    items.push({
-      sev,
-      title: "Complaint: "+esc(issue),
-      why: overdue ? "Past the 72-hour SLA — respond now."
-         : dueToday ? "SLA clock runs out today."
-         : "Guest recovery requested — reach out.",
-      meta: (st? esc(st)+" · ":"") + "case #"+esc(c.case_number||c.id) + " · received "+ageSince(c.received_at),
-    });
-  }
-
-  // (2) Overdue or high/urgent open tasks assigned to this manager.
-  for(const t of (data.tasks||[])){
-    const due = t.due_at ? new Date(t.due_at).getTime() : null;
-    const overdue = due!=null && due < now;
-    const hot = t.priority==="urgent" || t.priority==="high";
-    if(!overdue && !hot) continue;
-    const sev = overdue ? "bad" : (t.priority==="urgent" ? "warn" : "info");
-    const st = t.store_id!=null ? (nameById.get(t.store_id)||"") : "Cross-store";
-    items.push({
-      sev,
-      title: "Task: "+esc(t.title||("#"+t.id)),
-      why: overdue ? "Past its due date — close it out or re-date."
-         : (t.priority==="urgent" ? "Urgent priority — needs attention today."
-            : "High priority — keep it moving."),
-      meta: esc(st) + " · " + esc(String(t.priority||"normal")) + (t.due_at? " · due "+fmtDate(t.due_at):" · no due date"),
-    });
-  }
-
-  // (3) Visibly off-target VOICE vs the 12-store median (advisory, honest).
-  //     Cleanliness (race) + OSAT (incentive). Only flags THIS store(s) when it
-  //     sits below the org median or below the 72% OSAT money line.
-  const myIds = new Set((data.scope_all? [] : stores.map(s=>s.id)));  // GM/sup scope = the returned stores
-  const flagVoice = (race, label, thresh) => {
-    if(!race || !Array.isArray(race.standings) || !race.standings.length) return;
-    const scores = race.standings.map(s=>s.score).filter(x=>typeof x==="number");
-    if(scores.length < 2) return;
-    const sorted = [...scores].sort((a,b)=>a-b);
-    const median = sorted[Math.floor(sorted.length/2)];
-    for(const s of race.standings){
-      if(!myIds.has(s.store_id)) continue;
-      const belowThresh = thresh!=null && s.score < thresh;
-      const belowMedian = s.score < median;
-      if(!belowThresh && !belowMedian) continue;
-      const sev = belowThresh ? "warn" : "info";
-      const gapTxt = thresh!=null && belowThresh
-        ? ("<b>"+(thresh - s.score).toFixed(1)+" pts</b> below the "+thresh+"% line")
-        : ("<b>"+(median - s.score).toFixed(1)+" pts</b> below the 12-store median ("+median.toFixed(1)+"%)");
-      items.push({
-        sev,
-        title: label+": "+s.score.toFixed(1)+"% (rank "+s.rank+"/"+race.standings.length+")",
-        why: gapTxt + ".",
-        meta: "VOICE"+(s.n!=null?" · n="+s.n:"") + (race.data_through? " · data thru "+esc(race.data_through):""),
-      });
-    }
-  };
-  flagVoice(data.cleanliness_race, "Cleanliness", null);
-  flagVoice(data.osat_incentive, "OSAT", (data.osat_incentive && data.osat_incentive.threshold) || null);
-
-  // (4) Jolt (v2-0.30): ONLY out-of-range fridge/freezer temps + missed
-  //     FOOD-SAFETY checklists today (per spec) — small rows linking to the
-  //     TEAM cards. out_of_range is the Edge Fn's labeled conservative band
-  //     (fridge >48°F / freezer >20°F, reading ≤24h old, active sensor).
-  const goTeam = ' <a href="#" onclick="gotoLane(\'TEAM\');return false;">Team tab ›</a>';
-  const jtA = data.jolt_temps;
-  for(const sn of ((jtA&&jtA.sensors)||[])){
-    if(!sn.out_of_range) continue;
-    items.push({
-      sev:"warn",
-      title:"Temp: "+esc(sn.sensor_name)+" at "+esc(sn.temp_f)+"°F",
-      why:"Above the "+(sn.is_freezer?"20":"48")+"°F safety band at its last reading — check the unit."+goTeam,
-      meta:(sn.store_name?esc(sn.store_name)+" · ":"")+"Jolt · read "+esc(joltAge(sn.age_min)),
-    });
-  }
-  const jcA = data.jolt_checklists;
-  for(const st of ((jcA&&jcA.stores)||[])){
-    if(!(st.fs_missed_today>0)) continue;
-    items.push({
-      sev:"warn",
-      title:"Food safety: "+st.fs_missed_today+" checklist"+(st.fs_missed_today===1?"":"s")+" missed today",
-      why:"Due earlier today and not completed as of the last Jolt sync."+goTeam,
-      meta: esc(st.store_name||"")+" · Jolt data thru "+esc(fmtCT(jcA.data_through)),
-    });
-  }
-
-  items.sort((a,b)=>(SEV_RANK[a.sev]??9)-(SEV_RANK[b.sev]??9));
-  return items;
-}
-
-// shared TODAY data-through (financials MTD/YTD as the freshest hard date).
-function todayThru(data){
-  const fin = data.financials || {};
-  return (fin.mtd && fin.mtd.data_through) || (fin.ytd && fin.ytd.data_through) || null;
-}
-
-// MODULE — the priority / exception feed (verdict→why→action, advisory).
-function renderTodayPriorities(data){
-  const items = computeTodayPriorities(data);
-  let body;
-  if(!items.length){
-    body = emptyState("✅", "Nothing flagged right now",
-      "No overdue complaints, hot tasks, or below-median voice scores in your scope. "
-      + "This feed is advisory — it surfaces what the live data says needs you, with its data-through date.");
-  } else {
-    const top = items.slice(0, 7);  // 3–7 cards (plan §3.1 Zone 2)
-    body = '<div class="exwrap">' + top.map(it =>
-      '<div class="exrow sev-'+it.sev+'">'
-      + '<div class="exhead"><div class="extitle">'+it.title+'</div>'
-      + '<span class="exsev sev-'+it.sev+'">'+(it.sev==="bad"?"Now":it.sev==="warn"?"Soon":"Watch")+'</span></div>'
-      + '<div class="exwhy">'+it.why+'</div>'
-      + '<div class="exmeta">'+it.meta+'</div></div>').join("")
-      + '</div>';
-    if(items.length > top.length)
-      body += '<div class="empline">+'+(items.length-top.length)+' more lower-severity item'+((items.length-top.length)===1?"":"s")+'.</div>';
-  }
-  return card("What needs you", body, { icon:"⚡", through: todayThru(data) });
-}
-
 // MODULE — tasks action hub (top open tasks + inline Done; +Add later phase).
 function renderTodayTasks(data){
   const tasks = (data.tasks||[]).slice();
@@ -1965,141 +1834,6 @@ function copyDraft(ev, btn){
   } else { try{ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); done(); }catch(_e){ alert("Copy failed — select the draft manually."); } }
 }
 
-// MODULE — pinned June Cleanliness Race (this store's rank + gap to podium).
-function renderPinnedRace(data){
-  const race = data.cleanliness_race;
-  if(!race || !Array.isArray(race.standings) || !race.standings.length){
-    return card("June Cleanliness Race", '<div class="empline">No cleanliness scores posted yet this month.</div>', { icon:"🧽" });
-  }
-  return card(esc(race.title||"June Cleanliness Race"),
-    contestBody(race, data, { kind:"race", metricLabel:"Overall Cleanliness (VOICE)",
-      prizes: race.prizes||["$150","$100","$50"] }),
-    { icon:"🧽", info: "VOICE · "+contestVoiceLabel(race) });
-}
-
-// MODULE — pinned OSAT Bonus (v2-0.38: graduated $50/$75/$100 monthly engine tiers;
-// legacy single-threshold payloads — no tiers[] — still render the old June shape).
-function renderPinnedOsat(data){
-  const oi = data.osat_incentive;
-  if(!oi || !Array.isArray(oi.standings) || !oi.standings.length){
-    return card((oi && oi.title) || "OSAT Bonus", '<div class="empline">No OSAT scores posted yet this month.</div>', { icon:"💯" });
-  }
-  return card(esc(oi.title||"OSAT Bonus"),
-    contestBody(oi, data, { kind:"osat", metricLabel:"Overall Satisfaction (VOICE)",
-      threshold: oi.threshold, amount: oi.amount||"$100",
-      tiers: Array.isArray(oi.tiers) && oi.tiers.length ? oi.tiers : null,
-      status: oi.status || "final", monthLabel: oi.month_label || "" }),
-    { icon:"💯", info: "VOICE · "+contestVoiceLabel(oi) });
-}
-
-// shared contest body — finds the viewer's store(s) in the standings and shows
-// rank + an honest gap (to the podium for the race / to the 72% line for OSAT).
-function contestBody(c, data, opts){
-  const stores = data.stores || [];
-  const myIds = new Set(data.scope_all ? [] : stores.map(s=>s.id));
-  const standings = c.standings;
-  const mine = standings.filter(s=>myIds.has(s.store_id));
-  const note = c.note ? '<div class="contestsub" style="margin-top:9px">'+esc(c.note)+'</div>' : '';
-  const fullStandings = contestStandings(c, myIds, opts);
-
-  if(!mine.length){
-    // Owner/portfolio scope — show the leader + qualifying summary instead.
-    const leader = standings[0];
-    const lead = leader ? '<div class="contestsub">Leading: <b>'+esc(leader.store_name)+'</b> at '+leader.score.toFixed(1)+'%</div>' : '';
-    const sum = opts.kind==="osat"
-      ? (opts.tiers
-        ? '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores '
-          +(opts.status==="mtd"?"earning":"earned")+' · '
-          +opts.tiers.map(t=>esc(t.amount)+' ≥'+t.threshold+'%').join(' · ')+'</div>'
-        : '<div class="contestsub"><b>'+(c.qualifying||0)+'</b> of <b>'+(c.total||standings.length)+'</b> stores ≥ '+opts.threshold+'% '+opts.amount+'</div>')
-      : '<div class="contestsub">Top 3 win '+(opts.prizes||[]).join(" / ")+'</div>';
-    return '<div>'+lead+sum+'</div>'+note+fullStandings;
-  }
-
-  return mine.map(s => {
-    let medalCls = "", medalTxt = "#"+s.rank, line = "", barPct = 0, barCol = "var(--accent)";
-    if(opts.kind==="osat"){
-      const graduated = !!opts.tiers;
-      const earned = graduated ? (s.earned||null) : null;
-      const inMoney = graduated ? !!earned
-        : (opts.threshold!=null ? s.score >= opts.threshold : !!s.in_money);
-      medalCls = inMoney ? "win" : "miss"; medalTxt = inMoney ? "✓" : "✗";
-      barCol = inMoney ? "var(--good)" : "var(--bad)";
-      // Graduated bar runs to the TOP tier (74) so a $50 store still sees headroom.
-      const barThr = graduated ? opts.tiers[opts.tiers.length-1].threshold : opts.threshold;
-      barPct = barThr ? Math.max(4, Math.min(100, (s.score/barThr)*100)) : 0;
-      if(graduated){
-        const mtd = opts.status==="mtd";
-        const at = (mtd ? esc(opts.monthLabel||"")+' MTD at ' : 'Finished at ')
-          +'<b>'+s.score.toFixed(1)+'%</b>';
-        line = inMoney
-          ? '<div class="contestsub">'+at+' — '+(mtd?'earning':'earned')+' <span class="prizepill">'+esc(earned)+'</span>'
-            +(s.next_amount ? ' · <b>'+Number(s.next_gap).toFixed(1)+' pts</b> to '+esc(s.next_amount) : ' — top tier')+'.</div>'
-          : '<div class="contestsub">'+at+' — <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '
-            +opts.threshold+'% line'+(mtd?' — no OSAT bonus yet.':' — missed the OSAT bonus.')+'</div>';
-      } else {
-        line = inMoney
-          ? '<div class="contestsub">Finished at <b>'+s.score.toFixed(1)+'%</b> — earned the <span class="prizepill">'+esc(opts.amount)+'</span> for June.</div>'
-          : '<div class="contestsub">Finished <b>'+(opts.threshold - s.score).toFixed(1)+' pts</b> under the '+opts.threshold+'% line ('+s.score.toFixed(1)+'%) — missed the '+esc(opts.amount)+' for June.</div>';
-      }
-    } else {
-      const podium = s.rank <= 3;
-      medalCls = podium ? "win" : ""; medalTxt = podium ? (s.rank===1?"🥇":s.rank===2?"🥈":"🥉") : "#"+s.rank;
-      const leadScore = standings[0] ? standings[0].score : s.score;
-      barPct = leadScore>0 ? Math.max(4, Math.min(100, (s.score/leadScore)*100)) : 0;
-      barCol = podium ? "var(--good)" : "var(--accent)";
-      if(podium){
-        line = '<div class="contestsub">In the money at <b>'+s.score.toFixed(1)+'%</b> — '
-          + '<span class="prizepill">'+esc((opts.prizes||[])[s.rank-1]||"prize")+'</span> spot.</div>';
-      } else {
-        const third = standings[2];
-        const gap = third ? (third.score - s.score) : null;
-        line = '<div class="contestsub">'+s.score.toFixed(1)+'% — finished #'+s.rank+' of '+standings.length
-          + (gap!=null && gap>0 ? ', <b>'+gap.toFixed(1)+' pts</b> outside the top 3.' : '.')+'</div>';
-      }
-    }
-    return '<div class="contest">'
-      + '<div class="medal '+medalCls+'">'+medalTxt+'</div>'
-      + '<div class="contestmain"><div class="contesthd">'+esc(s.store_name)+'</div>'+line
-      + '<div class="gapbar"><i style="width:'+barPct.toFixed(0)+'%;background:'+barCol+'"></i></div></div>'
-      + '</div>';
-  }).join('<div style="height:10px"></div>') + note + fullStandings;
-}
-
-// Expandable FULL 12-store standings table for the race / OSAT contest cards
-// (ports prod renderCleanlinessRace / renderOsatIncentive "See all standings").
-// Native <details> — no JS wiring. Highlights the viewer's own store(s); OSAT rows
-// mark the >=threshold in-money stores green. Store-level only (no PII).
-function contestStandings(c, myIds, opts){
-  const st = c.standings || [];
-  if(st.length < 2) return "";
-  const num = v => v==null ? "—" : (Math.round(Number(v)*10)/10).toFixed(1)+"%";
-  const isOsat = opts.kind==="osat";
-  const thr = opts.threshold;
-  const graduated = isOsat && !!opts.tiers;   // v2-0.38: per-store earned $ column
-  const head = '<tr><th>#</th><th>Store</th><th class="num">'+(isOsat?"OSAT":"Score")+'</th>'
-    + (graduated ? '<th class="num">Bonus</th>'
-       : isOsat ? '<th class="num">'+(thr!=null?thr:72)+'%+</th>' : '<th class="num">Rank</th>')+'</tr>';
-  const rows = st.map(s=>{
-    const mine = myIds.has(s.store_id);
-    const inMoney = isOsat ? (graduated ? !!s.earned : (thr!=null ? s.score>=thr : !!s.in_money)) : false;
-    const cls = mine ? "you" : (inMoney ? "win" : "");
-    const last = graduated
-      ? (s.earned ? '<span class="slwin">'+esc(s.earned)+'</span>'
-                  : (thr!=null ? '+'+(thr-s.score).toFixed(1) : ''))
-      : isOsat
-      ? (inMoney ? '<span class="slwin">$</span>' : (thr!=null ? '+'+(thr-s.score).toFixed(1) : ''))
-      : '#'+s.rank;
-    return '<tr'+(cls?' class="'+cls+'"':'')+'><td>'+s.rank+'</td>'
-      + '<td>'+esc(s.store_name)+(mine?' ←':'')+'</td>'
-      + '<td class="num">'+num(s.score)+'</td>'
-      + '<td class="num">'+last+'</td></tr>';
-  }).join("");
-  return '<details class="stexp"><summary>'+(isOsat?"See all stores":"See all standings")
-    + ' · '+esc(contestVoiceLabel(c))+'</summary>'
-    + '<table class="sttbl"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></details>';
-}
-
 /* ---- small TODAY-lane formatters (local; no global helper touched) ---- */
 function fmtDate(ts){
   if(!ts) return "";
@@ -2115,11 +1849,6 @@ function voiceMtdLabel(iso){
   if(!iso) return "VOICE";
   try{ return new Date(iso+"T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"})+" MTD"; }
   catch(_e){ return "VOICE"; }
-}
-// Contest label: a CLOSED (status==='final') contest reads "<Month> final", not "<Month> MTD".
-function contestVoiceLabel(c){
-  const base = voiceMtdLabel(c && c.data_through);
-  return (c && c.status === "final") ? base.replace(/ MTD$/, " final") : base;
 }
 function ageSince(ts){
   if(!ts) return "";
@@ -2705,34 +2434,6 @@ function renderNumbersBullets(data){
   return card("Cost discipline", body, { icon:"📏", info: f.store_name+" · YTD"+(finThru(fin)?" · data thru "+finThru(fin):""), drill:{kind:"bullets", store_id:f.store_id} });
 }
 
-// MODULE — MTD invoice tracker (posted vs in-flight).
-function renderNumbersInvoices(data){
-  const fin = data.financials || {};
-  if(fin.error) return "";
-  const inv = fin.invoices;
-  // v2-0.48: Owner/Sup only — the fn sends invoices:null to every other role
-  // (and to RO/guest via role), so the card self-removes instead of rendering
-  // an empty shell on GM/DM boards.
-  if(!inv) return "";
-  if(!inv.lines || !inv.lines.length) return card("MTD Invoice Tracker", '<div class="empline">No invoices tracked this month yet.</div>', { icon:"🧾", newBadge:true });
-  const pSum = inv.totals.posted||0, fSum = inv.totals.in_flight||0, tot = pSum+fSum;
-  const pCnt = inv.lines.reduce((a,l)=>a+(l.posted_count||0),0);
-  const fCnt = inv.lines.reduce((a,l)=>a+(l.in_flight_count||0),0);
-  const pPct = tot? (pSum/tot*100) : 0, fPct = tot? (fSum/tot*100) : 0;
-  const body =
-      '<div class="inv-top">'
-    + '<div class="inv-tile posted"><div class="il">● Posted</div><div class="iv">'+moneyKD(pSum)+'</div><div class="is">'+pCnt+' invoices in R365</div></div>'
-    + '<div class="inv-tile flight"><div class="il">◍ In-flight</div><div class="iv">'+moneyKD(fSum)+'</div><div class="is">'+fCnt+' detected, not yet posted</div></div></div>'
-    + '<div class="invbar"><i class="seg-posted" style="width:'+pPct+'%"></i><i class="seg-flight" style="width:'+fPct+'%"></i></div>'
-    + '<div class="invbar-leg"><span class="lndots"><span class="dot posted"></span>Posted '+pPct.toFixed(0)+'%</span>'
-    + '<span>Total tracked '+moneyKD(tot)+'</span>'
-    + '<span class="lndots"><span class="dot flight"></span>In-flight '+fPct.toFixed(0)+'%</span></div>'
-    + '<div class="cap">"In-flight" = invoices detected in email/triage but not yet posted in R365 — true MTD spend runs higher than posted. '
-    + (data.scope_all||((fin.per_store||[]).length>1) ? "Summed across your in-scope stores. " : "")
-    + esc(inv.data_through)+'.</div>';
-  return card("MTD Invoice Tracker", body, { icon:"🧾", through: inv.data_through, newBadge:true, drill:{kind:"invoice"} });
-}
-
 // MODULE — DoorDash commission rates. Single store = focused q-o-q card; many =
 // one row per store. A rate RISE is UNfavorable (red), drop favorable (green).
 function renderNumbersDoorDash(data){
@@ -2890,16 +2591,6 @@ function openNumbersSheet(kind, arg){
     body = '<div class="crumb">'+crumb+'</div><div class="dsub">YTD level vs org −8% stretch target</div>'
       + cl.map(c=>dr(esc(c.label), pct2(c.pct)+(c.target!=null?' · target ≤ '+pct1(c.target)+'% (org −8%)'+(c.org_pct!=null?' · org '+pct1(c.org_pct)+'%':''):' · target pending'))).join("")
       + '<div class="cap">Target = the 12-store org average −8% (8% better than org); no sourced target column yet (plan §6.4). Data thru '+esc(thru)+'.</div>';
-  } else if(kind==="invoice"){
-    const inv = fin.invoices; title = "MTD invoices · line breakdown"; crumb = "Numbers › <b>Invoice detail</b>";
-    const rows = (inv&&inv.lines||[]).slice().sort((a,b)=>((b.posted+b.in_flight)-(a.posted+a.in_flight))).map(l=>{
-      const parts=[];
-      if(l.posted) parts.push('<span style="color:var(--good)">'+moneyKD(l.posted)+" posted ("+l.posted_count+")</span>");
-      if(l.in_flight) parts.push('<span style="color:var(--warn)">'+moneyKD(l.in_flight)+" in-flight ("+l.in_flight_count+")</span>");
-      return dr(esc(l.pnl_line)+(l.pnl_section?" · "+esc(l.pnl_section):""), parts.join(" · ")||"—");
-    }).join("");
-    body = '<div class="crumb">'+crumb+'</div><div class="dsub">Every line · posted vs in-flight</div>'+rows
-      + '<div class="cap">In-flight = detected in email/triage, not yet posted to R365. From v_invoice_tracker_mtd. '+esc(inv?inv.data_through:"")+'.</div>';
   } else if(kind==="dd"){
     const dd = fin.doordash;
     if(arg && arg.store_id){
@@ -2994,21 +2685,23 @@ function renderGuestsFeedback(data){
     { icon:"💬", through: fb.data_through?fmtDate(fb.data_through):null, newBadge:true, drill:{kind:"gfeedback"} });
 }
 
-// MODULE — complaints SLA list + inline Resolve (GUESTS view of the spine).
-function renderGuestsComplaints(data){
-  // identical row construction to TODAY's renderTodayComplaints — one spine.
-  return renderTodayComplaints(data);
-}
-
 // MODULE — voice trend: daypart toggle + polarity-aware cells vs BU + rank.
 let VOICE_DAYPART = "all";  // GUESTS-local toggle state
+// Eddie 2026-09-09: LOCATION toggle. The fn already sends EVERY applicable entity
+// (Owner: "Org (Combined)" + all stores; Sup/GM: their scope stores) — the shell was
+// pinned to entities[0], so a supervisor only ever saw one of their stores.
+// null = keep the default (entities[0]) until the user picks a location.
+let VOICE_ENTITY = null;
 function renderGuestsVoice(data){
   const vt = data.voice_trend;
   if(!vt || !vt.entities || !vt.entities.length){
     return card("Voice / SMG trend", '<div class="empline">No VOICE scores posted for your scope yet.</div>', { icon:"📈" });
   }
-  // pick the focal entity (GM = its one store; sup/owner = the first / Combined).
-  const ent = vt.entities[0];
+  // pick the focal entity — the user's chosen location, else the default (Combined
+  // for an owner, the single store for a GM). Matched on id so it survives a repaint.
+  const entIdx = (VOICE_ENTITY === null) ? -1
+    : vt.entities.findIndex(function(e){ return String(e.id) === String(VOICE_ENTITY); });
+  const ent = entIdx >= 0 ? vt.entities[entIdx] : vt.entities[0];
   // resolve the cell set for the active daypart.
   let cells = ent.cells, dpLabel = "All day", thru = vt.data_through;
   if(VOICE_DAYPART !== "all" && Array.isArray(vt.dayparts)){
@@ -3021,7 +2714,14 @@ function renderGuestsVoice(data){
   // segmented toggle (All + each daypart present).
   const dpDefs = [{key:"all",label:"All day"}].concat((vt.dayparts||[]).map(d=>({key:d.key,label:d.label})));
   const toggle = '<div class="segtog">'+dpDefs.map(d=>
-    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(event,\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
+    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(event,\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
+  // LOCATION toggle — only rendered when the viewer actually has more than one.
+  const locToggle = vt.entities.length > 1
+    ? '<div class="segtog segloc">'+vt.entities.map(function(e){
+        var sel = String(e.id) === String(ent.id);
+        return '<button class="segb'+(sel?" on":"")+'" onclick="setVoiceEntity(event,&quot;'+esc(String(e.id))+'&quot;)">'+esc(e.name)+'</button>';
+      }).join("")+'</div>'
+    : "";
   // OSAT + QSC + B2B groups (polarity-aware). Show the metrics present in cells.
   const groups = vt.groups || {};
   const order = (groups.osat||[]).concat(groups.qsc||[], groups.b2b||[]);
@@ -3034,7 +2734,7 @@ function renderGuestsVoice(data){
       + '<div class="md">'+vvDeltaTxt(c)+' · '+vvBuTxt(c)+'</div>'+rank+'</div>';
   }).join("");
   const watch = ent.watch ? '<div class="cap" style="margin-top:9px"><b>Watch:</b> '+esc(vt.labels&&vt.labels[ent.watch]||ent.watch)+(ent.watch_reason?' — '+esc(ent.watch_reason):'')+'</div>' : '';
-  const body = toggle + '<div class="mgrid">'+(mcells||'<div class="empline" style="grid-column:1/-1">No scored metrics for this daypart.</div>')+'</div>'
+  const body = locToggle + toggle + '<div class="mgrid">'+(mcells||'<div class="empline" style="grid-column:1/-1">No scored metrics for this daypart.</div>')+'</div>'
     + watch
     + '<div class="cap">'+esc(dpLabel)+' · score + MoM (favorability-aware: ↓ metrics are lower-is-better) + vs CHICAGO-MOCNI BU + org rank. From voice_scores ('+esc(ent.name||"")+').</div>';
   return card("Voice / SMG trend", body, { icon:"📈", through: thru?("VOICE · "+esc(thru)):null, drill:{kind:"gvoice"} });
@@ -3050,7 +2750,15 @@ function setVoiceDaypart(ev, k){
   VOICE_DAYPART = k;
   renderBoard();
 }
-window.setVoiceDaypart = setVoiceDaypart;
+window.setVoiceDaypart = setVoiceDaypart;
+// Location toggle — same repaint + stopPropagation contract as the daypart toggle
+// (the buttons sit inside the card's data-card-drill surface).
+function setVoiceEntity(ev, id){
+  if(ev && ev.stopPropagation) ev.stopPropagation();
+  VOICE_ENTITY = id;
+  renderBoard();
+}
+window.setVoiceEntity = setVoiceEntity;
 
 /* =========================================================================
    TEAM LANE (Pass 2 — people · labor · ops execution)
@@ -3363,45 +3071,6 @@ function renderTeamShiftLeaders(data){
     { icon:"🏅", through: sl.data_through?fmtDate(sl.data_through):null, drill:{kind:"shiftleaders"} });
 }
 
-// MODULE — Shift-Leader Scorecard (v80 legacy GM-view, DataPass-only, CALIBRATED
-// to QSRSoft). data.shiftLeaderMetrics = {data_through, window, multi_store,
-// rows:[{nsn,store,geid,leader,daypart,daypart_ord,shifts,oepe_s,kvs_per_gc,
-// labor_pct,park_pct}]}. Grouped by daypart, each daypart ranked by OEPE (lower =
-// better). Names PII-gated server-side (RO/guest -> "GEID nnnn"); the shell never
-// re-derives a name. Tap -> per-daypart drill sheet. From v_shift_leader_metrics.
-function renderShiftLeaderMetrics(data){
-  const s = data.shiftLeaderMetrics;
-  if(!s || !s.rows || !s.rows.length){
-    return card("Shift-leader scorecard", '<div class="empline">No shift-leader metrics for your scope yet.</div>', { icon:"🎖️" });
-  }
-  const ms = !!s.multi_store;
-  const by = {}, ord = {};
-  s.rows.forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
-  const dayparts = Object.keys(by).sort((a,b)=>((ord[a]==null?9:ord[a])-(ord[b]==null?9:ord[b])));
-  const secs = ary => (ary==null||isNaN(ary)) ? "—" : Math.round(Number(ary))+"s";
-  const kvs = v => (v==null||isNaN(v)) ? "—" : Math.round(Number(v))+"s";
-  const pct = v => (v==null||isNaN(v)) ? "—" : Number(v).toFixed(1)+"%";
-  const block = dayparts.map(dp=>{
-    const list = by[dp].slice().sort((a,b)=>((a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s))));
-    const rows = list.map((r,i)=>
-      '<tr'+(i===0?' class="win"':'')+'><td>'+(i+1)+'</td>'
-      + '<td>'+esc(r.leader)+(ms?' <small style="color:var(--ink-muted)">'+esc(r.store||"")+'</small>':'')+'</td>'
-      + '<td class="num">'+(r.shifts!=null?r.shifts:"—")+'</td>'
-      + '<td class="num">'+secs(r.oepe_s)+'</td>'
-      + '<td class="num">'+kvs(r.kvs_per_gc)+'</td>'
-      + '<td class="num">'+pct(r.labor_pct)+'</td>'
-      + '<td class="num">'+pct(r.park_pct)+'</td></tr>').join("");
-    return '<details class="stexp"'+(dayparts.length===1?' open':'')+'><summary>'+esc(dp)+' · '+list.length+' leader'+(list.length===1?'':'s')+'</summary>'
-      + '<table class="sttbl"><thead><tr><th>#</th><th>Leader</th><th class="num">Sh</th>'
-      + '<th class="num">OEPE</th><th class="num">KVS</th><th class="num">Lab%</th><th class="num">Park%</th></tr></thead>'
-      + '<tbody>'+rows+'</tbody></table></details>';
-  }).join("");
-  return card("Shift-leader scorecard", block
-    + '<div class="cap">Each leader’s dominant-daypart shifts over the last 30 days, DataPass-only, <b>calibrated to QSRSoft</b> (OEPE &amp; KVS within ~8%). Ranked by OEPE (order-to-present w/o parked; lower = better). KVS = kitchen sec/guest. Lab% = labor$ &divide; sales. Names hidden on guest links. From v_shift_leader_metrics.</div>',
-    { icon:"🎖️", through: s.data_through?fmtDate(s.data_through):null,
-      info: s.window?esc(s.window):null, newBadge:true, drill:{kind:"shiftmetrics"} });
-}
-
 // MODULE — Shift-Leader Scorecard (QSRSoft, v2-0.26 port of v1 renderManagerRank —
 // task #24). Eddie's ask: the DESIGNATED shift leaders (all of them, e.g. 11 at
 // Lake St — not just GM/AM) with #shifts (30d) · OEPE · KVS · R2P · punched-labor%
@@ -3678,39 +3347,6 @@ function renderJoltChecklists(data){
   return card("Checklists & Food Safety", body,
     { icon:"✅", newBadge:true, info: "Jolt data thru "+fmtCT(jc.data_through) });
 }
-function renderJoltTemps(data){
-  const jt = data.jolt_temps;
-  if(!jt || !(jt.sensors||[]).length){
-    const extra = (jt && (jt.no_sensor_stores||[]).length)
-      ? " No RTS temp sensors reporting for: "+esc(jt.no_sensor_stores.join(", "))+"."
-      : "";
-    return card("Fridge & Freezer Temps", '<div class="empline">No Jolt temperature sensors reporting for your scope yet.'+extra+'</div>', { icon:"🧊" });
-  }
-  const sensors = jt.sensors||[];
-  const outN = sensors.filter(s=>s.out_of_range).length;
-  const staleN = sensors.filter(s=>s.stale).length;
-  let body = '<div class="opbar">'
-    + '<div class="optile"><div class="opl">Sensors</div><div class="opv">'+sensors.length+'</div><div class="ops">reporting</div></div>'
-    + '<div class="optile"><div class="opl">Out of range</div><div class="opv '+(outN?"unfav":"fav")+'">'+outN+'</div><div class="ops">flagged</div></div>'
-    + '<div class="optile"><div class="opl">Stale</div><div class="opv '+(staleN?"warn":"fav")+'">'+staleN+'</div><div class="ops">&gt;2h / inactive</div></div></div>';
-  body += sensors.map(s=>{
-    const flag = s.out_of_range ? '<span class="statedot sd-miss">OUT OF RANGE</span>'
-      : s.stale ? '<span class="statedot sd-warn">stale</span>'
-      : '<span class="statedot sd-ok">ok</span>';
-    return '<div class="dprow"><span class="dpn">'+(s.is_freezer?"❄️ ":"")+esc(s.sensor_name)
-      + '<small>'+(jt.multi_store? esc(s.store_name||"")+' · ':'')
-      + 'read '+esc(joltAge(s.age_min))+(s.is_active?'':' · sensor inactive')+'</small></span>'
-      + '<span class="dprate'+(s.out_of_range?' unfav':'')+'">'+(s.temp_f!=null? esc(s.temp_f)+"°F":"—")+'</span>'
-      + flag+'</div>';
-  }).join("");
-  if((jt.no_sensor_stores||[]).length){
-    body += '<div class="empline">No sensors reporting: '+esc(jt.no_sensor_stores.join(", "))+'.</div>';
-  }
-  body += '<div class="cap">'+esc(jt.threshold_note||"")+'</div>';
-  return card("Fridge & Freezer Temps", body,
-    { icon:"🧊", newBadge:true, info: "Jolt data thru "+fmtCT(jt.data_through) });
-}
-
 function renderTeamOperations(data){
   const op = data.operations;
   if(!op){
@@ -4062,33 +3698,6 @@ function renderTeamWaste(data){
    ========================================================================= */
 function isOwnerSup(data){ const r = data.manager && data.manager.role; return r==="Owner" || r==="Supervisor"; }
 
-// MODULE — submission campaigns (GM sees their store's upload status).
-function renderMoreCampaigns(data){
-  const cs = data.campaigns || [];
-  if(!cs.length){
-    return card("Submission campaigns", '<div class="empline">No open campaigns right now.</div>', { icon:"📸" });
-  }
-  const body = cs.map(c=>{
-    const mine = (c.stores||[]).filter(s=>true);
-    const total = c.total||mine.length, done = c.done||mine.filter(s=>s.done).length;
-    const pct = total? Math.round(done/total*100) : 0;
-    // GM single-store "you" line.
-    const myStore = (c.stores||[])[0];
-    const meLine = myStore
-      ? (myStore.done ? '<div class="campme done">✓ Your store submitted.</div>'
-                      : '<div class="campme todo">⬆ Your store still needs to submit'+(c.can_upload?" — upload from the live board.":"."))+'</div>'
-      : "";
-    return '<div class="camp"><div class="camphd"><span class="camptt">'+esc(c.title)+'</span>'
-      + (c.due_at?'<span class="campdue">due '+esc(fmtDate(c.due_at))+'</span>':'')+'</div>'
-      + (c.prompt?'<div class="campp">'+esc(c.prompt)+'</div>':'')
-      + '<div class="campprog"><div class="cpbar"><i style="width:'+pct+'%"></i></div><span class="cpn">'+done+'/'+total+' stores</span></div>'
-      + meLine + '</div>';
-  }).join("");
-  return card("Submission campaigns", body
-    + '<div class="cap">Owner/sup track all stores here; a GM uploads their store’s photo/file from the live board. From campaigns.</div>',
-    { icon:"📸", through: null, newBadge:true });
-}
-
 // MODULE — RGR prep checklist (GM-relevant; shown only in the visit window).
 function renderMoreRgr(data){
   const runs = data.rgr || [];
@@ -4400,19 +4009,6 @@ function openLaneSheet(kind, arg){
       + (sens.some(s=>(s.problem_list||[]).length) ? '<div class="dsub">Sensor problems</div>'
           + sens.flatMap(s=>(s.problem_list||[])).slice(0,8).map(p=>dr(esc(p.sensor||"sensor"), esc(p.reason||"")+(p.last_reading_ts?" · "+String(p.last_reading_ts).slice(0,10):""))).join("") : "")
       + '<div class="cap">'+esc(op.sensor_note||"")+' From the Jolt feed. Data thru '+esc(op.data_through?fmtDate(op.data_through):"—")+'.</div>';
-  } else if(kind==="shiftmetrics"){
-    const s = data.shiftLeaderMetrics || {}; title="Shift-leader scorecard · detail"; crumb="Team › <b>Shift leaders</b>";
-    const by = {}, ord = {};
-    (s.rows||[]).forEach(r=>{ (by[r.daypart]=by[r.daypart]||[]).push(r); ord[r.daypart]=r.daypart_ord; });
-    const dayparts = Object.keys(by).sort((a,b)=>((ord[a]==null?9:ord[a])-(ord[b]==null?9:ord[b])));
-    body = '<div class="crumb">'+crumb+'</div>'
-      + dayparts.map(dp=>{
-          const list = by[dp].slice().sort((a,b)=>((a.oepe_s==null?1e9:Number(a.oepe_s))-(b.oepe_s==null?1e9:Number(b.oepe_s))));
-          return '<div class="dsub">'+esc(dp)+'</div>'
-            + list.map((r,i)=>dr("#"+(i+1)+" "+esc(r.leader)+(s.multi_store?" <small style='color:var(--ink-muted)'>"+esc(r.store||"")+"</small>":""),
-                "OEPE "+(r.oepe_s!=null?Math.round(r.oepe_s)+"s":"—")+" · KVS "+(r.kvs_per_gc!=null?Math.round(r.kvs_per_gc)+"s":"—")+" · "+(r.shifts||0)+" sh · Lab "+(r.labor_pct!=null?Number(r.labor_pct).toFixed(1)+"%":"—")+" · Park "+(r.park_pct!=null?Number(r.park_pct).toFixed(1)+"%":"—"))).join("");
-        }).join("")
-      + '<div class="cap">DataPass-only, calibrated to QSRSoft (OEPE &amp; KVS ~8%). '+esc(s.window||"trailing 30 days")+'. Names hidden on guest links. From v_shift_leader_metrics. Data thru '+esc(s.data_through?fmtDate(s.data_through):"—")+'.</div>';
   }
   document.getElementById("sheetTitle").textContent = title;
   document.getElementById("sheetBody").innerHTML = body;
@@ -4511,12 +4107,17 @@ function renderHomeSalesTrend(data){
     { icon:"📊", info: "weekly · complete weeks · sales thru "+fmtDate(thru), newBadge:true });
 }
 
-// MODULE — PAC% 6-month trend (top of the NUMBERS / projection screen). Scope-aggregate
-// (org for owner, the store for a GM), last 6 months including the current MTD.
+// MODULE — PAC% trend, CLOSED MONTHS ONLY (top of the NUMBERS / projection screen).
+// Scope-aggregate (org for owner, the store for a GM).
+// Eddie 2026-09-09: the current-month MTD point is DROPPED. Early in an open month the
+// cost side has barely posted, so MTD PAC% is not comparable to a closed month — September
+// read -5.70% against a 27–31% closed-month band, which reads as a collapse and is an
+// artifact. Closed months only; the open month returns when it closes.
 function renderNumbersPacTrend(data){
   const fin = data.financials || {};
   if(fin.error) return "";
-  const t = (fin.pac_trend6 || []).filter(p=>p.pac_pct!=null);
+  const curMonth = ctDay().slice(0,7)+"-01";   // CT calendar month, the open one
+  const t = (fin.pac_trend6 || []).filter(p=>p.pac_pct!=null && p.month < curMonth);
   if(t.length < 2) return "";
   const vals = t.map(p=>p.pac_pct);
   const cur = vals[vals.length-1], first = vals[0];
@@ -4525,8 +4126,8 @@ function renderNumbersPacTrend(data){
   const moAbbr = (m)=>{ const d=new Date(m+"T00:00:00Z"); return d.toLocaleString("en-US",{month:"short",timeZone:"UTC"}); };
   const spark = sparkline(vals, {w:300,h:48});
   const ticks = '<div class="pacx">'+t.map((p,i)=>'<span class="'+(i===t.length-1?"cur":"")+'">'+moAbbr(p.month)+'<b>'+pct2(p.pac_pct)+'</b></span>').join("")+'</div>';
-  const sub = '<b>'+pct2(cur)+'</b> this month (MTD)'+(delta!=null?' · <span class="'+(delta>=0?"fav":"unfav")+'">'+(delta>0?"+":"")+delta.toFixed(2)+'pp vs '+moAbbr(t[0].month)+'</span>':'')+' · 6-mo range '+pct2(lo)+'–'+pct2(hi);
-  return card("PAC% trend — last 6 months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. Latest point = current MTD actuals with not-yet-posted costs estimated in (preliminary).</div>',
+  const sub = '<b>'+pct2(cur)+'</b> in '+moAbbr(t[t.length-1].month)+' (last closed month)'+(delta!=null?' · <span class="'+(delta>=0?"fav":"unfav")+'">'+(delta>0?"+":"")+delta.toFixed(2)+'pp vs '+moAbbr(t[0].month)+'</span>':'')+' · range '+pct2(lo)+'–'+pct2(hi);
+  return card("PAC% trend — closed months", '<div class="pactrend">'+spark+'</div>'+ticks+'<div class="cap">'+sub+'. Closed months only — the open month is excluded until its costs post.</div>',
     { icon:"📉", info: (finThru(fin)?"data thru "+finThru(fin):""), newBadge:true });
 }
 
@@ -6089,69 +5690,6 @@ function renderMealBreakTracker(data){
    an older fn or an out-of-scope role simply renders nothing.
    ========================================================================= */
 
-// severity -> exception-row classes (shared by the brief + temp watch rows).
-function brainSev(s){
-  const v = String(s||"").toLowerCase();
-  if(v==="high"||v==="bad"||v==="critical"||v==="urgent") return "sev-bad";
-  if(v==="medium"||v==="warn"||v==="watch") return "sev-warn";
-  return "sev-info";
-}
-
-// MODULE — Today's Brief (TODAY, all manager tiers): top-3 items for this
-// viewer's scope from the operator_brief engine. The fn returns null when
-// there is no brief for today (engine ships in parallel) — card self-removes.
-function renderTodaysBrief(data){
-  const b = data.todays_brief;
-  if(!b || !(b.items||[]).length) return "";
-  const rows = b.items.slice(0,3).map(function(it){
-    const sc = brainSev(it.severity);
-    return '<div class="exrow '+sc+'" style="cursor:default">'
-      + '<div><span class="exsev '+sc+'">'+esc(String(it.severity||"info").toUpperCase())+'</span> '
-      + '<b>'+esc(it.headline||"")+'</b></div>'
-      + (it.why?'<div class="mut" style="font-size:12px;margin-top:2px">'+esc(it.why)+'</div>':'')
-      + (it.lever?'<div style="font-size:12px;margin-top:2px">Do: <b>'+esc(it.lever)+'</b></div>':'')
-      + (it.citation?'<div class="mut" style="font-size:11px;margin-top:2px">source: '+esc(it.citation)+'</div>':'')
-      + '</div>';
-  }).join("");
-  return card("Today’s Brief", rows
-    + '<div class="cap">Top 3 for your scope from the operator brief engine. Every item cites its source.</div>',
-    { icon:"🧠", through: b.data_through || b.brief_date || undefined, newBadge:true });
-}
-
-// MODULE — Temp watch (TODAY, Owner/Sup/GM): open refrigeration excursions
-// from the temp_watch state, worst first, + an explicit all-clear. EVERY
-// reading is an INFERRED product temp (TEMPERATURE_SIMULATED) and is labeled
-// "inferred" — the same convention the grill tile uses to distinguish real
-// probe reads. Inferred readings never page; this is a watch surface.
-function renderTempWatch(data){
-  const tw = data.temp_watch;
-  if(!tw) return "";
-  const open = tw.open||[];
-  let body;
-  if(!open.length){
-    body = '<div class="vflags"><span class="flag good">all clear — no open temp excursions</span></div>';
-  } else {
-    body = open.map(function(r){
-      const sc = (r.band==="critical"||r.kind==="silent") ? "sev-bad" : "sev-warn";
-      const lab = r.kind==="silent" ? "SILENT" : String(r.band||"watch").toUpperCase();
-      return '<div class="exrow '+sc+'" style="cursor:default">'
-        + '<div><span class="exsev '+sc+'">'+lab+'</span> <b>'+esc(r.store_name)+'</b> · '+esc(r.sensor_name||"sensor")
-        + (r.unit_kind?' <span class="mut">('+esc(r.unit_kind)+')</span>':'')+'</div>'
-        + '<div style="font-size:12px;margin-top:2px">'
-        + (r.reading_f!=null
-            ? '<b>'+Number(r.reading_f).toFixed(1)+'&deg;F</b> <span class="flag warn" style="font-size:9px;padding:1px 5px">inferred</span> at '+esc(fmtCT(r.reading_ts))
-            : 'sensor stopped reporting')
-        + (r.open_hours!=null?' <span class="mut">· open '+esc(r.open_hours)+'h</span>':'')
-        + '</div>'
-        + (r.threshold_note?'<div class="mut" style="font-size:11px;margin-top:2px">'+esc(r.threshold_note)+'</div>':'')
-        + '</div>';
-    }).join("");
-  }
-  body += '<div class="cap">'+esc(tw.source_note||"")+'</div>';
-  return card("Temp watch", body,
-    { icon:"🌡️", through: tw.data_through ? fmtCT(tw.data_through) : undefined, newBadge:true });
-}
-
 // MODULE — Food Cost AvT (NUMBERS, Owner/Sup/GM): actual vs theoretical food %
 // per store, ranked worst variance first (server-sorted). Honest about the
 // two big caveats: actual is the PRELIMINARY open-month R365 %, and every
@@ -6190,57 +5728,6 @@ function renderAvtFoodCost(data){
   body += '<div class="cap">'+esc(av.footnote||"All ingredient costs are estimates.")+'</div>';
   return card("Food Cost AvT", body,
     { icon:"🍔", through: av.data_through || undefined, newBadge:true });
-}
-
-// MODULE — Crew flight risk (TEAM, Owner/Sup/GM; fn never sends it to RO/
-// guest tokens): forward-looking attrition risk. High/watch counts + the
-// probability-weighted forward $ exposure per store, then the top at-risk
-// crew ("First L." labels only — GEIDs never reach the client) with each
-// person's top risk driver.
-function renderFlightRisk(data){
-  const fr = data.flight_risk;
-  if(!fr || !(fr.stores||[]).length) return "";
-  const money = function(v){ return v==null ? "—" : "$"+Math.round(Number(v)).toLocaleString(); };
-  let body = "";
-  const hero = fr.org || (fr.stores.length===1 ? {
-    high_count: fr.stores[0].high_count, watch_count: fr.stores[0].watch_count,
-    forward_exposure_usd: fr.stores[0].forward_exposure_usd,
-  } : null);
-  if(hero){
-    body += '<div class="vflags">'
-      + (Number(hero.high_count)? '<span class="flag warn">'+esc(hero.high_count)+' high risk</span>':'')
-      + (Number(hero.watch_count)? '<span class="flag warn">'+esc(hero.watch_count)+' watch</span>':'')
-      + ((!Number(hero.high_count) && !Number(hero.watch_count))? '<span class="flag good">no crew flagged</span>':'')
-      + '<span class="flag recon">'+money(hero.forward_exposure_usd)+' forward exposure</span>'
-      + '</div>';
-  }
-  if(fr.multi_store){
-    body += '<div class="board">'+fr.stores.map(function(s){
-      return '<div class="row"><span class="nm">'+esc(s.store_name)+'</span>'
-        + '<span class="vl">'+esc(s.high_count||0)+'<span class="un"> high</span></span>'
-        + '<span class="mut" style="font-size:11px;margin-left:8px">'+esc(s.watch_count||0)+' watch · '
-        + money(s.forward_exposure_usd)+' exposure · '+esc(s.scored||0)+' scored</span></div>';
-    }).join("")+'</div>';
-  }
-  const tc = fr.top_crew||[];
-  if(tc.length){
-    body += '<div class="mut" style="font-size:11px;font-weight:700;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em">Top at-risk crew</div>'
-      + tc.map(function(c){
-          const sc = c.risk_band==="high" ? "sev-bad" : "sev-warn";
-          return '<div class="exrow '+sc+'" style="cursor:default">'
-            + '<div><span class="exsev '+sc+'">'+esc(String(c.risk_band||"").toUpperCase())+'</span> <b>'+esc(c.crew_label)+'</b> '
-            + '<span class="mut" style="font-size:11px">'+esc(c.store_name)
-            + (c.tenure_days!=null?' · day '+esc(c.tenure_days):'')
-            + (c.risk_score!=null?' · score '+esc(Math.round(Number(c.risk_score))):'')+'</span></div>'
-            + (c.top_signal_detail?'<div class="mut" style="font-size:11px;margin-top:2px">'+esc(c.top_signal_detail)+'</div>':'')
-            + '</div>';
-        }).join("");
-  }
-  body += '<div class="cap">Forward exposure = '+esc(fr.exposure_basis||"high + probability-weighted watch")
-    + ' at '+money(fr.cost_per_exit_usd)+' per exit. '+esc(fr.coverage_note||"")
-    + ' Names show as first name + last initial.</div>';
-  return card("Crew flight risk", body,
-    { icon:"🚪", through: fr.data_through || undefined, newBadge:true });
 }
 
 /* =========================================================================
@@ -6881,10 +6368,6 @@ const MANIFEST = [
   { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
   // v2-0.46: supervisor meal-break spotlight (5 weeks; self-removes when fn returns null).
   { id:"today_mealbreak",  lane:"TODAY", title:"Meal breaks not recorded", render: renderMealBreakTracker, newBadge:true },
-  // v2-0.47: Today's Brief — top-3 brain items for this scope (all manager
-  // tiers; self-removes while the operator_brief engine has no row for today).
-  { id:"today_brief",      lane:"TODAY", title:"Today’s Brief",           render: renderTodaysBrief,     newBadge:true },
-  { id:"today_priorities", lane:"TODAY", title:"What needs you",          render: renderTodayPriorities, newBadge:true },
   // v2-0.48: New Task / Ticket — EVERY manager tier's home (Eddie 2026-07-13
   // pre-meeting). Hides itself on RO/guest tokens (data.read_only; the server
   // POST guard is the real gate). Opens the task_form PAGE.
@@ -6921,9 +6404,6 @@ const MANIFEST = [
   // v2-0.34: Jolt Ops entry module — compact checklist/food-safety + temp-alert
   // summary; tap opens the FULL Jolt Ops view (drill sheet, mockup jolt-ops.html).
   { id:"today_jolt",       lane:"TODAY", title:"Jolt Ops",                render: renderTodayJolt,       newBadge:true },
-  // v2-0.47: refrigeration temp watch — open excursions + all-clear; every
-  // reading labeled INFERRED (TEMPERATURE_SIMULATED). Owner/Sup/GM (fn-gated).
-  { id:"today_tempwatch",  lane:"TODAY", title:"Temp watch",              render: renderTempWatch,       newBadge:true },
   // v2-0.41: Grill min-temps HOME tile — MOVED out of the Jolt section for
   // Owner/Sup/GM (Eddie 2026-07-10). Render self-gates on data.grill_temps_home,
   // which the Fn sends only to those roles; Department keeps the Jolt-section
@@ -6931,8 +6411,6 @@ const MANIFEST = [
   { id:"today_grill",      lane:"TODAY", title:"Grill min-temps",         render: renderGrillHomeTile,   newBadge:true },
   { id:"today_tasks",      lane:"TODAY", title:"Your tasks",              render: renderTodayTasks      },
   { id:"today_complaints", lane:"TODAY", title:"Open complaints",         render: renderTodayComplaints },
-  { id:"today_race",       lane:"TODAY", title:"June Cleanliness Race",   render: renderPinnedRace      },
-  { id:"today_osat",       lane:"TODAY", title:"$100 June OSAT Incentive",render: renderPinnedOsat      },
   // v2-0.39: Shift Leader OEPE home tile (all manager roles; render self-gates
   // on data.sl_oepe_home which the Fn never sends to RO/guest tokens). Whole
   // card taps into the sl_oepe PAGE ("page:" drill prefix -> openPage).
@@ -6950,7 +6428,6 @@ const MANIFEST = [
   // v2-0.47: Food Cost AvT — theoretical vs actual food %, worst variance
   // first; PRELIMINARY-labeled actuals + all-costs-are-estimates footnote.
   { id:"numbers_avt",      lane:"NUMBERS", title:"Food Cost AvT",        render: renderAvtFoodCost,     newBadge:true },
-  { id:"numbers_invoices", lane:"NUMBERS", title:"MTD Invoice Tracker",  render: renderNumbersInvoices, newBadge:true },
   { id:"numbers_doordash", lane:"NUMBERS", title:"DoorDash rates",       render: renderNumbersDoorDash, newBadge:true },
   { id:"numbers_lto",      lane:"NUMBERS", title:"LTO leaderboard",      render: renderNumbersLto      },
   // GUESTS — feedback · complaints SLA · polarity-aware voice (plan §5). Order:
@@ -6958,7 +6435,6 @@ const MANIFEST = [
   // v2-0.45: theme analysis FIRST in the guest section (Eddie 2026-07-12).
   { id:"guests_themes",     lane:"GUESTS", title:"Feedback themes",       render: renderGuestThemes,     newBadge:true },
   { id:"guests_feedback",   lane:"GUESTS", title:"Guest feedback",        render: renderGuestsFeedback,  newBadge:true },
-  { id:"guests_complaints", lane:"GUESTS", title:"Open complaints",       render: renderGuestsComplaints },
   { id:"guests_voice",      lane:"GUESTS", title:"Voice / SMG trend",     render: renderGuestsVoice      },
   // TEAM — people · labor · ops execution (plan §5). Order: scorecards →
   // training → labor → service times → turnover → shift leaders → bonus →
@@ -6971,15 +6447,11 @@ const MANIFEST = [
   { id:"team_floor",        lane:"TEAM", title:"Floor — who's on now",    render: renderTeamFloor,         newBadge:true },
   { id:"team_servicetimes", lane:"TEAM", title:"Service times",           render: renderTeamServiceTimes },
   { id:"team_turnover",     lane:"TEAM", title:"Turnover",                render: renderTeamTurnover     },
-  // v2-0.47: crew flight risk — forward-looking attrition risk (Owner/Sup/GM;
-  // fn never sends it to RO/guest tokens; First L. labels only).
-  { id:"team_flightrisk",   lane:"TEAM", title:"Crew flight risk",        render: renderFlightRisk,      newBadge:true },
   // v2-0.26 (task #24): QSRSoft manager_rank card = the v1 original with ALL
   // designated leaders + R2P — the PRIMARY scorecard candidate. The two cards
   // after it stay mounted until Eddie decides swap-vs-keep (§2A handoff).
   { id:"team_managerrank",  lane:"TEAM", title:"Shift-Leader Scorecard (QSRSoft)", render: renderManagerRank, newBadge:true },
   { id:"team_shiftleaders", lane:"TEAM", title:"Shift-leader leaderboard",render: renderTeamShiftLeaders },
-  { id:"team_shiftmetrics",  lane:"TEAM", title:"Shift-leader scorecard",   render: renderShiftLeaderMetrics, newBadge:true },
   // Bonus card UNMOUNTED (Eddie 2026-06-30): the old Q1/Q2 quarterly true-ups are
   // noise; re-enable when the Q3 LIVE bonus engine launches. renderTeamBonus kept.
   // { id:"team_bonus",     lane:"TEAM", title:"Bonus",                   render: renderTeamBonus        },
@@ -6990,7 +6462,6 @@ const MANIFEST = [
   // execution + RTS temps from the live Jolt feed, ahead of the older
   // pre-shift-only Operations card.
   { id:"team_jolt_checklists", lane:"TEAM", title:"Checklists & Food Safety", render: renderJoltChecklists, newBadge:true },
-  { id:"team_jolt_temps",      lane:"TEAM", title:"Fridge & Freezer Temps",   render: renderJoltTemps,      newBadge:true },
   { id:"team_operations",   lane:"TEAM", title:"Operations (Jolt)",       render: renderTeamOperations,    newBadge:true },
   { id:"team_waste",        lane:"TEAM", title:"Waste compliance",        render: renderTeamWaste        },
   // MORE — Owner-Hub overflow (GM-relevant subset; owner/sup tools render dark).
@@ -6998,7 +6469,6 @@ const MANIFEST = [
   // (Eddie 2026-07-13). Static link tile; PDFs at manager-page/meal-qr/<number>.pdf
   // (+ ALL-STORES for multi-store). Shell-only; no fn change, SHELL_VERSION unchanged.
   { id:"more_meal_qr",      lane:"MORE", title:"Meal & Promo QR sheet",   render: renderMealQrSheetTile,   newBadge:true },
-  { id:"more_campaigns",    lane:"MORE", title:"Submission campaigns",    render: renderMoreCampaigns,     newBadge:true },
   { id:"more_rgr",          lane:"MORE", title:"RGR prep checklist",      render: renderMoreRgr          },
   // v2 launch spec §1: contacts VIEW widened to AM+ (Owner/Sup/GM/Department).
   // Self-gates on data.contacts (null for RO/guest — PII); read-only for all.
@@ -7107,13 +6577,6 @@ function renderBoard(payload){
   if(ACTIVE_LANE === "TODAY"){
     // Flashing incident banner FIRST — above the verdict (Eddie's over-temp directive).
     try { html += renderIncidentBanner(data); } catch(_e){ /* a banner failure never blanks the board */ }
-    const thru = todayThru(data) || "—";
-    const who = data.scope_all ? "Portfolio" : ((data.stores && data.stores[0] && data.stores[0].name) || "Your store");
-    let n = 0; try { n = computeTodayPriorities(data).length; } catch(_e){ n = 0; }
-    const sub = n
-      ? '<b>'+esc(who)+'</b> · '+n+' thing'+(n===1?"":"s")+' need'+(n===1?"s":"")+' you · data thru <b>'+esc(thru)+'</b>'
-      : '<b>'+esc(who)+'</b> · all clear right now · data thru <b>'+esc(thru)+'</b>';
-    html += verdict(String(n), n===1?"thing needs you":"things need you", sub, n? "warn":"good");
   }
   for(const m of mods){ html += sect(()=>m.render(data, {})); }
   if(!html) html = card("Nothing here yet", '<div class="cbody">No modules registered for this lane.</div>', {});
@@ -7162,8 +6625,9 @@ window.renderBoard = renderBoard;
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
                            "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home",
                            "grill_temps_home","check_in","_meta",
-                           // v2-0.47 brain slices that ride the lean TODAY/NUMBERS gather:
-                           "todays_brief","temp_watch","food_cost_avt",
+                           // v2-0.47 brain slice that rides the lean TODAY/NUMBERS gather
+                           // (todays_brief + temp_watch removed with their cards):
+                           "food_cost_avt",
                            // v2-0.57 open store incidents → the flashing banner:
                            "incidents",
                            // v2-0.58 board prompts + owner responses + logging contest:
