@@ -81,6 +81,8 @@
   .owes{font-size:14px;margin-top:4px}
   .owes b{color:var(--ink)}
   .datathrough{color:var(--mut);font-size:12px;margin-top:10px}
+.previewitems{margin:10px 0 4px 0;padding-left:22px}
+.previewitems li{margin:0 0 10px 0;line-height:1.45}
 </style></head><body>
 <!-- ops issue-report button v1 (2026-07-27) — SHARED SNIPPET, keep copies in sync.
      Source of truth: edge-functions/_shared/issue-report-button.html
@@ -266,7 +268,12 @@
   </div>
 
   <div id="scr-view" style="display:none">
-    <div class="trialnote">This link is view-only for the checklist program &mdash; the tracker below shows every recorded visit.</div>
+    <div class="trialnote">This is the checklist your store is scored on this round. View only &mdash; nothing here can be submitted.</div>
+    <div class="card">
+      <b id="pv-title">The checklist</b>
+      <ol id="previewitems" class="previewitems"></ol>
+      <p class="hint">A perfect visit &mdash; every applicable item passing &mdash; pays <b>$50 to the GM and $50 to the shift leader on duty</b>.</p>
+    </div>
   </div>
 
   <div id="scr-form" style="display:none">
@@ -354,15 +361,30 @@ function loadBoot(afterSubmit){
     if (!res.ok || !res.j.ok) { show('scr-dead'); return; }
     boot = res.j;
     el('headline').textContent = boot.viewer.name + ' · round ' + boot.round;
-    renderTracker();
+    // View-only links are the SAMPLE link handed to GMs. They must show the
+    // checklist their store is scored on and NOTHING else: the tracker lists
+    // every recorded visit across all rounds, so a GM opening the sample saw
+    // Round 1 results and no checklist at all (Eddie, 2026-09-18).
+    if (boot.viewer.can_submit) renderTracker();
     if (!afterSubmit) {
       if (boot.viewer.can_submit) { renderHome(); show('scr-home'); }
-      else { show('scr-view'); }
+      else { renderPreview(); show('scr-view'); }
     } else if (boot.viewer.can_submit) {
       renderHome();
     }
   })
   .catch(function(){ show('scr-dead'); });
+}
+
+function renderPreview(){
+  var box = el('previewitems'); box.innerHTML = '';
+  var its = boot.items || [];
+  el('pv-title').textContent = 'The checklist — ' + its.length + ' items (round ' + boot.round + ')';
+  its.forEach(function(it){
+    var li = document.createElement('li');
+    li.textContent = it.title;
+    box.appendChild(li);
+  });
 }
 
 function renderHome(){
