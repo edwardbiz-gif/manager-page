@@ -190,6 +190,11 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) + " CT";
     } catch (e) { return ""; }
   }
+  // Labels hold commas ("Mon, Oct 26"), so 3+ items join with semicolons.
+  function listJoin(items) {
+    if (items.length < 3) return items.join(" and ");
+    return items.slice(0, -1).join("; ") + " and " + items[items.length - 1];
+  }
   function votedLine(responded, total) {
     if (responded > total) return responded + " have voted.";
     return responded + " of " + total + (responded === 1 ? " has voted." : " have voted.");
@@ -424,7 +429,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     if (best.length) {
       var bp = mk("p", "msg");
       bp.appendChild(mk("span", null, best.length === 1 ? "Most votes: " : "Tied for most votes: "));
-      bp.appendChild(mk("b", null, best.join(" and ")));
+      bp.appendChild(mk("b", null, listJoin(best)));
       bp.appendChild(mk("span", null, " (" + max + ")."));
       bestBox.appendChild(bp);
     }
