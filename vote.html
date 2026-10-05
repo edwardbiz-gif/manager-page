@@ -1,10 +1,12 @@
 <!doctype html>
-<!-- vote.html v1 (2026-10-05) - generic team vote page (first use: "Fall outing:
+<!-- vote.html v1.2 (2026-10-05) - generic team vote page (first use: "Fall outing:
      pick your dates"). Source of truth: operations-system/edge-functions/
      team-poll-static/vote.html, copied to the manager-page repo (GH Pages).
-     API: the team-poll Edge Function (JSON; CORS allow-list = this GH Pages origin).
+     API: the team-poll Edge Function v2+ (JSON; CORS allow-list = this GH Pages origin).
        vote.html?t=<vote token>     everyone: pick your name, check what works
        vote.html?r=<results token>  owner: names per option
+     GETs send the token in an x-poll-t / x-poll-r header, not the fn URL, so it
+     stays out of request logs. CSP: inline only, fetch only to the Supabase fn.
      This file holds NO names, dates or venue text; everything comes from the fn.
      The shared issue-report button is deliberately NOT injected: its redactPath
      strips only ?t=, so a ?r= results token would be stored raw.
@@ -12,7 +14,9 @@
      apostrophe can never break a single-quoted string. -->
 <html lang="en"><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://nnsuyrhubsidwmrrsumm.supabase.co; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
 <meta name="robots" content="noindex,nofollow">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -37,8 +41,8 @@ body{margin:0;min-height:100vh;background:var(--bg);background-color:var(--bg-so
 h1{font-size:23px;line-height:1.2;margin:0 0 10px;color:var(--accent);letter-spacing:.2px}
 h2{font-size:15px;margin:22px 0 10px;color:var(--fg)}
 .intro{color:var(--ink2);font-size:15px;white-space:pre-line;margin:0 0 6px;overflow-wrap:anywhere}
-.maplink{display:inline-block;margin:4px 0 0;color:var(--accent);font-weight:700;font-size:15px;
- text-decoration:none;padding:6px 0}
+.maplink{display:inline-flex;align-items:center;min-height:44px;margin:0;color:var(--accent);font-weight:700;font-size:15px;
+ text-decoration:none;padding:0 12px 0 0}
 .maplink:hover{text-decoration:underline}
 .scr{display:none}
 .center{text-align:center;padding:34px 8px;color:var(--muted)}
@@ -66,8 +70,8 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
 .txt{flex:1 1 auto;min-width:0}
 .txt b{display:block;font-size:17px;line-height:1.25}
 .txt small{display:block;color:var(--muted);font-size:13px}
-.pill{flex:0 0 auto;min-width:34px;height:26px;padding:0 9px;border-radius:13px;background:var(--paper);
- border:1px solid var(--line);color:var(--ink2);font-size:13px;font-weight:700;
+.pill{flex:0 0 auto;min-width:34px;height:26px;padding:0 10px;border-radius:13px;background:var(--paper);
+ border:1px solid var(--line);color:var(--ink2);font-size:13px;font-weight:700;white-space:nowrap;
  display:flex;align-items:center;justify-content:center}
 .pill.hot{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
 .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);opacity:.85;width:0;transition:width .3s}
@@ -81,6 +85,11 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
  background:transparent;color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
 .err{display:none;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--err-bg);
  border:1px solid var(--urgent);color:var(--err-fg);font-size:15px}
+#who-err{margin-top:10px}
+.voted{display:none;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;padding:4px 6px 4px 14px;
+ border-radius:12px;background:var(--card);border:1px solid var(--ok);color:var(--ink2);font-size:15px}
+.linkbtn{flex:0 0 auto;min-height:44px;padding:0 8px;background:none;border:0;color:var(--accent);font:inherit;
+ font-weight:700;text-decoration:underline;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .foot{margin-top:16px;color:var(--muted);font-size:13px;text-align:center}
 .done-hd{font-size:24px;font-weight:800;margin:6px 0 8px;color:var(--fg)}
 .done-hd .tick{color:var(--ok)}
@@ -125,11 +134,13 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     <div id="other-wrap">
       <input type="text" id="other" maxlength="60" autocapitalize="words" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Your name" aria-label="Your name">
     </div>
+    <div class="err" id="who-err" role="alert" aria-live="assertive"></div>
     <div class="step">2. Check every date that works</div>
     <div class="opts" id="opts"></div>
     <div class="opts" style="margin-top:8px">
       <label class="opt none" id="none-row"><input type="checkbox" id="none" aria-label="None of these work for me"><span class="box"></span><span class="txt"><b>None of these work for me</b></span></label>
     </div>
+    <div class="voted" id="voted"><span>You already voted. Change anything and send again.</span><button type="button" class="linkbtn" id="notyou">Not you?</button></div>
     <button type="button" class="submit" id="go">Send my dates</button>
     <div class="err" id="err" role="alert" aria-live="assertive"></div>
     <p class="foot" id="foot"></p>
@@ -169,7 +180,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
   var params = new URLSearchParams(location.search);
   var tok = params.get("t") || "";
   var rtok = params.get("r") || "";
-  var boot = null;      // GET ?t= payload
+  var boot = null;      // vote-mode GET payload
   var counts = {};      // option id -> count (live)
   var lastPicks = [];   // ids from the last successful submit on this page
 
@@ -195,9 +206,15 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     if (items.length < 3) return items.join(" and ");
     return items.slice(0, -1).join("; ") + " and " + items[items.length - 1];
   }
-  function votedLine(responded, total) {
-    if (responded > total) return responded + " have voted.";
-    return responded + " of " + total + (responded === 1 ? " has voted." : " have voted.");
+  // responded = listed people who voted (of total); guests are counted apart.
+  function votedLine(responded, total, guests) {
+    var s = responded > total ? responded + " have voted"
+      : responded + " of " + total + (responded === 1 ? " has voted" : " have voted");
+    if (guests > 0) s += ", plus " + guests + (guests === 1 ? " guest" : " guests");
+    return s + ".";
+  }
+  function reveal(n) {
+    try { n.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { n.scrollIntoView(); }
   }
   function storeKey() { return "teampoll:" + (boot && boot.poll ? boot.poll.slug : "x"); }
   function loadSaved() {
@@ -205,6 +222,9 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
   }
   function save(obj) {
     try { localStorage.setItem(storeKey(), JSON.stringify(obj)); } catch (e) { /* private mode etc. */ }
+  }
+  function forget() {
+    try { localStorage.removeItem(storeKey()); } catch (e) { /* private mode etc. */ }
   }
   function dead(msg, canRetry) {
     el("dead-msg").textContent = msg || "This link isn’t working. Please text Eddie for a fresh one.";
@@ -219,17 +239,19 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
   }
 
   // ---- header ---------------------------------------------------------------
-  function renderHeader(poll, withBody) {
+  // withBody: the intro text (it holds the ask, so the thank-you and closed
+  // screens hide it); withLink: the Map link.
+  function renderHeader(poll, withBody, withLink) {
     el("title").textContent = poll.title || "Team vote";
     document.title = poll.title || "Team vote";
     var intro = el("intro");
     if (withBody && poll.body) { intro.textContent = poll.body; intro.style.display = "block"; }
     else intro.style.display = "none";
     var a = el("maplink");
-    if (withBody && poll.link_url && /^https:\/\//.test(poll.link_url)) {
+    if (withLink && poll.link_url && /^https:\/\//.test(poll.link_url)) {
       a.href = poll.link_url;
       a.textContent = (poll.link_label || "Map") + " →";
-      a.style.display = "inline-block";
+      a.style.display = "inline-flex";
     } else a.style.display = "none";
   }
 
@@ -271,7 +293,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       var other = sel.value === "other";
       el("other-wrap").style.display = other ? "block" : "none";
       if (other) el("other").focus();
-      hideErr();
+      hideErr(); refreshVoted();
     };
 
     var wrap = el("opts");
@@ -289,7 +311,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       txt.appendChild(mk("b", null, op.label));
       if (op.detail) txt.appendChild(mk("small", null, op.detail));
       lab.appendChild(txt);
-      var pill = mk("span", "pill", "0");
+      var pill = mk("span", "pill", "0 votes");
       pill.id = "pill-" + op.id;
       lab.appendChild(pill);
       var bar = mk("span", "bar");
@@ -305,10 +327,35 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       }
       syncRows(); hideErr();
     };
-    el("other").oninput = hideErr;
+    el("other").oninput = function () { hideErr(); refreshVoted(); };
     el("go").onclick = submit;
-    el("change").onclick = function () { prefill({ voter: el("who").value, other: el("other").value, picks: lastPicks }); show("scr-form"); };
-    renderCounts(boot.options, boot.as_of, boot.responded, boot.total_voters);
+    el("change").onclick = function () {
+      renderHeader(boot.poll, true, true);
+      prefill({ voter: el("who").value, other: el("other").value, picks: lastPicks });
+      show("scr-form");
+    };
+    el("notyou").onclick = function () {
+      forget();
+      lastPicks = [];
+      el("who").value = ""; el("other").value = "";
+      el("other-wrap").style.display = "none";
+      var cbs = dateBoxes();
+      for (var k = 0; k < cbs.length; k++) cbs[k].checked = false;
+      el("none").checked = false;
+      syncRows(); hideErr(); refreshVoted();
+      reveal(el("who"));
+    };
+    renderCounts(boot.options, boot.as_of, boot.responded, boot.total_voters, boot.guests);
+  }
+  // "You already voted" shows only while the picked name matches the answer
+  // saved on this phone, so a second person on a shared phone is not told they voted.
+  function normName(s) { return String(s || "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "").toLowerCase(); }
+  function refreshVoted() {
+    var s = loadSaved(), who = el("who").value;
+    var on = !!(s && who && String(s.voter) === who &&
+      (who !== "other" || normName(s.other) === normName(el("other").value)));
+    el("voted").style.display = on ? "flex" : "none";
+    el("go").textContent = on ? "Update my dates" : "Send my dates";
   }
   function dateBoxes() { return el("opts").getElementsByTagName("input"); }
   function onDateChange() {
@@ -320,7 +367,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     for (var k = 0; k < cbs.length; k++) cbs[k].parentNode.className = "opt" + (cbs[k].checked ? " on" : "");
     el("none-row").className = "opt none" + (el("none").checked ? " on" : "");
   }
-  function renderCounts(options, asOf, responded, total) {
+  function renderCounts(options, asOf, responded, total, guests) {
     var max = 0, i;
     for (i = 0; i < options.length; i++) {
       counts[options[i].id] = options[i].count;
@@ -330,13 +377,12 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       var o = options[i];
       var pill = el("pill-" + o.id), bar = el("bar-" + o.id);
       if (pill) {
-        pill.textContent = String(o.count);
+        pill.textContent = o.count + (o.count === 1 ? " vote" : " votes");
         pill.className = "pill" + (max > 0 && o.count === max ? " hot" : "");
-        pill.setAttribute("aria-label", o.count + (o.count === 1 ? " vote" : " votes"));
       }
       if (bar) bar.style.width = (max > 0 ? Math.round(100 * o.count / max) : 0) + "%";
     }
-    el("foot").textContent = "Live count as of " + ct(asOf) + ". " + votedLine(responded, total);
+    el("foot").textContent = "Live count as of " + ct(asOf) + ". " + votedLine(responded, total, guests);
   }
   function prefill(s) {
     if (!s) return;
@@ -354,16 +400,18 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     el("none").checked = !any && s.picks && s.picks.length === 0 && !!s.voter;
     syncRows();
   }
-  function showErr(m) { var e = el("err"); e.textContent = m; e.style.display = "block"; }
-  function hideErr() { el("err").style.display = "none"; }
+  function showErr(m, id) { var e = el(id || "err"); e.textContent = m; e.style.display = "block"; }
+  function hideErr() { el("err").style.display = "none"; el("who-err").style.display = "none"; }
 
+  // Name errors show right under the picker and scroll it into view (no focus:
+  // focusing jumped the page and left the error below the fold).
   function submit() {
     hideErr();
     var who = el("who").value, body = { t: tok, option_ids: [] };
-    if (!who) { showErr("Pick your name first."); el("who").focus(); return; }
+    if (!who) { showErr("Pick your name first.", "who-err"); reveal(el("who")); return; }
     if (who === "other") {
       var nm = el("other").value.replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
-      if (nm.length < 2) { showErr("Type your name."); el("other").focus(); return; }
+      if (nm.length < 2) { showErr("Type your name.", "who-err"); reveal(el("other-wrap")); return; }
       body.other_name = nm;
     } else body.voter_id = Number(who);
     var cbs = dateBoxes();
@@ -374,20 +422,22 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
     btn.disabled = true; btn.textContent = "Sending…";
     getJSON(FN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(function (res) {
-        btn.disabled = false; btn.textContent = "Send my dates";
+        btn.disabled = false; refreshVoted();
         if (res.status === 410) { showClosed(null); return; }
         if (res.status !== 200 || !res.j.ok) { showErr(res.j.error || "Could not save. Please try again or text Eddie."); return; }
         lastPicks = body.option_ids.slice();
         save({ voter: who, other: body.other_name || "", picks: lastPicks });
-        renderCounts(res.j.options, res.j.as_of, res.j.responded, res.j.total_voters);
+        refreshVoted();
+        renderCounts(res.j.options, res.j.as_of, res.j.responded, res.j.total_voters, res.j.guests);
         renderDone(res.j);
       }, function () {
-        btn.disabled = false; btn.textContent = "Send my dates";
+        btn.disabled = false; refreshVoted();
         showErr("Could not reach the server. Check your signal and try again.");
       });
   }
 
   function renderDone(j) {
+    if (boot && boot.poll) renderHeader(boot.poll, false, true);
     var first = String(j.name || "").split(" ")[0] || "you";
     el("done-hd").textContent = "Thanks, " + first + "!";
     var chips = el("done-picks");
@@ -404,22 +454,23 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
       el("done-msg2").textContent = "If something changes, just vote again and it will replace this one.";
     }
     renderLanding(el("done-land"), j.options || []);
-    el("done-foot").textContent = "As of " + ct(j.as_of) + ". " + votedLine(j.responded, j.total_voters);
+    el("done-foot").textContent = "As of " + ct(j.as_of) + ". " + votedLine(j.responded, j.total_voters, j.guests);
     show("scr-done");
   }
 
   function showClosed(j) {
+    if (boot && boot.poll) renderHeader(boot.poll, false, true);
     if (j && j.options) {
       renderLanding(el("closed-land"), j.options);
-      el("closed-foot").textContent = "Final count. " + votedLine(j.responded, j.total_voters);
+      el("closed-foot").textContent = "Final count. " + votedLine(j.responded, j.total_voters, j.guests);
     }
     show("scr-closed");
   }
 
   // ---- results (?r=) ----------------------------------------------------------
   function renderResults(j) {
-    renderHeader(j.poll, false);
-    el("res-sub").textContent = "As of " + ct(j.as_of) + ". " + votedLine(j.responded, j.total_voters) +
+    renderHeader(j.poll, false, false);
+    el("res-sub").textContent = "As of " + ct(j.as_of) + ". " + votedLine(j.responded, j.total_voters, j.guests) +
       (j.poll.closed ? " Voting is closed." : "");
     var max = 0, i, best = [];
     for (i = 0; i < j.options.length; i++) if (j.options[i].count > max) max = j.options[i].count;
@@ -480,7 +531,7 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
   }
   function loadResults() {
     show("scr-loading");
-    getJSON(FN + "?r=" + encodeURIComponent(rtok)).then(function (res) {
+    getJSON(FN, { headers: { "X-Poll-R": rtok } }).then(function (res) {
       if (res.status === 200 && res.j.ok) { renderResults(res.j); return; }
       if (res.status === 429) { dead(res.j.error, true); return; }
       dead(null, false);
@@ -490,16 +541,19 @@ select:focus,input[type=text]:focus{border-color:var(--accent)}
   // ---- boot -----------------------------------------------------------------
   function loadVote() {
     show("scr-loading");
-    getJSON(FN + "?t=" + encodeURIComponent(tok)).then(function (res) {
+    getJSON(FN, { headers: { "X-Poll-T": tok } }).then(function (res) {
       if (res.status === 410) { showClosed(null); return; }
       if (res.status === 429) { dead(res.j.error, true); return; }
       if (res.status !== 200 || !res.j.ok) { dead(null, false); return; }
       boot = res.j;
-      renderHeader(boot.poll, true);
+      renderHeader(boot.poll, true, true);
       if (boot.poll.closed) { showClosed(boot); return; }
       if (!el("opts").firstChild) buildForm();
-      else renderCounts(boot.options, boot.as_of, boot.responded, boot.total_voters);
-      prefill(loadSaved());
+      else renderCounts(boot.options, boot.as_of, boot.responded, boot.total_voters, boot.guests);
+      var saved = loadSaved();
+      prefill(saved);
+      if (saved && saved.picks) lastPicks = saved.picks.slice();
+      refreshVoted();
       show("scr-form");
     }, function () { dead("Could not load. Check your signal and try again.", true); });
   }
