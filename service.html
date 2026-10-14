@@ -1,5 +1,9 @@
 <!doctype html>
-<!-- service.html v10 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+<!-- service.html v11 — crew Service Area TV screen (drive-thru / front counter). Point a Fire Stick browser at:
+     v11 (2026-10-14, Eddie: "hard to perceive the difference in bars"): the Beat-our-best DT OSAT
+     trend is a line on a zoomed scale with the best month in gold, a dashed best line, the latest
+     month ringed and the gap to beat in words (zero-based bars made 58 vs 70 look equal). Pairs
+     with service-screen fn v13 (closed months read the settled Final feed).
      v10 (2026-08-12): the &today=YYYY-MM-DD test override (documented in v5) is now actually
      forwarded to the fn (validated YYYY-MM-DD; anything else ignored) — it was silently dropped
      by the fetch, so the documented winner-card test path did nothing. Production unaffected
@@ -347,9 +351,37 @@ function buildCards(d){
   }
   // 7b) DT OSAT trend
   if(v.dt_osat&&v.dt_osat.trend&&v.dt_osat.trend.length>=2){
-    const tr=v.dt_osat.trend, mx=Math.max.apply(null,tr.map(t=>t.v).concat([1]));
-    cards.push({a:"teal",h:'<div class="kicker">Our trend · DT Overall Satisfaction</div><div class="title2">Beat our best</div><div class="bars">'+
-      tr.map(t=>'<div class="bar"><div class="fill" style="height:'+Math.round(t.v/mx*100)+'%"></div><div class="bv">'+fmt(t.v,0)+'</div><div class="bm">'+esc(t.m)+'</div></div>').join("")+'</div>'});
+    // v11 (2026-10-14, Eddie: "hard to perceive the difference in bars"): zero-based bars made 58 vs 70
+    // look equal. Now a line on a zoomed scale (fine for a line, values printed), the best month in
+    // gold with a dashed "our best" line, the latest month ringed, and the gap to beat in words.
+    const tr=v.dt_osat.trend, vals=tr.map(t=>t.v);
+    const best=Math.max.apply(null,vals), bi=vals.lastIndexOf(best), li=tr.length-1, last=vals[li];
+    const lo=Math.floor((Math.min.apply(null,vals)-3)/5)*5, hi=Math.ceil((best+3)/5)*5;
+    const W=1000,H=400,L=80,R=95,T=48,B=100, xs=i=>L+(tr.length===1?0:i*(W-L-R)/(tr.length-1)), ys=val=>T+(hi-val)/(hi-lo)*(H-T-B);
+    const curMo=new Date().toLocaleString("en-CA",{timeZone:"America/Chicago"}).slice(0,7);
+    const mtd=!!(v.dt_osat.month&&String(v.dt_osat.month).slice(0,7)===curMo);
+    let g="";
+    for(let y=lo;y<=hi;y+=5) g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+ys(y)+'" y2="'+ys(y)+'" stroke="rgba(255,255,255,.10)" stroke-width="1"/>'+
+      '<text x="'+(L-14)+'" y="'+(ys(y)+8)+'" text-anchor="end" fill="#8aa" font-size="22" font-weight="600">'+y+'</text>';
+    g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+ys(best)+'" y2="'+ys(best)+'" stroke="#FFC72C" stroke-width="2" stroke-dasharray="8 8" opacity=".75"/>';
+    g+='<polyline points="'+tr.map((t,i)=>xs(i)+','+ys(t.v)).join(" ")+'" fill="none" stroke="#37C2FF" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>';
+    tr.forEach((t,i)=>{
+      const isB=i===bi, isL=i===li, c=isB?"#FFC72C":"#37C2FF";
+      if(isL&&!isB) g+='<circle cx="'+xs(i)+'" cy="'+ys(t.v)+'" r="19" fill="none" stroke="#fff" stroke-width="3"/>';
+      g+='<circle cx="'+xs(i)+'" cy="'+ys(t.v)+'" r="'+(isB||isL?12:8)+'" fill="'+c+'" stroke="#0b1a26" stroke-width="3"/>';
+      if(isB||isL) g+='<text x="'+(i===0?xs(i)-14:xs(i))+'" y="'+(ys(t.v)-(isL&&!isB?30:24))+'" text-anchor="'+(i===0?'start':'middle')+'" fill="'+(isB?"#FFC72C":"#fff")+'" font-size="34" font-weight="800">'+fmt(t.v,0)+(isB?' ★':'')+'</text>';
+    });
+    tr.forEach((t,i)=>{
+      g+='<text x="'+xs(i)+'" y="'+(H-52)+'" text-anchor="middle" fill="'+(i===bi?"#FFC72C":(i===li?"#fff":"#cfe"))+'" font-size="30" font-weight="800">'+fmt(t.v,0)+'</text>'+
+        '<text x="'+xs(i)+'" y="'+(H-16)+'" text-anchor="middle" fill="#9bb" font-size="24" font-weight="600">'+esc(t.m)+(i===li&&mtd?' (so far)':'')+'</text>';
+    });
+    const gap=Math.round((best-last)*10)/10;
+    const msg = bi===li ? '<span style="color:#FFC72C">New best: '+fmt(last,0)+'%. Keep it there.</span>'
+      : '<span style="color:#fff">'+esc(tr[li].m)+' '+fmt(last,0)+'%</span> · <span style="color:#FFC72C">'+fmt(gap,0)+' '+(gap===1?'point':'points')+' to beat our best ('+esc(tr[bi].m)+' '+fmt(best,0)+'%)</span>';
+    cards.push({a:"teal",h:'<div class="kicker">Our trend · DT Overall Satisfaction · last '+tr.length+' months</div><div class="title2">Beat our best</div>'+
+      '<div style="font-size:3.2vh;font-weight:800;margin:.4vh 0 1vh">'+msg+'</div>'+
+      '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;max-height:44vh;display:block;margin:0 auto" role="img" aria-label="DT Overall Satisfaction by month: '+esc(tr.map(t=>t.m+' '+fmt(t.v,0)).join(', '))+'">'+g+'</svg>'+
+      '<div class="fine">Monthly top-box % of drive thru guests · SMG VOICE'+(mtd?' · '+esc(tr[li].m)+' is month to date':'')+'</div>'});
   }
 
   // 7c) EAD — Executed as Designed, MTD (fn v8 `ead` payload): % + rank + gap to #1,
