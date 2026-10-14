@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta name="robots" content="noindex, nofollow">
+<title>Team Update</title>
+<!--
+  tv.html: phone player for the weekly team update video (Eddie 2026-10-14: GMs paste the
+  link into each store's SMS group text). Source of truth:
+  operations-system/edge-functions/team-video-static/tv.html, published to the manager-page
+  repo (GH Pages). Link: tv.html?c=<code>. The page asks the team-video Edge Function for a
+  fresh signed MP4 URL and plays it inline. No data lives in this file.
+-->
+<style>
+  :root { --navy:#0E2841; --ink:#1F1F1F; --grey:#6B6B6B; --red:#C0392B; --bg:#FFFFFF; --line:#E8E8E8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --navy:#9CC3EE; --ink:#EDEDED; --grey:#A8A8A8; --red:#FF7B6B; --bg:#111417; --line:#2A2F35; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 18px 16px 32px; }
+  .kicker { color:var(--red); font-weight:700; font-size:13px; letter-spacing:.06em; text-transform:uppercase; }
+  h1 { color:var(--navy); font-size:24px; line-height:1.2; margin:4px 0 4px; }
+  .sub { color:var(--grey); font-size:15px; margin:0 0 14px; }
+  video { width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; display:block; }
+  .meta { color:var(--grey); font-size:13px; margin-top:10px; line-height:1.45; }
+  .meta a { color:var(--navy); }
+  .msg { border:1px solid var(--line); border-radius:8px; padding:16px; font-size:16px; line-height:1.45; }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker" id="kicker">Team Update</div>
+  <h1 id="title">Loading… / Cargando…</h1>
+  <p class="sub" id="sub"></p>
+  <div id="slot"></div>
+  <p class="meta" id="meta"></p>
+</main>
+<script>
+(function () {
+  "use strict";
+  var FN = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/team-video";
+  var T = {
+    en: { kicker: "Weekly team update", through: "Numbers in the video show their data through dates. Video data through ",
+          file: "Video not playing? Open the video file", dead: "This link isn't working. Ask your GM for this week's link.",
+          expired: "This video has expired. Ask your GM for this week's link.", mins: " min" },
+    es: { kicker: "Actualización semanal del equipo", through: "Los números del video muestran la fecha de sus datos. Datos del video hasta el ",
+          file: "¿No se reproduce? Abre el archivo del video", dead: "Este enlace no funciona. Pídele a tu gerente el enlace de esta semana.",
+          expired: "Este video ya venció. Pídele a tu gerente el enlace de esta semana.", mins: " min" }
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var code = new URLSearchParams(location.search).get("c") || "";
+  function text(id, s) { $(id).textContent = s; }
+  function fail(key, lang) {
+    var t = T[lang] || T.en;
+    text("title", lang ? t[key] : T.en[key] + " / " + T.es[key]);
+    text("sub", "");
+  }
+  if (!/^[A-Za-z0-9_-]{10,40}$/.test(code)) { fail("dead"); return; }
+  fetch(FN + "?c=" + encodeURIComponent(code), { cache: "no-store" })
+    .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+    .then(function (res) {
+      var j = res.j || {};
+      if (!j.ok) { fail(res.s === 410 ? "expired" : "dead", j.lang); return; }
+      var t = T[j.lang] || T.en;
+      document.documentElement.lang = j.lang === "es" ? "es" : "en";
+      document.title = j.title || "Team Update";
+      text("kicker", t.kicker);
+      text("title", j.title || "");
+      var mins = j.duration_s ? " · " + Math.max(1, Math.round(j.duration_s / 60)) + t.mins : "";
+      text("sub", (j.week_label || "") + mins);
+      var v = document.createElement("video");
+      v.controls = true; v.preload = "metadata";
+      v.setAttribute("playsinline", ""); v.setAttribute("webkit-playsinline", "");
+      if (j.poster_url) v.poster = j.poster_url;
+      v.src = j.video_url;
+      $("slot").appendChild(v);
+      var meta = $("meta");
+      if (j.data_through) meta.appendChild(document.createTextNode(t.through + j.data_through + ". "));
+      var a = document.createElement("a");
+      a.href = FN + "?c=" + encodeURIComponent(code) + "&go=1";
+      a.textContent = t.file;
+      meta.appendChild(a);
+    })
+    .catch(function () { fail("dead"); });
+})();
+</script>
+</body>
+</html>
