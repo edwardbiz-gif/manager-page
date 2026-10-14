@@ -76,7 +76,9 @@
       v.controls = true; v.preload = "metadata";
       v.setAttribute("playsinline", ""); v.setAttribute("webkit-playsinline", "");
       if (j.poster_url) v.poster = j.poster_url;
-      v.src = j.video_url;
+      // No poster image (the bucket is video/mp4 only): a #t= fragment makes phones paint
+      // the cover slide (past the 0.25 s fade-in) instead of a black box before play.
+      v.src = j.video_url + (j.poster_url ? "" : "#t=0.5");
       $("slot").appendChild(v);
       var meta = $("meta");
       if (j.data_through) meta.appendChild(document.createTextNode(t.through + j.data_through + ". "));
