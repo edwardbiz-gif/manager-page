@@ -1,5 +1,16 @@
 <!doctype html>
-<!-- meal.html v2 (2026-07-10) - shift-leader Employee Meal / Promo logging.
+<!-- meal.html v3 (2026-10-23) - picker completeness (pairs with meal-log fn v3).
+     v3: (a) groups = "Working now - no meal yet" (punches OR scheduled now),
+     NEW "Scheduled today - no meal yet", "Already logged today" (every crew
+     meal logged here today, plate icon), "All crew", Management.
+     (b) "Not on the list - type their name" option at the bottom: sends
+     typed_name (no geid); the fn sanitizes it to "First L." (PII guard).
+     (c) After a log, the person moves to "Already logged today" right away
+     (the payload used to stay stale until a reload).
+     (d) A page left open (POS QR tablets) re-reads the picker when a meal form
+     opens and the data is over 10 minutes old.
+     (e) Data-through line under the picker (schedule moment + punches through).
+     meal.html v2 (2026-07-10) - shift-leader Employee Meal / Promo logging.
      v2: (a) MANAGEMENT MEALS - the employee picker gains a fourth group
      "Management (off-shift meal benefit)" (GMs/AMs/Sups/Eddie/Ed Jr from the
      managers directory, this store first); picking one sends
@@ -255,7 +266,13 @@
         <label>3. Who is the meal for?</label>
         <select id="emp"><option value="">Select person&hellip;</option></select>
         <div class="mgmt-note" id="mgmtnote">GM/AM benefit: two free value meals per week when off shift.</div>
-        <p class="hint">People on the clock with no meal logged yet are at the top. Management is at the bottom.</p>
+        <div id="typed-wrap" style="display:none">
+          <label for="typedname">Their name (first name + last initial)</label>
+          <input type="text" id="typedname" maxlength="40" autocomplete="off" autocapitalize="words" placeholder="e.g. Maria R.">
+          <p class="hint">Letters only. Only the first name and last initial are saved.</p>
+        </div>
+        <p class="hint">People working now with no meal logged yet are at the top. Not on the list? Pick &ldquo;Not on the list&rdquo; at the very bottom and type the name.</p>
+        <p class="hint" id="emp-asof"></p>
       </div>
       <div id="promo-fields" style="display:none">
         <label>3. Reason for the promo</label>
@@ -289,6 +306,10 @@ var params = new URLSearchParams(location.search);
 var tok = params.get('t') || '';
 var storePick = params.get('store') || '';
 var boot = null;          // bootstrap payload
+var bootAt = 0;           // ms when boot was fetched (v3 stale-page refresh)
+var BOOT_MAX_AGE = 10 * 60 * 1000;
+var TYPED = '__typed__';  // picker value for the "Not on the list" fallback
+var empNames = {};        // geid -> clean display name (no icon prefix)
 var mode = '';            // 'meal' | 'promo'
 var photoB64 = null;
 
@@ -313,12 +334,37 @@ function loadBoot(){
     if (!res.ok || !res.j.ok) { show('scr-dead'); return; }
     if (res.j.needs_store) { renderStorePick(res.j.stores || []); return; }
     boot = res.j;
+    bootAt = Date.now();
     el('storeline').textContent = '📍 ' + boot.store.name + ' · #' + boot.store.number + ' — ' + boot.business_date;
     fillEmployees();
     fillReasons();
     show('scr-home');
   })
   .catch(function(){ show('scr-dead'); });
+}
+// v3: quiet re-read of the picker for a page left open (POS QR tablets). Keeps
+// the current screen; on any failure the old list simply stays.
+function refreshBoot(){
+  var u = FN + '?t=' + encodeURIComponent(tok) + (storePick ? '&store=' + encodeURIComponent(storePick) : '');
+  bootAt = Date.now();     // one try per window, even if it fails
+  fetch(u).then(function(r){ return r.json(); })
+  .then(function(j){
+    if (!j || !j.ok || j.needs_store || !j.store) return;
+    var keep = el('emp').value;
+    boot = j;
+    fillEmployees();
+    if (keep) { el('emp').value = keep; }
+    refreshMealNotes();
+  })
+  .catch(function(){});
+}
+function fmtAsOf(s){
+  // "2026-10-23T14:05:00" -> "2:05 PM" (CT wall clock, as sent by the fn)
+  var m = /T(\d{2}):(\d{2})/.exec(String(s || ''));
+  if (!m) return '';
+  var h = Number(m[1]), ap = h >= 12 ? 'PM' : 'AM';
+  var h12 = (h % 12) === 0 ? 12 : (h % 12);
+  return h12 + ':' + m[2] + ' ' + ap;
 }
 function renderStorePick(stores){
   var box = el('storebtns'); box.innerHTML = '';
@@ -334,23 +380,24 @@ function renderStorePick(stores){
 function fillEmployees(){
   var sel = el('emp');
   sel.innerHTML = '<option value="">Select person&hellip;</option>';
-  function group(label, list){
+  empNames = {};
+  function group(label, list, icon){
     if (!list || !list.length) return;
     var og = document.createElement('optgroup'); og.label = label;
     list.forEach(function(e){
       var o = document.createElement('option');
-      o.value = e.geid; o.textContent = e.name;
+      o.value = e.geid; o.textContent = (icon || '') + e.name;
+      empNames[String(e.geid)] = e.name;
       og.appendChild(o);
     });
     sel.appendChild(og);
   }
-  // v2 groups; falls back to the v1 payload keys if an old fn answers.
-  group('On the clock - no meal yet', boot.employees_on_clock_no_meal || boot.employees_scheduled_now);
+  // v3 groups; falls back to the v1 payload keys if an old fn answers.
+  group('Working now - no meal yet', boot.employees_on_clock_no_meal || boot.employees_scheduled_now);
+  group('Scheduled today - no meal yet', boot.employees_scheduled_today);
   // v2-0.48: 🍽 marks people whose meal is already logged today (same icon as
   // the board's floor view) — the group label said it, the icon makes it visual.
-  group('Already logged today', (boot.employees_already_logged || []).map(function(e){
-    return { geid: e.geid, name: '🍽 ' + e.name };
-  }));
+  group('Already logged today', boot.employees_already_logged, '🍽 ');
   group('All crew', boot.employees_other);
   var mg = boot.management || [];
   if (mg.length) {
@@ -364,6 +411,40 @@ function fillEmployees(){
     });
     sel.appendChild(og);
   }
+  // v3: the never-block fallback. Always last, always present.
+  var tg = document.createElement('optgroup');
+  tg.label = 'Cannot find them?';
+  var to = document.createElement('option');
+  to.value = TYPED; to.textContent = '✏️ Not on the list - type their name';
+  tg.appendChild(to);
+  sel.appendChild(tg);
+  // Data-through line (house rule: every list says how fresh it is).
+  var asof = [];
+  if (boot.schedule_asof_ct) asof.push('Schedule as of ' + fmtAsOf(boot.schedule_asof_ct));
+  if (boot.punches_through_ct) asof.push('clock-ins through ' + fmtAsOf(boot.punches_through_ct));
+  el('emp-asof').textContent = asof.length ? asof.join(', ') + ' CT.' : '';
+}
+// v3: after a crew log, move that person to "Already logged today" right away
+// (local only, no extra request) so "Log another" shows the plate mark.
+function markLogged(geid){
+  if (!boot) return;
+  var g = String(geid), hit = null;
+  ['employees_on_clock_no_meal', 'employees_scheduled_today', 'employees_other', 'employees_scheduled_now'].forEach(function(k){
+    var arr = boot[k];
+    if (!arr || !arr.length) return;
+    boot[k] = arr.filter(function(e){
+      if (String(e.geid) === g) { if (!hit) hit = e; return false; }
+      return true;
+    });
+  });
+  var logged = boot.employees_already_logged || [];
+  var have = logged.some(function(e){ return String(e.geid) === g; });
+  if (!have) {
+    logged.push(hit || { geid: g, name: empNames[g] || ('Crew #' + g) });
+    logged.sort(function(a, b){ return String(a.name).localeCompare(String(b.name)); });
+  }
+  boot.employees_already_logged = logged;
+  fillEmployees();
 }
 function fillReasons(){
   var sel = el('reason');
@@ -415,6 +496,9 @@ function openForm(m){
   el('warn15').style.display = 'none';
   el('mgmtnote').style.display = 'none';
   el('emp').value = '';
+  el('typedname').value = '';
+  el('typed-wrap').style.display = 'none';
+  if (m === 'meal' && boot && Date.now() - bootAt > BOOT_MAX_AGE) refreshBoot();
   el('reason').value = '';
   el('note').value = '';
   el('note-wrap').style.display = 'none';
@@ -441,6 +525,7 @@ function refreshMealNotes(){
   var v = amtVal();
   var mg = (mode === 'meal') && isMgmtPick();
   el('mgmtnote').style.display = mg ? 'block' : 'none';
+  el('typed-wrap').style.display = (mode === 'meal' && el('emp').value === TYPED) ? 'block' : 'none';
   el('warn15').style.display = (mode === 'meal' && !mg && isFinite(v) && v >= 15) ? 'block' : 'none';
 }
 el('amt').addEventListener('input', refreshMealNotes);
@@ -460,18 +545,27 @@ el('go').onclick = function(){
   var body = { t: tok, kind: mode, amount_usd: amt, photo_b64: photoB64, photo_mime: 'image/jpeg' };
   if (storePick) body.store = storePick;
   var empName = '';
+  var pickedGeid = '';
   if (mode === 'meal') {
     var g = el('emp').value;
     if (!g) { showErr('Pick who the meal is for.'); return; }
-    empName = el('emp').options[el('emp').selectedIndex].text;
-    if (g.indexOf('m:') === 0) {
+    if (g === TYPED) {
+      // v3 "Not on the list": the fn sanitizes to "First L." and stores no geid.
+      var tn = el('typedname').value.trim();
+      if (!tn) { showErr('Type their first name and last initial, like Maria R.'); return; }
+      body.typed_name = tn;
+      empName = tn;
+    } else if (g.indexOf('m:') === 0) {
+      empName = el('emp').options[el('emp').selectedIndex].text;
       body.meal_class = 'management';
       body.manager_id = g.slice(2);
       // no employee_name: the fn fills it from the managers directory
       // (the naming source of truth).
     } else {
+      empName = empNames[g] || el('emp').options[el('emp').selectedIndex].text;
       body.geid = g;
-      body.employee_name = empName;
+      body.employee_name = empName;   // display only; fn v3 names from crew_names
+      pickedGeid = g;
     }
   } else {
     var r = el('reason').value;
@@ -487,6 +581,8 @@ el('go').onclick = function(){
   .then(function(res){
     if (!res.ok || !res.j.ok) throw new Error(res.j && res.j.error ? res.j.error : 'HTTP error');
     var mgmt = (mode === 'meal') && isMgmtPick();
+    if (res.j.employee_name && mode === 'meal' && !mgmt) empName = res.j.employee_name;
+    if (pickedGeid) markLogged(pickedGeid);
     var s = '';
     s += '<div class="row"><span>Type</span><b>' + (mode === 'meal' ? (mgmt ? 'Management meal' : 'Employee meal') : 'Promo / comp') + '</b></div>';
     if (mode === 'meal') s += '<div class="row"><span>' + (mgmt ? 'Manager' : 'Employee') + '</span><b>' + esc(empName) + '</b></div>';
