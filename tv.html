@@ -68,7 +68,8 @@
       var t = T[j.lang] || T.en;
       document.documentElement.lang = j.lang === "es" ? "es" : "en";
       document.title = j.title || "Team Update";
-      text("kicker", t.kicker);
+      // the weekly supervisor sportscast shares this player; its rows carry the show name in the title
+      text("kicker", /Supervisor Showdown/i.test(j.title || "") ? "Supervisor Showdown" : t.kicker);
       text("title", j.title || "");
       var mins = j.duration_s ? " · " + Math.max(1, Math.round(j.duration_s / 60)) + t.mins : "";
       text("sub", (j.week_label || "") + mins);
