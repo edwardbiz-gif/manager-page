@@ -9,6 +9,13 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.69 — COPILOT FOLLOW-THROUGH card (fn+shell lockstep, 2026-10-27). New TODAY
+  module for Owner / Supervisor: one row per store in scope with the [Copilot] GM tasks
+  open / closed in 90 d / oldest open / unacknowledged, the GM's last board open
+  (usage_daily, nightly), the link state (live / expiring / expired) and the supervisor,
+  from data.follow_through (fn v2-0.69, view v_copilot_follow_through). Why: five of
+  twelve GM links had been expired for weeks while copilot tasks kept landing on them.
+
   v2-0.67 — BOARD PRUNE + TOP TABS (fn+shell lockstep, 2026-09-09, Eddie's board
   review). REMOVED, all shell-side: the TODAY verdict/BLUF zone, Today's Brief,
   What needs you (+ computeTodayPriorities), Temp watch, the pinned June
@@ -786,6 +793,13 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .dprow:last-child{border-bottom:0}
 .dprow .dpn{font-weight:700;color:var(--ink-2)} .dprow .dpn small{display:block;font-size:8.5px;color:var(--ink-muted);font-weight:700}
 .dprow .dprate{text-align:right;font-weight:900;font-variant-numeric:tabular-nums;min-width:46px}
+/* v2-0.69 copilot follow-through rows */
+.ftrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line);font-size:11.5px}
+.ftrow:last-child{border-bottom:0}
+.ftrow .ftn{font-weight:800;color:var(--ink-2)} .ftrow .ftn small{display:block;font-size:9px;color:var(--ink-muted);font-weight:700;margin-top:2px;line-height:1.35}
+.ftrow .ftv{text-align:right;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap} .ftrow .ftv small{display:block;font-size:8.5px;color:var(--ink-muted);font-weight:700}
+.ftchip{display:inline-block;font-size:8px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:999px;margin-left:5px;vertical-align:1px;white-space:nowrap}
+.ftchip.ok{color:var(--good);background:var(--good-bg)} .ftchip.warn{color:var(--warn);background:var(--warn-bg)} .ftchip.bad{color:var(--bad);background:var(--bad-bg)} .ftchip.neu{color:var(--ink-muted);background:var(--surface-2)}
 .statedot{font-size:8px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
 .sd-ok{color:var(--good);background:var(--good-bg)} .sd-miss{color:var(--bad);background:var(--bad-bg)}
 .sd-warn{color:var(--warn);background:var(--warn-bg)}   /* v2-0.30 Jolt late/stale */
@@ -1397,7 +1411,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.67"; // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
+const SHELL_VERSION = "v2-0.69"; // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -5502,6 +5516,75 @@ function renderGrillHomeTile(data){
 // links moved to v2 — the fn gathered check_in but the v2 shell never rendered
 // it). Geofence stays SERVER-side; the client only sends coordinates. Payload
 // (Supervisors only, null otherwise): { open, on_arrival, eligible_stores }.
+// MODULE — Copilot follow-through (v2-0.69, Owner/Supervisor TODAY lane). One row
+// per store in scope: [Copilot] GM tasks open / closed in 90 d / oldest open /
+// unacknowledged, the GM's last board open (usage_daily, nightly), the link state
+// and the supervisor. Self-gates on data.follow_through (fn sends it to Owner and
+// Supervisor only). Why (2026-10-27): five of twelve GM links had been expired for
+// weeks while copilot tasks kept landing on them, and nothing on the board showed
+// who follows through. Worst rows first: dead link, dying link, silent 30 d+.
+function ftDay(s){
+  // date-only strings ("2026-10-27") parsed as LOCAL parts: new Date("YYYY-MM-DD") is UTC
+  // midnight and would print the previous day in Chicago.
+  if(!s) return "";
+  const p = String(s).slice(0,10).split("-");
+  if(p.length !== 3) return fmtDate(s);
+  try{ return new Date(+p[0], +p[1]-1, +p[2]).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+  catch(_e){ return String(s).slice(0,10); }
+}
+function renderFollowThrough(data){
+  const ft = data.follow_through;
+  if(!ft || !isOwnerSup(data)) return "";
+  const rows = Array.isArray(ft.rows) ? ft.rows : [];
+  if(!rows.length){
+    if(ft.error) return card("Copilot follow-through", '<div class="empline">The follow-through view did not load ('+esc(ft.error)+').</div>', { icon:"🧭" });
+    return "";
+  }
+  const n = function(v){ return v==null ? 0 : Number(v); };
+  const chip = function(r){
+    const st = String(r.token_state||"");
+    if(st==="expired") return '<span class="ftchip bad">link expired</span>';
+    if(st==="expiring") return '<span class="ftchip warn">link expiring</span>';
+    if(st==="no_gm") return '<span class="ftchip neu">no GM</span>';
+    const d = r.days_since_open;
+    if(d==null) return '<span class="ftchip warn">never opened</span>';
+    if(n(d) > 30) return '<span class="ftchip warn">'+n(d)+' d silent</span>';
+    return '<span class="ftchip ok">opened '+n(d)+' d ago</span>';
+  };
+  const weight = function(r){
+    const s = String(r.token_state||"");
+    if(s==="expired") return 0;
+    if(s==="expiring") return 1;
+    if(r.days_since_open==null || n(r.days_since_open) > 30) return 2;
+    return 3;
+  };
+  const sorted = rows.slice().sort(function(a,b){
+    return (weight(a)-weight(b)) || (n(b.unacked_n)-n(a.unacked_n))
+      || String(a.location_name||"").localeCompare(String(b.location_name||""));
+  });
+  const body = sorted.map(function(r){
+    const lastOpen = r.last_board_open ? ftDay(r.last_board_open) : "never";
+    const oldest = (r.oldest_open_days!=null) ? (n(r.oldest_open_days)+" d") : "none";
+    const sup = r.sup_name ? String(r.sup_name).split(" ")[0] : "none";
+    const parked = n(r.parked_n) ? (' · '+n(r.parked_n)+' rollup'+(n(r.parked_n)===1?"":"s")+' with '+esc(sup)) : '';
+    return '<div class="ftrow"><span class="ftn">'+esc(r.location_name||"")+chip(r)
+      + '<small>'+esc(r.gm_name||"no GM")+' · last open '+esc(lastOpen)+' · sup '+esc(sup)+'</small></span>'
+      + '<span class="ftv">'+n(r.open_n)+' open <span class="'+(n(r.closed_90)?"fav":"neu")+'">/ '+n(r.closed_90)+' done</span>'
+      + '<small>oldest '+esc(oldest)+' · '+n(r.unacked_n)+' unacknowledged'+parked+'</small></span></div>';
+  }).join("");
+  const totOpen = rows.reduce(function(a,r){ return a+n(r.open_n); },0);
+  const totDone = rows.reduce(function(a,r){ return a+n(r.closed_90); },0);
+  const dead = rows.filter(function(r){ return r.token_state==="expired"||r.token_state==="expiring"; }).length;
+  const thru = ft.data_through ? ftDay(ft.data_through) : "";
+  const usage = ft.usage_through ? ftDay(ft.usage_through) : "";
+  return card("Copilot follow-through", body
+    + '<div class="cap">'+totOpen+' copilot task'+(totOpen===1?"":"s")+' open, '+totDone+' closed in the last 90 d across '+rows.length+' store'+(rows.length===1?"":"s")
+    + (dead ? '; '+dead+' GM link'+(dead===1?"":"s")+' expired or expiring' : '')
+    + '. Task counts live as of '+esc(thru)+'; board opens from the nightly usage rollup thru '+esc(usage)
+    + '. Unacknowledged = still assigned, never touched. A GM with no live link cannot open the board, so new copilot recommendations park with the supervisor instead.</div>',
+    { icon:"🧭", through: thru || null, newBadge:true });
+}
+
 function renderSupCheckIn(data){
   const ci = data.check_in, mgr = data.manager || {};
   if(!ci || mgr.role !== "Supervisor") return "";
@@ -6379,6 +6462,8 @@ const MANIFEST = [
   // on data.prompt_responses; Eddie sees updates without asking).
   { id:"today_prompt_resp",lane:"TODAY", title:"Prompt responses",        render: renderPromptResponsesCard, newBadge:true },
   { id:"today_checkin",    lane:"TODAY", title:"Store check-in",          render: renderSupCheckIn,      newBadge:true },
+  // v2-0.69: Copilot follow-through per store (Owner/Supervisor; self-gates on data.follow_through).
+  { id:"today_follow",     lane:"TODAY", title:"Copilot follow-through",  render: renderFollowThrough,   newBadge:true },
   // v2-0.46: supervisor meal-break spotlight (5 weeks; self-removes when fn returns null).
   { id:"today_mealbreak",  lane:"TODAY", title:"Meal breaks not recorded", render: renderMealBreakTracker, newBadge:true },
   // v2-0.48: New Task / Ticket — EVERY manager tier's home (Eddie 2026-07-13
@@ -6646,7 +6731,9 @@ const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","
                            // v2-0.58 board prompts + owner responses + logging contest:
                            "board_prompts","prompt_responses","food_contest",
                            // v2-0.48 top-level RO flag (gates the New Task / Ticket tile):
-                           "read_only"];
+                           "read_only",
+                           // v2-0.69 Owner/Sup copilot follow-through (rides the TODAY gather):
+                           "follow_through"];
 function mergePostPayload(payload, askedLanes){
   if(!STATE || !STATE.data){ STATE = payload; return STATE; }
   const incoming = (payload && payload.data) || {};
