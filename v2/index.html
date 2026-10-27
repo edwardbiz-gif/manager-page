@@ -745,7 +745,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .segb{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);
  background:var(--surface);color:var(--ink-2);cursor:pointer}
 .segb.on{background:var(--accent);color:var(--on-accent);border-color:transparent}
-.segb:active{transform:translateY(1px)}
+.segb:active{transform:translateY(1px)}
 /* location row of the Voice card (Eddie 2026-09-09) — sits above the daypart row
    and reads as the outer tier: tighter, muted until selected. */
 .segloc{margin:0 0 7px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
@@ -2714,7 +2714,7 @@ function renderGuestsVoice(data){
   // segmented toggle (All + each daypart present).
   const dpDefs = [{key:"all",label:"All day"}].concat((vt.dayparts||[]).map(d=>({key:d.key,label:d.label})));
   const toggle = '<div class="segtog">'+dpDefs.map(d=>
-    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(event,\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
+    '<button class="segb'+(d.key===VOICE_DAYPART?" on":"")+'" onclick="setVoiceDaypart(event,\''+d.key+'\')">'+esc(d.label)+'</button>').join("")+'</div>';
   // LOCATION toggle — only rendered when the viewer actually has more than one.
   const locToggle = vt.entities.length > 1
     ? '<div class="segtog segloc">'+vt.entities.map(function(e){
@@ -2750,7 +2750,7 @@ function setVoiceDaypart(ev, k){
   VOICE_DAYPART = k;
   renderBoard();
 }
-window.setVoiceDaypart = setVoiceDaypart;
+window.setVoiceDaypart = setVoiceDaypart;
 // Location toggle — same repaint + stopPropagation contract as the daypart toggle
 // (the buttons sit inside the card's data-card-drill surface).
 function setVoiceEntity(ev, id){
@@ -6189,11 +6189,16 @@ function brMoneySec(m){
   if(!m||m.error) return brUnavail("The money model");
   let body='<div style="line-height:1.6"><b>'+m.n_rows+'</b> forecast rows frozen across <b>'+m.n_recs+'</b> recommendations · predicted range <b>'+brMoney(m.predicted_min)+'</b> to <b>'+brMoney(m.predicted_max)+'</b> · '+(m.n_executed||0)+' executed</div>';
   body+='<div class="cap" style="margin-top:2px">Ledger data through '+brDate(m.ledger_data_through)+'. DARK — nothing on any surface ranks by EV yet.</div>';
+  if(m.calibrated_min!=null||m.calibrated_max!=null){
+    body+='<div style="line-height:1.6;margin-top:6px"><b>Calibrated</b> range <b>'+brMoney(m.calibrated_min)+'</b> to <b>'+brMoney(m.calibrated_max)+'</b> across '+(m.n_calibrated||0)+' rows</div>';
+    body+='<div class="cap">Calibrated = raw forecast x the measured over predicted factor per lever (M3). Measured data through '+brDate(m.calibration_data_through)+'; factors recomputed '+brDate(m.calibrated_at)+'.</div>';
+  }
   const bs=m.by_source||[];
   if(bs.length){
     body+='<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">';
     for(const s of bs){
-      body+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span>'+esc(s.source)+' <span class="cap">'+esc(s.window)+'</span></span><span class="cap">'+s.n+' rows · '+brMoney(s.min)+' to '+brMoney(s.max)+'</span></div>';
+      const calTxt=(s.cal_min==null&&s.cal_max==null)?'':(' · calibrated '+brMoney(s.cal_min)+' to '+brMoney(s.cal_max));
+      body+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span>'+esc(s.source)+' <span class="cap">'+esc(s.window)+'</span></span><span class="cap">'+s.n+' rows · raw '+brMoney(s.min)+' to '+brMoney(s.max)+calTxt+'</span></div>';
     }
     body+='</div>';
   }
@@ -6201,13 +6206,21 @@ function brMoneySec(m){
   body+='<div class="cap" style="color:var(--warn)">M3 — '+esc(m.m3_status||"")+'</div>';
   const models=m.models||[];
   if(models.length){
-    body+='<div style="font-weight:700;margin:12px 0 4px">The sitting list — ev_models seeds (inert until you approve the money math)</div>';
+    body+='<div style="font-weight:700;margin:12px 0 4px">The sitting list — ev_models $ estimators and their calibration</div>';
     body+='<div style="display:flex;flex-direction:column;gap:6px">';
     for(const md of models){
       const dollar=(md.unit_dollars==null)?'<span style="color:var(--warn)">no $ model (rides the severity prior)</span>':('unit $'+Number(md.unit_dollars).toLocaleString("en-US"));
+      const badge=md.approved?'approved':'inert · approved=false';
+      let cal='';
+      if(md.calibration_method==='no_dollar_path'){ cal='<div class="cap">calibrated: no dollar path (directional only)</div>'; }
+      else if(md.calibration_factor!=null){
+        const band=(md.boot80_lo!=null&&md.boot80_hi!=null)?(' · 80% band '+Number(md.boot80_lo).toFixed(3)+' to '+Number(md.boot80_hi).toFixed(3)):'';
+        cal='<div class="cap"><b>calibrated x'+Number(md.calibration_factor).toFixed(4)+'</b> · '+esc(String(md.calibration_method||""))+' · n '+(md.calibration_n==null?'0':md.calibration_n)+band+' · measured data through '+brDate(md.calibration_through)+'</div>';
+      }
       body+='<div style="border:1px solid rgba(128,128,128,.25);border-radius:9px;padding:7px 9px">'
-        +'<div style="display:flex;justify-content:space-between;gap:8px"><span><b>'+esc(md.source)+'</b> · '+esc(md.metric)+'</span><span class="cap">inert · approved=false</span></div>'
+        +'<div style="display:flex;justify-content:space-between;gap:8px"><span><b>'+esc(md.source)+'</b> · '+esc(md.metric)+'</span><span class="cap">'+badge+'</span></div>'
         +'<div class="cap">'+esc(md.method)+' · '+dollar+' · conf '+esc(String(md.confidence))+' · effort '+esc(String(md.effort))+' · shrink '+esc(String(md.shrink_factor))+' · '+esc(md.noise_class)+'</div>'
+        +cal
         +(md.notes?'<div class="cap">'+esc(md.notes)+'</div>':"")
         +'</div>';
     }
