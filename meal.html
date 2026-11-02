@@ -1,5 +1,8 @@
 <!doctype html>
-<!-- meal.html v3 (2026-10-23) - picker completeness (pairs with meal-log fn v3).
+<!-- meal.html v3.1 (2026-11-02) - a page left open on a store tablet reloads itself once
+     it is 12 h old and sitting on the home screen, so no tablet keeps running an old copy
+     (and an old roster) for weeks. The 10 min picker re-read from v3 is unchanged.
+     meal.html v3 (2026-10-23) - picker completeness (pairs with meal-log fn v3).
      v3: (a) groups = "Working now - no meal yet" (punches OR scheduled now),
      NEW "Scheduled today - no meal yet", "Already logged today" (every crew
      meal logged here today, plate icon), "All crew", Management.
@@ -308,6 +311,8 @@ var storePick = params.get('store') || '';
 var boot = null;          // bootstrap payload
 var bootAt = 0;           // ms when boot was fetched (v3 stale-page refresh)
 var BOOT_MAX_AGE = 10 * 60 * 1000;
+var PAGE_LOADED_AT = Date.now();          // v3.1: self reload of a long-open page
+var PAGE_MAX_AGE = 12 * 60 * 60 * 1000;
 var TYPED = '__typed__';  // picker value for the "Not on the list" fallback
 var empNames = {};        // geid -> clean display name (no icon prefix)
 var mode = '';            // 'meal' | 'promo'
@@ -342,6 +347,16 @@ function loadBoot(){
   })
   .catch(function(){ show('scr-dead'); });
 }
+// v3.1: a tablet that keeps this page open for days still runs the copy it loaded,
+// with whatever roster it had. Once the page is 12 h old and idle on the home
+// screen (no form open, nobody mid-entry), reload it: GitHub Pages serves the
+// current file and loadBoot() fetches a fresh picker. Checked every 5 minutes.
+setInterval(function(){
+  try {
+    var idle = el('scr-home') && el('scr-home').style.display === 'block';
+    if (idle && Date.now() - PAGE_LOADED_AT > PAGE_MAX_AGE) location.reload();
+  } catch (e) {}
+}, 5 * 60 * 1000);
 // v3: quiet re-read of the picker for a page left open (POS QR tablets). Keeps
 // the current screen; on any failure the old list simply stays.
 function refreshBoot(){
