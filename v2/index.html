@@ -9,6 +9,14 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.72 — SCHEDULER: DAYPART OWNERS FROM THE GRID (shell logic; fn stamp in lockstep,
+  2026-11-05, Eddie: no picking a manager's name twice). Who runs Breakfast / Lunch / Dinner
+  fills itself from the codes in the grid (the longest shift inside the window; managers
+  first on a tie), shown in italics; the dropdown's first option reads "auto · <name>" and a
+  saved pick overrides it; Food Safety stays a hand pick. Same session: the roster seed keeps
+  ONE row per person (a manager who also swings under a shift leader job code carries the
+  feed GEID on the manager row). schParseCode() now also returns start/end (additive).
+
   v2-0.71 — MANAGER SCHEDULER (fn+shell lockstep, 2026-11-05; task #2404; design
   docs/plans/manager-scheduler/plan.md, mockup.html is the behaviour spec). NEW PAGE
   schedule (&p=schedule[&store=][&week=]): the weekly manager + shift leader sheet
@@ -1162,6 +1170,7 @@ body.sch-wide .phone{max-width:1180px}
 .sch-t td.pick select:focus,.sch-t td.pull select:focus{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 0 0 0 2px var(--accent)}
 .sch-t td.pick.missing{background:var(--bad-bg)} .sch-t td.pick.missing select,.sch-t td.pick.missing .ro{color:var(--bad)}
 .sch-t td.pick.nopick select{color:var(--ink-muted);font-weight:600}
+.sch-t td.pick.auto select,.sch-t td.pick.auto .ro{color:var(--ink-2);font-style:italic;font-weight:600}
 .sch-t td.r{font-size:15px;color:var(--ink-muted);user-select:none;-webkit-user-select:none}
 .sch-t td.r.can{cursor:pointer} .sch-t td.r.can:hover{background:var(--surface-2)}
 .sch-t td.r.planned{color:var(--ink);font-weight:800}
@@ -1559,7 +1568,7 @@ body.sch-print .sch-foot{margin-top:6px;padding-top:4px;font-size:8.5px;color:#4
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.71"; // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
+const SHELL_VERSION = "v2-0.72"; // Manager Scheduler: daypart owners auto fill from the grid (Eddie 2026-11-05; fn stamp in lockstep, no fn logic change). PRIOR: // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4930,9 +4939,30 @@ function schParseCode(raw, openH, closeH){
   if(m[4]) end += 0.5;
   var h = end - start;
   if(h <= 0 || h > 16) return { kind:"bad", hours:null };
-  return { kind:"shift", hours:h, open:isOpen, close:isClose };
+  return { kind:"shift", hours:h, open:isOpen, close:isClose, start:start, end:end };
 }
-window.schParseCode = schParseCode;   // the browser check runs the fixture table through this
+window.schParseCode = schParseCode;
+
+/* v2-0.72: who runs each daypart fills itself from the grid (Eddie 2026-11-05: no picking a
+   name twice). The person whose shift covers the most of the window wins; managers first on a
+   tie (grid order). Breakfast = open to 11 AM, Lunch = 11 AM to 4 PM, Dinner = 4 PM to close.
+   Food Safety stays a hand pick. A saved pick always overrides the auto owner. */
+var SCH_DP_WIN = { breakfast:[null, 11], lunch:[11, 16], dinner:[16, null] };
+function schAutoOwner(p, key, d){
+  var win = SCH_DP_WIN[key]; if(!win || !p) return null;
+  var openH = Number(p.week.open_hour), closeH = Number(p.week.close_hour);
+  var ws = (win[0] == null) ? openH : win[0], we = (win[1] == null) ? closeH : win[1];
+  if(!(we > ws)) return null;
+  var order = p.people.filter(function(x){ return x.kind === "mgr"; }).concat(p.people.filter(function(x){ return x.kind === "sl"; }));
+  var best = null, bestOv = 0;
+  order.forEach(function(x){
+    var pc = schParseCode(x.codes[d], openH, closeH);
+    if(pc.kind !== "shift") return;
+    var ov = Math.min(pc.end, we) - Math.max(pc.start, ws);
+    if(ov > bestOv){ bestOv = ov; best = x; }
+  });
+  return best ? { person: best, overlap: bestOv, window: we - ws } : null;
+}   // the browser check runs the fixture table through this
 
 function schFmtH(h){ return (Math.round(Number(h || 0) * 10) / 10).toString().replace(/\.0$/, ""); }
 function schMD(iso){ if(!iso) return ""; return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month:"short", day:"numeric", timeZone:"UTC" }); }
@@ -4956,7 +4986,7 @@ function renderSchedulePage(payload){
      + '<div class="sch-sec"><h2>Manager and shift leader schedule <span class="sch-hint nopr">one row per person, Sun to Sat, hours auto totaled</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schGrid">' + schGridHead(p) + '<tbody id="schGridBody"></tbody></table></div>'
      + schLegend(p) + '</div>'
-     + '<div class="sch-sec"><h2>Who runs the shift <span class="sch-hint nopr">daypart owner each day plus the Food Safety owner; red = that person is not scheduled that day</span></h2>'
+     + '<div class="sch-sec"><h2>Who runs the shift <span class="sch-hint nopr">fills itself from the grid (italic = auto, the longest shift in that window); pick a name only to override; Food Safety is a hand pick; red = that person is not scheduled that day</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schDp"><thead><tr><th class="name">Shift</th>' + schDayHeads(p, false) + '<th class="hrs">days</th></tr></thead><tbody id="schDpBody"></tbody></table></div></div>'
      + '<div class="sch-sec"><h2>Routines <span class="sch-hint nopr">tap a day to plan (box), again to tick done (check), a third time to clear</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schRt"><thead><tr><th class="name">Routine</th>' + schDayHeads(p, false) + '<th class="hrs">done</th></tr></thead><tbody id="schRtBody"></tbody></table></div></div>'
@@ -5196,12 +5226,16 @@ function schPaintDayparts(){
       var who = c ? (c.person_id != null ? String(c.person_id) : "other") : "";
       var onToday = person ? schParseCode(person.codes[d], openH, closeH).kind === "shift" : true;
       var missing = !!c && c.person_id != null && (!person || !onToday);
-      if(c) filled++;
-      var label = c ? (person ? person.display_name : (c.person_id != null ? "(removed)" : (c.other_name || "Other"))) : "";
-      var cls = "pick" + (!c ? " nopick" : "") + (missing ? " missing" : "");   // not "empty": the board's .empty rule is display:flex
-      var title = missing ? ((person ? person.display_name : "that person") + " is not scheduled " + SCH_DAYS[d]) : (c && c.person_id == null ? "crew lead: " + (c.other_name || "") : "");
+      var auto = (!c && key !== "food_safety") ? schAutoOwner(p, key, d) : null;   // v2-0.72: from the grid
+      if(c || auto) filled++;
+      var label = c ? (person ? person.display_name : (c.person_id != null ? "(removed)" : (c.other_name || "Other"))) : (auto ? auto.person.display_name : "");
+      var cls = "pick" + (!c && !auto ? " nopick" : "") + (auto ? " auto" : "") + (missing ? " missing" : "");   // not "empty": the board's .empty rule is display:flex
+      var title = missing ? ((person ? person.display_name : "that person") + " is not scheduled " + SCH_DAYS[d])
+        : (c && c.person_id == null ? "crew lead: " + (c.other_name || "")
+        : (auto ? "auto from the grid: " + auto.person.display_name + " covers " + schFmtH(auto.overlap) + " of " + schFmtH(auto.window) + " h; pick a name to override" : ""));
       if(edit){
-        var opts = '<option value="">' + (c ? "clear" : "pick") + '</option>';
+        var autoName = schAutoOwner(p, key, d);
+        var opts = '<option value="">' + esc(c ? (autoName ? "auto \u00B7 " + autoName.person.display_name : "clear") : (auto ? "auto \u00B7 " + auto.person.display_name : "pick")) + '</option>';
         p.people.forEach(function(x){
           var pc = schParseCode(x.codes[d], openH, closeH);
           var tag = pc.kind === "shift" ? "" : pc.kind === "blank" ? " (no shift)" : " (" + (pc.kind === "rq" ? "RQ" : pc.kind === "v" ? "V" : pc.kind === "bad" ? "?" : "OFF") + ")";
