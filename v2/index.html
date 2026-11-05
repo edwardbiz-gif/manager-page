@@ -9,6 +9,24 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.71 — MANAGER SCHEDULER (fn+shell lockstep, 2026-11-05; task #2404; design
+  docs/plans/manager-scheduler/plan.md, mockup.html is the behaviour spec). NEW PAGE
+  schedule (&p=schedule[&store=][&week=]): the weekly manager + shift leader sheet
+  per store that replaces the 2022 Eola BP Excel sheet — Sun..Sat grid of shift codes
+  (9-5, 3-CL, 0-1, OFF, RQ, V; a code that does not parse turns red), HRS + PAY WK per
+  row (the pay/OT week is Sat..Fri, so PAY WK = prior Saturday + Sun..Fri, red over
+  40, dash + "no prior Sat" when last week has no sheet; salaried rows show neither),
+  leaders scheduled per day (low under 4), the daypart owner block (Breakfast / Lunch /
+  Dinner / Food Safety; red when that person is off), routines by role as planned /
+  done ticks + one off items, the pull schedule, Copy last week (empty cells only),
+  Publish, Print view, Print (landscape, the sheet alone). Supervisor / Owner get a
+  store picker + the not-published-for-next-week list. Every edit saves per cell
+  through the sched_* actions and patches state from the receipt (no refetch). HOME
+  TILE today_schedule (data.schedule_home, merged ALWAYS): "week of <date> published"
+  or "not yet" for a GM; N of M stores for Sup / Owner; taps into the page. fetchPage
+  gains per-page `query` (store/week ride the fetch + cache key); hidePageLayer drops
+  the sch-wide frame. Everything sch- namespaced; nothing else changed.
+
   v2-0.70 — RANKED BY CALIBRATED DOLLARS (fn+shell lockstep, 2026-11-02; Eddie's
   decision on task #2300). The Brain page: "Today — top 3" items show the figure they
   RANKED on (calibrated $/mo) with the raw forecast beside it (shown, never ranked) and
@@ -1075,6 +1093,126 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 .pgtitle{font-size:12px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent)}
 .page-bd{padding:14px 14px calc(24px + env(safe-area-inset-bottom))}
 
+/* ============ MANAGER SCHEDULER page (&p=schedule, v2-0.71, task #2404) ============
+   sch- namespaced; semantic tokens only so both themes flip. The page widens the
+   phone frame while open (body.sch-wide) so a desktop GM gets the whole sheet.
+   Print (body.sch-print) = the sheet alone, landscape, one page. */
+body.sch-wide .phone{max-width:1180px}
+.sch{font-size:13px}
+.sch-unpub{margin:0 0 12px;padding:9px 12px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;color:var(--ink-2);line-height:1.5}
+.sch-unpub.late{background:var(--bad-bg);border-color:var(--bad);color:var(--ink)}
+.sch-unpub .sch-due{font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted);margin-left:6px}
+.sch-link{color:var(--accent);font-weight:700;cursor:pointer;text-decoration:underline}
+.sch-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+.sch-weeks{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.sch-chip{appearance:none;font:inherit;font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.sch-chip .sch-chipsub{font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-muted)}
+.sch-chip.sel{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.sch-chip.published .sch-chipsub{color:var(--good)}
+.sch-chip.nav{padding:5px 10px;font-size:14px}
+.sch-sel{font:inherit;font-size:12.5px;font-weight:700;padding:6px 8px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);max-width:100%}
+.sch-pills{display:flex;flex-wrap:wrap;gap:6px}
+.sch-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 9px;font-size:11px;color:var(--ink-2);background:var(--surface)}
+.sch-pill b{color:var(--ink)} .sch-pill:empty{display:none}
+.sch-pill.ok{background:var(--good-bg);border-color:var(--good);color:var(--good)}
+.sch-pill.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.sch-pill.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.sch-tools{display:flex;flex-wrap:wrap;gap:6px}
+.sch-btn{appearance:none;font:inherit;font-size:12px;font-weight:800;padding:7px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;box-shadow:var(--sh-1)}
+.sch-btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.sch-btn.small{padding:4px 9px;font-size:11px;box-shadow:none}
+.sch-sheet{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 14px 12px}
+.sch-head{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:10px}
+.sch-head h1{margin:0;font-size:18px;line-height:1.2}
+.sch-head .sch-store{color:var(--accent)} .sch-head .sch-num{font-weight:600;color:var(--ink-2)}
+.sch-week{font-size:13.5px;color:var(--ink-2)} .sch-status{font-size:11px;color:var(--ink-muted)}
+.sch-sec{margin-top:16px}
+.sch-sec h2{margin:0 0 6px;font-size:11.5px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-2);display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sch-hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-muted);font-size:11px}
+.sch-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sch-t{border-collapse:collapse;width:100%;min-width:860px;table-layout:fixed;font-size:12.5px}
+.sch-t th,.sch-t td{border:1px solid var(--line);padding:0;height:32px;text-align:center;vertical-align:middle}
+.sch-t th{background:var(--surface-2);font-weight:700;font-size:11px;color:var(--ink-2);height:28px}
+.sch-t th.day .d,.sch-t th.hrs .d{display:block;font-size:9.5px;color:var(--ink-muted);font-weight:600}
+.sch-t th.day.today,.sch-t td.today{background:color-mix(in srgb,var(--warn) 10%,transparent)}
+.sch-t td.name,.sch-t th.name{text-align:left;padding:0 8px;width:180px}
+.sch-t td.name .nm{font-weight:700;color:var(--ink)} .sch-t td.name .nm.light{font-weight:600}
+.sch-t td.name .rl{display:block;font-size:10px;color:var(--ink-muted);font-weight:600}
+.sch-t th.hrs,.sch-t td.hrs{width:64px;font-weight:800}
+.sch-t td.hrs.ot{color:var(--bad);background:var(--bad-bg)}
+.sch-t td.hrs.under,.sch-t td.hrs.sal,.sch-t td.hrs.muted{color:var(--ink-muted);font-weight:600}
+.sch-t td.hrs .n{font-size:9px;font-weight:600;color:var(--ink-muted);display:block;line-height:1}
+.sch-t td.cell input{width:100%;height:32px;border:0;background:transparent;color:var(--ink);text-align:center;font:inherit;font-weight:700;letter-spacing:.3px;outline:none;text-transform:uppercase;padding:0;border-radius:0}
+.sch-t td.cell input:focus{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 0 0 0 2px var(--accent)}
+.sch-t td .ro{font-weight:700}
+.sch-t td.cell.off input,.sch-t td.cell.off .ro{color:var(--ink-muted);font-weight:600}
+.sch-t td.cell.rq{background:var(--warn-bg)} .sch-t td.cell.rq input,.sch-t td.cell.rq .ro{color:var(--warn)}
+.sch-t td.cell.v{background:color-mix(in srgb,var(--accent) 10%,transparent)} .sch-t td.cell.v input,.sch-t td.cell.v .ro{color:var(--accent)}
+.sch-t td.cell.open input,.sch-t td.cell.open .ro{color:var(--good)}
+.sch-t td.cell.close input,.sch-t td.cell.close .ro{color:var(--bad)}
+.sch-t td.cell.bad{background:var(--bad-bg)} .sch-t td.cell.bad input,.sch-t td.cell.bad .ro{color:var(--bad);text-decoration:underline wavy}
+.sch-t td.cell.err{box-shadow:inset 0 0 0 2px var(--bad)}
+.sch-t td.cell.mismatch{box-shadow:inset 0 0 0 2px var(--warn)}
+.sch-t tr.sub th{background:var(--surface-3);font-size:10px;letter-spacing:.6px;text-transform:uppercase;text-align:left;padding-left:8px;height:22px;color:var(--ink-muted)}
+.sch-t tr.sub th .sch-owner{font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink-2)}
+.sch-t tr.cover td{background:var(--surface-2);font-size:11px;color:var(--ink-2);height:24px}
+.sch-t tr.cover td.low{color:var(--bad);font-weight:800}
+.sch-t tr.cover td.name{font-weight:700;color:var(--ink-muted)}
+.sch-t td.pick select,.sch-t td.pull select{width:100%;height:32px;border:0;background:transparent;color:var(--ink);text-align:center;text-align-last:center;font:inherit;font-size:12px;font-weight:700;outline:none;appearance:none;-webkit-appearance:none;padding:0 4px;cursor:pointer;border-radius:0}
+.sch-t td.pick select:focus,.sch-t td.pull select:focus{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 0 0 0 2px var(--accent)}
+.sch-t td.pick.missing{background:var(--bad-bg)} .sch-t td.pick.missing select,.sch-t td.pick.missing .ro{color:var(--bad)}
+.sch-t td.pick.nopick select{color:var(--ink-muted);font-weight:600}
+.sch-t td.r{font-size:15px;color:var(--ink-muted);user-select:none;-webkit-user-select:none}
+.sch-t td.r.can{cursor:pointer} .sch-t td.r.can:hover{background:var(--surface-2)}
+.sch-t td.r.planned{color:var(--ink);font-weight:800}
+.sch-t td.r.done{color:var(--good);background:var(--good-bg);font-weight:900}
+.sch-t td.owner{font-size:11px;color:var(--ink-2);width:100px}
+.sch-t td.pull{height:40px} .sch-t td.pull.done{background:var(--good-bg)} .sch-t td.pull.done select{color:var(--good)}
+.sch-t td.pull .tick{display:block;font-size:9.5px;color:var(--ink-muted);cursor:pointer;line-height:1;margin-top:-5px;padding-bottom:3px}
+.sch-t td.pull .ro{font-size:11px}
+.sch-custom{font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);margin-left:4px}
+.sch-t tr.sch-addrow td{height:34px;background:var(--surface-2)}
+.sch-addin{width:100%;height:30px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:12px;padding:0 4px;outline:none}
+.sch-addin::placeholder{color:var(--ink-muted)}
+.sch-t td.sch-addcell{text-align:left;padding:0 8px}
+.sch-addday{font:inherit;font-size:11.5px;padding:3px 6px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+.sch-legend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:8px;font-size:11px;color:var(--ink-2)}
+.sch-legend code{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-weight:800;color:var(--ink)}
+.sch .muted{color:var(--ink-muted)}
+.sch-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-top:14px;padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink-muted);line-height:1.4}
+.sch.preview .sch-legend,.sch.preview .nopr{display:none}
+.sch.preview .sch-sheet{box-shadow:var(--sh-2)}
+.sch-hero{font-size:16px;font-weight:900;color:var(--ink);line-height:1.25} .sch-hero.ok{color:var(--good)} .sch-hero.late{color:var(--bad)}
+.sch-sub{font-size:11px;color:var(--ink-muted);font-weight:600;margin-top:3px}
+/* print: schPrint() sets body.sch-print for the duration of the print dialog. The
+   compact rules are NOT limited to @media print on purpose: they apply on screen for
+   that moment so schPrint() can measure the sheet and zoom it to fit ONE landscape
+   page (--sch-print-zoom), the way the 2022 sheet printed. */
+@media print{ @page{size:landscape;margin:8mm} }
+body.sch-print{padding:0;background:#fff;color:#000}
+body.sch-print .phone{max-width:none;border:0;border-radius:0;box-shadow:none;padding:0;min-height:0;background:#fff}
+body.sch-print .phone > *:not(#pageLayer){display:none !important}
+body.sch-print #pageLayer{position:static;display:block;overflow:visible;border-radius:0;background:#fff}
+body.sch-print .page-hd,body.sch-print .sch-bar,body.sch-print .sch-unpub,body.sch-print .nopr,body.sch-print .sch-legend,body.sch-print .sch-hint{display:none !important}
+body.sch-print .page-bd{padding:0}
+body.sch-print .sch-sheet{border:0;border-radius:0;padding:0;background:#fff;box-shadow:none;zoom:var(--sch-print-zoom,1)}
+body.sch-print .sch-head{border-bottom-color:#000;padding-bottom:4px;margin-bottom:6px}
+body.sch-print .sch-head h1{font-size:15px} body.sch-print .sch-week{font-size:12px}
+body.sch-print .sch-sec{margin-top:7px;break-inside:avoid} body.sch-print .sch-sec h2{margin-bottom:3px;font-size:10px}
+body.sch-print .sch-t{min-width:0}
+body.sch-print .sch-t th,body.sch-print .sch-t td{height:19px;font-size:9px;border-color:#999;color:#000}
+body.sch-print .sch-t th{background:#f0f0f0;height:18px}
+body.sch-print .sch-t tr.sub th{height:15px;font-size:8.5px}
+body.sch-print .sch-t td.name .rl,body.sch-print .sch-t th.day .d,body.sch-print .sch-t th.hrs .d{font-size:8px;color:#555}
+body.sch-print .sch-t td.cell input,body.sch-print .sch-t td.pick select,body.sch-print .sch-t td.pull select{height:19px;font-size:9px;color:#000}
+body.sch-print .sch-t td.pull{height:19px} body.sch-print .sch-t td.pull .tick{display:none}
+body.sch-print .sch-t th.day.today,body.sch-print .sch-t td.today{background:#fff}
+body.sch-print .sch-t td.hrs.ot{background:#fff;color:#000}
+body.sch-print .sch-t td.r{font-size:12px} body.sch-print .sch-t td.r.done{background:#fff;color:#000}
+body.sch-print .sch-t td.pull.done{background:#fff}
+body.sch-print .sch-t tr.sch-addrow{display:none}
+body.sch-print .sch-foot{margin-top:6px;padding-top:4px;font-size:8.5px;color:#444}
+
 /* ---- Q3 bonus HOME TILE chips ---- */
 .bhwm{margin:2px 0 10px;padding:8px 10px;border-radius:9px;background:var(--warn-bg);
  color:var(--warn);border:1px solid var(--warn);font-size:10px;font-weight:900;
@@ -1421,7 +1559,7 @@ body[data-theme="arches"] .prizepill{color:var(--good)}
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.70"; // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
+const SHELL_VERSION = "v2-0.71"; // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4241,6 +4379,10 @@ const PAGE_REGISTRY = {
   // dials — Eddie's pick). EVERY tier incl. RO — the fn gather self-scopes
   // (RO/shift-leader = today-only own store, no norms, no cross-store data).
   food_log:      { route:"food", title:"Food Log — Meals & Promos", render: renderFoodLogPage, ttlMs: 2*60*1000 },
+  // v2-0.71: Manager Scheduler (task #2404). Owner / Sup / GM edit (store in scope,
+  // enforced per write), Department reads; the fn 403s RO/guest tokens. ttlMs 1 =
+  // no cache (the sheet is live edited); &store= / &week= ride through `query`.
+  schedule:      { route:"schedule", title:"Manager Schedule", render: renderSchedulePage, after: schAfterRender, ttlMs: 1, query: schQuery },
 };
 const PAGE_BY_ROUTE = {};
 for(const _pid in PAGE_REGISTRY){ PAGE_BY_ROUTE[PAGE_REGISTRY[_pid].route] = _pid; PAGE_BY_ROUTE[_pid] = _pid; }
@@ -4669,23 +4811,27 @@ function pageSkeleton(){
 async function fetchPage(id){
   const reg = PAGE_REGISTRY[id];
   if(reg && reg.local) return {};   // client-only page (Ask the Brain): no fn fetch
-  const c = PAGE_CACHE[id];
+  // v2-0.71: a page may add query params (schedule: store + week); they ride the
+  // fetch URL and key the cache, so "schedule?store=3&week=…" is its own entry.
+  const extra = (reg && reg.query) ? (reg.query() || "") : "";
+  const key = extra ? id + "?" + extra : id;
+  const c = PAGE_CACHE[key];
   if(c && (Date.now() - c.at) < (reg.ttlMs || 5*60*1000)) return c.payload;
-  if(PAGE_INFLIGHT[id]) return PAGE_INFLIGHT[id];
+  if(PAGE_INFLIGHT[key]) return PAGE_INFLIGHT[key];
   const p = (async () => {
     try{
-      const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&page=" + encodeURIComponent(id));
+      const r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN) + "&page=" + encodeURIComponent(id) + (extra ? "&" + extra : ""));
       if(r.status === 401) throw new Error("link expired");
       if(r.status === 403 || r.status === 404) throw new Error("not available on this link");
       if(!r.ok) throw new Error("HTTP " + r.status);
       const payload = await r.json();
-      PAGE_CACHE[id] = { at: Date.now(), payload };
+      PAGE_CACHE[key] = { at: Date.now(), payload };
       return payload;
     } finally {
-      delete PAGE_INFLIGHT[id];
+      delete PAGE_INFLIGHT[key];
     }
   })();
-  PAGE_INFLIGHT[id] = p;
+  PAGE_INFLIGHT[key] = p;
   return p;
 }
 
@@ -4726,6 +4872,7 @@ window.openPage = openPage;
 
 function hidePageLayer(){
   ACTIVE_PAGE = null;
+  document.body.classList.remove("sch-wide");   // v2-0.71: the schedule page widens the frame while open
   document.getElementById("pageLayer").classList.remove("open");
   if(!BOARD_BOOTED) bootBoard();   // deep-linked session: board loads on first close
 }
@@ -4736,6 +4883,615 @@ window.addEventListener("popstate", function(ev){
   if(st && st.page && PAGE_REGISTRY[st.page]) openPage(st.page, { noHistory: true });
   else hidePageLayer();
 });
+
+/* =========================================================================
+   MANAGER SCHEDULER page (&p=schedule, task #2404, v2-0.71)
+   The weekly manager + shift leader sheet per store, replacing the 2022 Eola BP
+   Excel sheet (docs/plans/manager-scheduler/plan.md; mockup.html is the spec).
+   ONE server gather (fn PAGES.schedule, GET ?page=schedule&store=&week=) + this
+   render module. Each edit saves through a sched_* action and patches SCH.page
+   from the receipt (no page refetch, no board refetch). The schedule week runs
+   Sun..Sat (Eddie 2026-11-05); the pay / OT week is Sat..Fri, so every hourly
+   row shows HRS (Sun..Sat) and PAY WK (prior Saturday + Sun..Fri). The parser
+   schParseCode() mirrors mgr_shift_hours() in SQL exactly (test_mgr_schedule.py
+   carries the fixture table). Every class is sch- namespaced; the print CSS
+   prints the sheet alone, landscape, one page (body.sch-print while printing).
+   ========================================================================= */
+var SCH = { store: QS.get("store") || null, week: QS.get("week") || null, page: null, timers: {}, pending: 0, printView: false, lastSaved: null, err: null };
+var SCH_DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var SCH_DP = [["breakfast","Breakfast","open to 11 AM"],["lunch","Lunch","11 AM to 4 PM"],["dinner","Dinner","4 PM to close"],["food_safety","Food Safety","daily food safety owner"]];
+var SCH_SECTIONS = [["gm","General Manager"],["people","People Manager"],["kitchen","Kitchen Manager"],["guest_service","Guest Service Manager"]];
+var SCH_GLYPH = { planned:"□", done:"✓" };
+
+function schQuery(){
+  var q = [];
+  if(SCH.store) q.push("store=" + encodeURIComponent(SCH.store));
+  if(SCH.week) q.push("week=" + encodeURIComponent(SCH.week));
+  return q.join("&");
+}
+
+/* the shift code parser: 0 for OFF / RQ / V / blank, the straight span for a code,
+   hours null = does not parse (red cell, never a silent zero). Same rules as the SQL. */
+function schParseCode(raw, openH, closeH){
+  var s = String(raw == null ? "" : raw).replace(/\s+/g, "").toUpperCase();
+  if(!s) return { kind:"blank", hours:0 };
+  if(s === "OFF") return { kind:"off", hours:0 };
+  if(s === "RQ") return { kind:"rq", hours:0 };
+  if(s === "V" || s === "VAC" || s === "VACA") return { kind:"v", hours:0 };
+  var m = s.match(/^([O0]|1[0-2]|[1-9])(?::?(30))?-(CL|CLOSE|C|1[0-2]|[1-9])(?::?(30))?$/);
+  if(!m) return { kind:"bad", hours:null };
+  var start, end, e;
+  var isOpen = (m[1] === "O" || m[1] === "0"), isClose = /^C/.test(m[3]);
+  if(isOpen) start = Number(openH == null ? 4 : openH);
+  else { e = parseInt(m[1], 10); start = (e >= 5 && e <= 11) ? e : (e === 12 ? 12 : e + 12); }
+  if(m[2]) start += 0.5;
+  if(isClose) end = Number(closeH == null ? 24 : closeH);
+  else { e = parseInt(m[3], 10); end = (e === 12) ? (start >= 12 ? 24 : 12) : ((e <= start || e <= 4) ? e + 12 : e); }
+  if(m[4]) end += 0.5;
+  var h = end - start;
+  if(h <= 0 || h > 16) return { kind:"bad", hours:null };
+  return { kind:"shift", hours:h, open:isOpen, close:isClose };
+}
+window.schParseCode = schParseCode;   // the browser check runs the fixture table through this
+
+function schFmtH(h){ return (Math.round(Number(h || 0) * 10) / 10).toString().replace(/\.0$/, ""); }
+function schMD(iso){ if(!iso) return ""; return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month:"short", day:"numeric", timeZone:"UTC" }); }
+function schMDY(iso){ if(!iso) return ""; return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", timeZone:"UTC" }); }
+function schTs(ts){ if(!ts) return ""; try{ return new Date(ts).toLocaleString("en-US", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/Chicago" }) + " CT"; }catch(e){ return String(ts); } }
+function schHourLabel(h){ h = Number(h); var hh = ((h % 24) + 24) % 24, H = Math.floor(hh), m = Math.round((hh - H) * 60), h12 = (H % 12 === 0) ? 12 : H % 12; return h12 + (m ? ":" + (m < 10 ? "0" + m : m) : "") + " " + (H >= 12 ? "PM" : "AM"); }
+function schAddDays(iso, n){ var d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function schFind(list, fn){ for(var i = 0; i < (list || []).length; i++){ if(fn(list[i])) return list[i]; } return null; }
+function schFindIdx(list, fn){ for(var i = 0; i < (list || []).length; i++){ if(fn(list[i])) return i; } return -1; }
+
+/* ---- page render ---- */
+function renderSchedulePage(payload){
+  var p = (payload && payload.page) || {};
+  SCH.page = p;
+  if(!p.store){ return '<div class="errbox">' + esc(p.note || "No store is in scope for this link.") + '</div>'; }
+  SCH.store = String(p.store.id); SCH.week = p.week_start;
+  var h = '<div class="sch' + (SCH.printView ? " preview" : "") + '" id="schRoot">';
+  h += schUnpublishedBox(p);
+  h += schBar(p);
+  h += '<div class="sch-sheet" id="schSheet">' + schHead(p)
+     + '<div class="sch-sec"><h2>Manager and shift leader schedule <span class="sch-hint nopr">one row per person, Sun to Sat, hours auto totaled</span></h2>'
+     + '<div class="sch-scroll"><table class="sch-t" id="schGrid">' + schGridHead(p) + '<tbody id="schGridBody"></tbody></table></div>'
+     + schLegend(p) + '</div>'
+     + '<div class="sch-sec"><h2>Who runs the shift <span class="sch-hint nopr">daypart owner each day plus the Food Safety owner; red = that person is not scheduled that day</span></h2>'
+     + '<div class="sch-scroll"><table class="sch-t" id="schDp"><thead><tr><th class="name">Shift</th>' + schDayHeads(p, false) + '<th class="hrs">days</th></tr></thead><tbody id="schDpBody"></tbody></table></div></div>'
+     + '<div class="sch-sec"><h2>Routines <span class="sch-hint nopr">tap a day to plan (box), again to tick done (check), a third time to clear</span></h2>'
+     + '<div class="sch-scroll"><table class="sch-t" id="schRt"><thead><tr><th class="name">Routine</th>' + schDayHeads(p, false) + '<th class="hrs">done</th></tr></thead><tbody id="schRtBody"></tbody></table></div></div>'
+     + schFoot(p)
+     + '</div></div>';
+  return h;
+}
+function schAfterRender(_body, _payload){
+  document.body.classList.add("sch-wide");
+  if(!SCH.page || !SCH.page.store) return;
+  schPaintAll();
+  // &print=1: an office print link — the sheet renders in print view and opens the
+  // print dialog itself (the same body.sch-print path as the Print button).
+  if(QS.get("print") === "1" && !SCH.printView){ schTogglePreview(); setTimeout(schPrint, 400); }
+}
+function schPaintAll(){ schPaintGrid(); schPaintDayparts(); schPaintRoutines(); }
+
+function schUnpublishedBox(p){
+  var u = p.unpublished; if(!u) return "";
+  var names = (u.stores || []).map(function(s){ return '<span class="sch-link" data-store="' + s.id + '" data-week="' + esc(u.week_start) + '" onclick="schGoStore(this)">' + esc(s.name) + '</span>'; });
+  var cls = "sch-unpub nopr" + (names.length && u.is_late ? " late" : "");
+  return '<div class="' + cls + '"><b>Next week (' + esc(schMD(u.week_start)) + ' to ' + esc(schMD(u.week_end)) + '):</b> '
+    + esc(u.published_n) + ' of ' + esc(u.stores_n) + ' stores published'
+    + (names.length ? ' · not yet: ' + names.join(", ") : " · every store has published")
+    + ' <span class="sch-due">due ' + esc(u.due_label || "Thursday") + '</span></div>';
+}
+function schBar(p){
+  var h = '<div class="sch-bar">';
+  if(p.multi_store){
+    h += '<select class="sch-sel" id="schStoreSel" onchange="schGo(this.value, null)" aria-label="store">';
+    (p.stores || []).forEach(function(s){ h += '<option value="' + s.id + '"' + (s.id === p.store.id ? " selected" : "") + '>' + esc(s.name + " #" + s.number) + '</option>'; });
+    h += '</select>';
+  }
+  h += '<div class="sch-weeks"><button type="button" class="sch-chip nav" onclick="schGo(null, schAddDays(SCH.week, -7))" title="earlier week">‹</button>';
+  (p.weeks || []).forEach(function(w){
+    var sub = w.is_current ? "this week" : w.status === "published" ? "published" : w.status === "draft" ? "draft" : "empty";
+    h += '<button type="button" class="sch-chip ' + esc(w.status) + (w.is_selected ? " sel" : "") + '" data-week="' + esc(w.week_start) + '" onclick="schGo(null, this.getAttribute(\'data-week\'))">' + esc(schMD(w.week_start)) + '<span class="sch-chipsub">' + sub + '</span></button>';
+  });
+  h += '<button type="button" class="sch-chip nav" onclick="schGo(null, schAddDays(SCH.week, 7))" title="later week">›</button></div>';
+  h += '<div class="sch-pills"><span class="sch-pill" id="schPillHours">Mgmt hours <b>0</b></span><span class="sch-pill" id="schPillCover">Coverage <b>checking</b></span><span class="sch-pill" id="schPillSave"></span></div>';
+  h += '<div class="sch-tools">';
+  if(p.can_edit && !SCH.printView){
+    h += '<button type="button" class="sch-btn" onclick="schCopyLastWeek()">Copy last week</button>';
+    h += '<button type="button" class="sch-btn" onclick="schHoursDialog()">Store hours</button>';
+    h += '<button type="button" class="sch-btn ' + (p.week.status === "published" ? "" : "primary") + '" id="schPublishBtn" onclick="schPublish()">' + (p.week.status === "published" ? "Unpublish" : "Publish week") + '</button>';
+  }
+  h += '<button type="button" class="sch-btn" id="schPreviewBtn" onclick="schTogglePreview()">' + (SCH.printView ? "Back to editing" : "Print view") + '</button>';
+  h += '<button type="button" class="sch-btn primary" onclick="schPrint()">Print</button>';
+  h += '</div></div>';
+  return h;
+}
+function schHead(p){
+  var w = p.week || {};
+  var st = w.status === "published"
+    ? "Published " + (w.published_at ? schTs(w.published_at) : "") + (w.published_by ? " by " + w.published_by : "")
+    : (w.exists ? "Draft" : "Draft, nothing entered yet");
+  return '<div class="sch-head"><h1><span class="sch-store">' + esc(p.store.name) + '</span> <span class="sch-num">#' + esc(p.store.number) + '</span></h1>'
+    + '<div class="sch-week">Week of <b>Sun ' + esc(schMD(p.week_start)) + '</b> to <b>Sat ' + esc(schMDY(p.week_end)) + '</b></div>'
+    + '<div class="sch-status" id="schStatus">' + esc(st) + (p.last_edit ? ' · last edit ' + esc(schTs(p.last_edit)) : "") + '</div></div>';
+}
+function schDayHeads(p, withDates){
+  var h = "";
+  for(var d = 0; d < 7; d++){
+    var iso = schAddDays(p.week_start, d);
+    h += '<th class="day' + (iso === p.today ? " today" : "") + '">' + SCH_DAYS[d].toUpperCase() + (withDates ? '<span class="d">' + esc(schMD(iso)) + '</span>' : "") + '</th>';
+  }
+  return h;
+}
+function schGridHead(p){
+  return '<thead><tr><th class="name">Manager</th>' + schDayHeads(p, true)
+    + '<th class="hrs">HRS<span class="d">Sun to Sat</span></th><th class="hrs">PAY WK<span class="d">prior Sat + Sun to Fri</span></th></tr></thead>';
+}
+function schLegend(p){
+  var w = p.week || {};
+  return '<div class="sch-legend nopr"><span><code>9-5</code> 9 AM to 5 PM</span>'
+    + '<span><code>3-CL</code> 3 PM to close (closes <b>' + esc(schHourLabel(w.close_hour)) + '</b>)</span>'
+    + '<span><code>0-1</code> open (<b>' + esc(schHourLabel(w.open_hour)) + '</b>) to 1 PM</span>'
+    + '<span><code>OFF</code> day off</span><span><code>RQ</code> requested off</span><span><code>V</code> vacation</span>'
+    + '<span class="muted">Straight span, no meal deduction. A red code does not parse and counts 0. Salaried rows show hours in gray, no OT flag.</span></div>';
+}
+function schFoot(p){
+  return '<div class="sch-foot"><span>' + esc(p.store.name) + ' #' + esc(p.store.number) + ' · week of ' + esc(schMD(p.week_start)) + ' to ' + esc(schMDY(p.week_end))
+    + ' · ' + esc(p.week.status === "published" ? "published" : "draft") + '</span>'
+    + '<span>Sheet data as of ' + esc(p.last_edit ? schTs(p.last_edit) : "no entries yet") + '. Schedule week Sun to Sat; pay and OT week Sat to Fri, so PAY WK = prior Saturday plus Sun to Fri.</span></div>';
+}
+
+/* ---- the grid ---- */
+function schPaintGrid(){
+  var p = SCH.page, tb = document.getElementById("schGridBody"); if(!tb || !p) return;
+  var openH = p.week.open_hour, closeH = p.week.close_hour, edit = !!p.can_edit && !SCH.printView;
+  var people = p.people || [], lowUnder = p.leaders_low_under || 4;
+  var html = "", total = 0, lowDays = 0;
+  [["mgr","Managers"],["sl","Shift leaders"]].forEach(function(g){
+    var rows = people.filter(function(x){ return x.kind === g[0]; });
+    html += '<tr class="sub"><th colspan="10">' + g[1] + (rows.length ? "" : ' <span class="sch-hint">none on the roster yet</span>') + '</th></tr>';
+    rows.forEach(function(x){
+      var hrs = 0, wk = 0, h = '<td class="name"><span class="nm">' + esc(x.display_name) + '</span><span class="rl">' + esc(x.role_label) + '</span></td>';
+      for(var d = 0; d < 7; d++){
+        var pc = schParseCode(x.codes[d], openH, closeH); hrs += pc.hours || 0; if(d < 6) wk += pc.hours || 0;
+        var iso = schAddDays(p.week_start, d);
+        var stored = x.hours ? x.hours[d] : undefined;
+        var mismatch = (stored !== undefined && stored !== null && pc.hours !== null && Number(stored) !== pc.hours);
+        var cls = "cell " + pc.kind + (pc.open ? " open" : "") + (pc.close ? " close" : "") + (iso === p.today ? " today" : "") + (mismatch ? " mismatch" : "");
+        h += '<td class="' + cls + '" data-p="' + x.id + '" data-d="' + d + '"' + (mismatch ? ' title="stored hours ' + esc(stored) + ' differ from the screen (' + esc(pc.hours) + ')"' : "") + '>'
+           + (edit ? '<input value="' + esc(x.codes[d]) + '" maxlength="12" autocomplete="off" autocapitalize="characters" aria-label="' + esc(x.display_name + " " + SCH_DAYS[d]) + '">' : '<span class="ro">' + esc(x.codes[d]) + '</span>') + '</td>';
+      }
+      total += hrs;
+      var hcls = "hrs" + (x.is_salaried ? " sal" : (hrs > 0 && hrs < 30 ? " under" : ""));
+      h += '<td class="' + hcls + '">' + schFmtH(hrs) + (x.is_salaried ? '<span class="n">salaried</span>' : "") + '</td>';
+      if(x.is_salaried) h += '<td class="hrs sal">&mdash;</td>';
+      else if(!x.prior_sat) h += '<td class="hrs under">&mdash;<span class="n">no prior Sat</span></td>';
+      else {
+        var ps = schParseCode(x.prior_sat.code, openH, closeH), pw = wk + (ps.hours || 0);
+        h += '<td class="hrs' + (pw > 40 ? " ot" : "") + '" title="prior Saturday: ' + esc(x.prior_sat.code || "blank") + '">' + schFmtH(pw) + (pw > 40 ? '<span class="n">over 40</span>' : "") + '</td>';
+      }
+      html += '<tr>' + h + '</tr>';
+    });
+  });
+  var cov = '<td class="name">Leaders scheduled</td>';
+  for(var d2 = 0; d2 < 7; d2++){
+    var n = 0;
+    people.forEach(function(x){ if(schParseCode(x.codes[d2], openH, closeH).kind === "shift") n++; });
+    var low = n < lowUnder; if(low) lowDays++;
+    cov += '<td class="' + (low ? "low" : "") + '">' + n + (low ? " low" : "") + '</td>';
+  }
+  html += '<tr class="cover">' + cov + '<td></td><td></td></tr>';
+  tb.innerHTML = html;
+  var ph = document.getElementById("schPillHours"); if(ph) ph.innerHTML = 'Mgmt hours this week <b>' + schFmtH(total) + '</b>';
+  var pcv = document.getElementById("schPillCover");
+  if(pcv){
+    pcv.className = "sch-pill " + (lowDays ? "warn" : "ok");
+    pcv.innerHTML = lowDays ? 'Coverage <b>' + lowDays + ' day' + (lowDays > 1 ? "s" : "") + ' under ' + lowUnder + ' leaders</b>' : 'Coverage <b>' + lowUnder + ' or more leaders every day</b>';
+  }
+  if(edit) schBindGrid(tb);
+}
+function schBindGrid(tb){
+  var p = SCH.page;
+  var inputs = tb.querySelectorAll("td.cell input");
+  for(var i = 0; i < inputs.length; i++) (function(inp){
+    inp.addEventListener("input", function(){
+      var td = inp.parentNode, pid = Number(td.getAttribute("data-p")), d = Number(td.getAttribute("data-d"));
+      var person = schFind(p.people, function(x){ return x.id === pid; }); if(!person) return;
+      person.codes[d] = inp.value;
+      if(person.hours) person.hours[d] = undefined;    // stored hours unknown until the receipt lands
+      var pos = inp.selectionStart;
+      schPaintGrid(); schPaintDayparts();
+      var again = tb.querySelector('td.cell[data-p="' + pid + '"][data-d="' + d + '"] input');
+      if(again){ again.focus(); try{ again.setSelectionRange(pos, pos); }catch(e){} }
+      schQueueShift(pid, d, inp.value);
+    });
+    inp.addEventListener("keydown", function(ev){
+      var td = inp.parentNode, pid = Number(td.getAttribute("data-p")), d = Number(td.getAttribute("data-d"));
+      var order = p.people.filter(function(x){ return x.kind === "mgr"; }).concat(p.people.filter(function(x){ return x.kind === "sl"; }));
+      var idx = schFindIdx(order, function(x){ return x.id === pid; }), tgt = null;
+      if(ev.key === "ArrowRight" || (ev.key === "Tab" && !ev.shiftKey)) tgt = [idx, d + 1];
+      else if(ev.key === "ArrowLeft" || (ev.key === "Tab" && ev.shiftKey)) tgt = [idx, d - 1];
+      else if(ev.key === "ArrowDown" || ev.key === "Enter") tgt = [idx + 1, d];
+      else if(ev.key === "ArrowUp") tgt = [idx - 1, d];
+      if(!tgt) return;
+      if(tgt[1] > 6) tgt = [idx + 1, 0];
+      if(tgt[1] < 0) tgt = [idx - 1, 6];
+      if(tgt[0] < 0 || tgt[0] >= order.length) return;
+      var nx = tb.querySelector('td.cell[data-p="' + order[tgt[0]].id + '"][data-d="' + tgt[1] + '"] input');
+      if(nx){ ev.preventDefault(); nx.focus(); nx.select(); }
+    });
+    inp.addEventListener("focus", function(){ inp.select(); });
+  })(inputs[i]);
+}
+function schQueueShift(pid, d, code){
+  var key = pid + ":" + d;
+  if(SCH.timers[key]) clearTimeout(SCH.timers[key]);
+  SCH.timers[key] = setTimeout(function(){ delete SCH.timers[key]; schSaveShift(pid, d, code); }, 450);
+}
+async function schSaveShift(pid, d, code){
+  schSaving(1);
+  try{
+    var j = await schPost({ action:"sched_save_shift", person_id:pid, dow:d, code:code });
+    var r = j.receipt || {};
+    var person = schFind(SCH.page.people, function(x){ return x.id === pid; });
+    if(person && String(person.codes[d] || "").replace(/\s+/g, "").toUpperCase() === String(r.code || "").replace(/\s+/g, "").toUpperCase()){
+      if(!person.hours) person.hours = [0,0,0,0,0,0,0];
+      person.hours[d] = r.hours;
+      var td = document.querySelector('#schGridBody td.cell[data-p="' + pid + '"][data-d="' + d + '"]');
+      if(td){ td.classList.remove("err"); td.classList.remove("mismatch"); }
+    }
+    schNoteWeek(r);
+    schSaved();
+  }catch(e){ schSaveError(e, pid, d); }
+  finally{ schSaving(-1); }
+}
+function schNoteWeek(r){
+  var w = SCH.page.week;
+  if(r && r.week_id && !w.id){ w.id = r.week_id; w.exists = true; }
+}
+
+/* ---- saving plumbing ---- */
+async function schPost(body){
+  var p = SCH.page;
+  body.store_id = p.store.id; body.week_start = p.week_start;
+  var r = await fetch(ENDPOINT + "?t=" + encodeURIComponent(TOKEN), { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(body) });
+  if(r.status === 401) throw new Error("This link has expired. Text Eddie for a fresh one.");
+  var j = {}; try{ j = await r.json(); }catch(e){}
+  if(!r.ok || !(j.result && j.result.ok)) throw new Error((j.result && j.result.msg) || ("HTTP " + r.status));
+  return j;
+}
+function schSaving(delta){
+  SCH.pending = Math.max(0, SCH.pending + delta);
+  var el = document.getElementById("schPillSave"); if(!el) return;
+  if(SCH.pending){ el.className = "sch-pill"; el.textContent = "Saving…"; }
+  else if(SCH.err){ el.className = "sch-pill bad"; el.textContent = SCH.err; }
+  else if(SCH.lastSaved){ el.className = "sch-pill ok"; el.textContent = "Saved " + SCH.lastSaved; }
+  else { el.className = "sch-pill"; el.textContent = ""; }
+}
+function schSaved(){
+  SCH.err = null;
+  SCH.lastSaved = new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" });
+  var st = document.getElementById("schStatus");
+  if(st && SCH.page.week.status !== "published") st.textContent = "Draft · last edit just now";
+}
+function schSaveError(e, pid, d){
+  SCH.err = "Not saved: " + (e && e.message ? e.message : e);
+  if(pid != null){ var td = document.querySelector('#schGridBody td.cell[data-p="' + pid + '"][data-d="' + d + '"]'); if(td) td.classList.add("err"); }
+  console.error("schedule save failed:", e && (e.message || e));
+}
+
+/* ---- dayparts ---- */
+function schPaintDayparts(){
+  var p = SCH.page, tb = document.getElementById("schDpBody"); if(!tb || !p) return;
+  var openH = p.week.open_hour, closeH = p.week.close_hour, edit = !!p.can_edit && !SCH.printView;
+  var html = "";
+  SCH_DP.forEach(function(dp){
+    var key = dp[0], cells = (p.dayparts && p.dayparts[key]) || [null,null,null,null,null,null,null];
+    var h = '<td class="name"><span class="nm">' + dp[1] + '</span><span class="rl">' + dp[2] + '</span></td>', filled = 0;
+    for(var d = 0; d < 7; d++){
+      var c = cells[d];
+      var person = (c && c.person_id != null) ? schFind(p.people, function(x){ return x.id === c.person_id; }) : null;
+      var who = c ? (c.person_id != null ? String(c.person_id) : "other") : "";
+      var onToday = person ? schParseCode(person.codes[d], openH, closeH).kind === "shift" : true;
+      var missing = !!c && c.person_id != null && (!person || !onToday);
+      if(c) filled++;
+      var label = c ? (person ? person.display_name : (c.person_id != null ? "(removed)" : (c.other_name || "Other"))) : "";
+      var cls = "pick" + (!c ? " nopick" : "") + (missing ? " missing" : "");   // not "empty": the board's .empty rule is display:flex
+      var title = missing ? ((person ? person.display_name : "that person") + " is not scheduled " + SCH_DAYS[d]) : (c && c.person_id == null ? "crew lead: " + (c.other_name || "") : "");
+      if(edit){
+        var opts = '<option value="">' + (c ? "clear" : "pick") + '</option>';
+        p.people.forEach(function(x){
+          var pc = schParseCode(x.codes[d], openH, closeH);
+          var tag = pc.kind === "shift" ? "" : pc.kind === "blank" ? " (no shift)" : " (" + (pc.kind === "rq" ? "RQ" : pc.kind === "v" ? "V" : pc.kind === "bad" ? "?" : "OFF") + ")";
+          opts += '<option value="' + x.id + '"' + (String(x.id) === who ? " selected" : "") + '>' + esc(x.display_name + tag) + '</option>';
+        });
+        opts += '<option value="other"' + (who === "other" ? " selected" : "") + '>' + esc(who === "other" ? "Other: " + (c.other_name || "") : "Other (crew lead)") + '</option>';
+        h += '<td class="' + cls + '" data-dp="' + key + '" data-d="' + d + '" title="' + esc(title) + '"><select aria-label="' + dp[1] + ' ' + SCH_DAYS[d] + '">' + opts + '</select></td>';
+      } else {
+        h += '<td class="' + cls + '" title="' + esc(title) + '"><span class="ro">' + esc(label) + '</span></td>';
+      }
+    }
+    h += '<td class="hrs muted">' + filled + '/7</td>';
+    html += '<tr>' + h + '</tr>';
+  });
+  tb.innerHTML = html;
+  if(edit){
+    var sels = tb.querySelectorAll("td.pick select");
+    for(var i = 0; i < sels.length; i++) (function(sel){ sel.addEventListener("change", function(){ schPickDaypart(sel); }); })(sels[i]);
+  }
+}
+async function schPickDaypart(sel){
+  var td = sel.parentNode, key = td.getAttribute("data-dp"), d = Number(td.getAttribute("data-d")), v = sel.value, p = SCH.page;
+  var body = { action:"sched_save_daypart", daypart:key, dow:d };
+  if(v === "other"){
+    var cur = p.dayparts[key][d], dpl = schFind(SCH_DP, function(x){ return x[0] === key; });
+    var nm = prompt("Who runs " + (dpl ? dpl[1] : key) + " on " + SCH_DAYS[d] + "? (crew lead: first name and last initial)", (cur && cur.other_name) || "");
+    if(nm == null || !nm.trim()){ schPaintDayparts(); return; }
+    body.other_name = nm.trim().slice(0, 60);
+  } else if(v){ body.person_id = Number(v); }
+  p.dayparts[key][d] = (v === "") ? null : (v === "other" ? { person_id:null, other_name:body.other_name } : { person_id:Number(v), other_name:null });
+  schPaintDayparts();
+  schSaving(1);
+  try{ var j = await schPost(body); schNoteWeek(j.receipt); schSaved(); }
+  catch(e){ schSaveError(e); }
+  finally{ schSaving(-1); }
+}
+
+/* ---- routines + the pull schedule ---- */
+function schRoutineMatch(it, key, d){
+  return function(x){ return x.dow === d && (it.item_id != null ? x.routine_item_id === it.item_id : (x.routine_item_id == null && x.role_key === key && x.custom_label === it.custom)); };
+}
+function schPaintRoutines(){
+  var p = SCH.page, tb = document.getElementById("schRtBody"); if(!tb || !p) return;
+  var edit = !!p.can_edit && !SCH.printView;
+  var tpl = (p.routines && p.routines.template) || [], placed = (p.routines && p.routines.placed) || [];
+  var html = "";
+  SCH_SECTIONS.forEach(function(sec){
+    var key = sec[0];
+    html += '<tr class="sub"><th colspan="9">' + sec[1] + ' <span class="sch-owner">' + esc((p.owners && p.owners[key]) || "") + '</span></th></tr>';
+    var items = tpl.filter(function(t){ return t.role_key === key; }).map(function(t){ return { item_id:t.id, label:t.label, custom:null }; });
+    var seen = {};
+    placed.filter(function(r){ return r.role_key === key && r.routine_item_id == null && r.custom_label; }).forEach(function(r){
+      if(!seen[r.custom_label]){ seen[r.custom_label] = 1; items.push({ item_id:null, label:r.custom_label, custom:r.custom_label }); }
+    });
+    items.forEach(function(it){
+      var h = '<td class="name"><span class="nm light">' + esc(it.label) + (it.custom ? ' <span class="sch-custom">one off</span>' : "") + '</span></td>';
+      var planned = 0, done = 0;
+      for(var d = 0; d < 7; d++){
+        var r = schFind(placed, schRoutineMatch(it, key, d));
+        var st = r ? r.state : "";
+        if(r) planned++; if(st === "done") done++;
+        var title = !r ? "tap to plan" : st === "planned" ? "planned, tap to tick done" : "done" + (r.done_by ? " by " + r.done_by : "") + (r.done_at ? " " + schTs(r.done_at) : "") + ", tap to clear";
+        h += '<td class="r ' + (st || "") + (edit ? " can" : "") + '" data-key="' + key + '" data-item="' + (it.item_id == null ? "" : it.item_id) + '" data-custom="' + esc(it.custom || "") + '" data-d="' + d + '" title="' + esc(title) + '">' + (SCH_GLYPH[st] || "") + '</td>';
+      }
+      h += '<td class="owner">' + (planned ? done + "/" + planned + " done" : '<span class="muted">not placed</span>') + '</td>';
+      html += '<tr>' + h + '</tr>';
+    });
+    if(edit){
+      var dayOpts = ""; for(var i = 0; i < 7; i++) dayOpts += '<option value="' + i + '">' + SCH_DAYS[i] + '</option>';
+      html += '<tr class="sch-addrow nopr"><td class="name"><input class="sch-addin" placeholder="one off routine this week" maxlength="80" data-key="' + key + '" aria-label="one off routine for ' + sec[1] + '"></td>'
+        + '<td colspan="7" class="sch-addcell"><select class="sch-addday" data-key="' + key + '" aria-label="day">' + dayOpts + '</select> <button type="button" class="sch-btn small" data-key="' + key + '" onclick="schAddCustom(this)">Add</button></td><td></td></tr>';
+    }
+  });
+  html += '<tr class="sub"><th colspan="9">Pull schedule <span class="sch-owner">one unit pulled and deep cleaned per day; tick when done</span></th></tr>';
+  var pulls = tpl.filter(function(t){ return t.role_key === "pull"; });
+  var h2 = '<td class="name"><span class="nm light">Equipment pull</span></td>', pd = 0;
+  for(var d2 = 0; d2 < 7; d2++){
+    var pr = schFind(placed, function(x){ return x.role_key === "pull" && x.dow === d2; });
+    var cur = pr ? pr.routine_item_id : null, isDone = !!pr && pr.state === "done"; if(isDone) pd++;
+    if(edit){
+      var opts = '<option value="">none</option>';
+      pulls.forEach(function(t){ opts += '<option value="' + t.id + '"' + (t.id === cur ? " selected" : "") + '>' + esc(t.label) + '</option>'; });
+      h2 += '<td class="pull' + (isDone ? " done" : "") + '" data-d="' + d2 + '"><select aria-label="pull ' + SCH_DAYS[d2] + '">' + opts + '</select>' + (pr ? '<span class="tick" title="toggle done">' + (isDone ? "✓ done" : "tick when done") + '</span>' : "") + '</td>';
+    } else {
+      var t0 = schFind(pulls, function(t){ return t.id === cur; });
+      h2 += '<td class="pull' + (isDone ? " done" : "") + '"><span class="ro">' + esc(t0 ? t0.label : "") + (isDone ? " ✓" : "") + '</span></td>';
+    }
+  }
+  h2 += '<td class="owner">' + pd + '/7 done</td>';
+  html += '<tr>' + h2 + '</tr>';
+  tb.innerHTML = html;
+  if(edit){
+    var cells = tb.querySelectorAll("td.r.can"), i2;
+    for(i2 = 0; i2 < cells.length; i2++) (function(td){ td.addEventListener("click", function(){ schCycleRoutine(td); }); })(cells[i2]);
+    var psel = tb.querySelectorAll("td.pull select");
+    for(i2 = 0; i2 < psel.length; i2++) (function(sel){ sel.addEventListener("change", function(){ schPickPull(sel); }); })(psel[i2]);
+    var ticks = tb.querySelectorAll("td.pull .tick");
+    for(i2 = 0; i2 < ticks.length; i2++) (function(t){ t.addEventListener("click", function(){ schTogglePull(t.parentNode); }); })(ticks[i2]);
+  }
+}
+async function schCycleRoutine(td){
+  var p = SCH.page, key = td.getAttribute("data-key"), itemRaw = td.getAttribute("data-item"), item = itemRaw ? Number(itemRaw) : null;
+  var custom = td.getAttribute("data-custom") || null, d = Number(td.getAttribute("data-d"));
+  var it = { item_id:item, custom:custom }, placed = p.routines.placed;
+  var idx = schFindIdx(placed, schRoutineMatch(it, key, d));
+  var cur = idx >= 0 ? placed[idx].state : "";
+  var next = cur === "" ? "planned" : cur === "planned" ? "done" : "clear";
+  if(next === "clear"){ if(idx >= 0) placed.splice(idx, 1); }
+  else if(idx >= 0){ placed[idx].state = next; placed[idx].done_at = next === "done" ? new Date().toISOString() : null; placed[idx].done_by = null; }
+  else placed.push({ id:null, routine_item_id:item, role_key:key, custom_label:custom, dow:d, state:next, done_by_manager_id:null, done_at:null });
+  schPaintRoutines();
+  schSaving(1);
+  try{
+    var body = { action:"sched_save_routine", dow:d, state:next };
+    if(item != null) body.routine_item_id = item; else { body.custom_label = custom; body.role_key = key; }
+    var j = await schPost(body), r = j.receipt || {};
+    if(next !== "clear"){
+      var row = schFind(placed, schRoutineMatch(it, key, d));
+      if(row){ row.id = r.id; row.done_by = r.done_by; row.done_at = r.done_at; row.done_by_manager_id = r.done_by_manager_id; }
+    }
+    schNoteWeek(r); schPaintRoutines(); schSaved();
+  }catch(e){ schSaveError(e); }
+  finally{ schSaving(-1); }
+}
+async function schAddCustom(btn){
+  var key = btn.getAttribute("data-key"), root = document.getElementById("schRtBody");
+  var inp = root.querySelector('.sch-addin[data-key="' + key + '"]'), day = root.querySelector('.sch-addday[data-key="' + key + '"]');
+  var label = ((inp && inp.value) || "").trim().slice(0, 80);
+  if(!label){ if(inp) inp.focus(); return; }
+  var d = Number(day ? day.value : 0), placed = SCH.page.routines.placed;
+  placed.push({ id:null, routine_item_id:null, role_key:key, custom_label:label, dow:d, state:"planned", done_by_manager_id:null, done_at:null });
+  schPaintRoutines();
+  schSaving(1);
+  try{
+    var j = await schPost({ action:"sched_save_routine", dow:d, state:"planned", custom_label:label, role_key:key }), r = j.receipt || {};
+    var row = schFind(placed, function(x){ return x.routine_item_id == null && x.role_key === key && x.custom_label === label && x.dow === d; });
+    if(row) row.id = r.id;
+    schNoteWeek(r); schSaved();
+  }catch(e){ schSaveError(e); }
+  finally{ schSaving(-1); }
+}
+async function schPickPull(sel){
+  var d = Number(sel.parentNode.getAttribute("data-d")), v = sel.value, placed = SCH.page.routines.placed;
+  var idx = schFindIdx(placed, function(x){ return x.role_key === "pull" && x.dow === d; });
+  var prevItem = idx >= 0 ? placed[idx].routine_item_id : null;
+  if(idx >= 0) placed.splice(idx, 1);
+  if(v) placed.push({ id:null, routine_item_id:Number(v), role_key:"pull", custom_label:null, dow:d, state:"planned", done_by_manager_id:null, done_at:null });
+  schPaintRoutines();
+  schSaving(1);
+  try{
+    if(v){
+      var j = await schPost({ action:"sched_save_routine", dow:d, state:"planned", routine_item_id:Number(v) });
+      var row = schFind(placed, function(x){ return x.role_key === "pull" && x.dow === d; });
+      if(row) row.id = (j.receipt || {}).id;
+      schNoteWeek(j.receipt);
+    } else if(prevItem != null){
+      await schPost({ action:"sched_save_routine", dow:d, state:"clear", routine_item_id:prevItem });
+    }
+    schSaved();
+  }catch(e){ schSaveError(e); }
+  finally{ schSaving(-1); }
+}
+async function schTogglePull(td){
+  var d = Number(td.getAttribute("data-d")), placed = SCH.page.routines.placed;
+  var row = schFind(placed, function(x){ return x.role_key === "pull" && x.dow === d; }); if(!row) return;
+  var next = row.state === "done" ? "planned" : "done";
+  row.state = next; schPaintRoutines();
+  schSaving(1);
+  try{
+    var j = await schPost({ action:"sched_save_routine", dow:d, state:next, routine_item_id:row.routine_item_id }), r = j.receipt || {};
+    row.done_by = r.done_by; row.done_at = r.done_at; row.done_by_manager_id = r.done_by_manager_id;
+    schPaintRoutines(); schSaved();
+  }catch(e){ schSaveError(e); }
+  finally{ schSaving(-1); }
+}
+
+/* ---- week level actions ---- */
+async function schPublish(){
+  var p = SCH.page, undo = p.week.status === "published";
+  if(!confirm(undo
+      ? "Set the week of " + schMD(p.week_start) + " back to draft?"
+      : "Publish the week of " + schMD(p.week_start) + " for " + p.store.name + "? The supervisor and the office will see it as final. You can still edit it after.")) return;
+  schSaving(1);
+  try{
+    var j = await schPost({ action:"sched_publish", undo: undo ? 1 : 0 }), r = j.receipt || {};
+    p.week.status = r.status || (undo ? "draft" : "published");
+    p.week.published_at = r.published_at || null; p.week.published_by = r.published_by || null;
+    if(r.week_id) p.week.id = r.week_id; p.week.exists = true;
+    var w = schFind(p.weeks, function(x){ return x.week_start === p.week_start; }); if(w) w.status = p.week.status;
+    schPatchHomeTile(); schRepaintChrome(); schSaved();
+  }catch(e){ alert("Publish failed: " + (e && e.message ? e.message : e)); }
+  finally{ schSaving(-1); }
+}
+function schRepaintChrome(){
+  var p = SCH.page, root = document.getElementById("schRoot"); if(!root || !p) return;
+  var bar = root.querySelector(".sch-bar"); if(bar) bar.outerHTML = schBar(p);
+  var head = root.querySelector(".sch-head"); if(head) head.outerHTML = schHead(p);
+  schPaintGrid();   // refills the pills the new bar lost
+  schSaving(0);
+}
+function schPatchHomeTile(){
+  try{
+    var p = SCH.page;
+    if(STATE && STATE.data && STATE.data.schedule_home){
+      var sh = STATE.data.schedule_home;
+      if(sh.week_start === p.week_start){
+        var pub = p.week.status === "published";
+        if(sh.stores_n === 1){ sh.published = pub; sh.published_n = pub ? 1 : 0; sh.drafted = true; sh.missing = pub ? [] : [p.store.name]; sh.published_at = p.week.published_at; }
+        else { var missing = (sh.missing || []).filter(function(n){ return n !== p.store.name; }); if(!pub) missing.push(p.store.name); sh.missing = missing; sh.published_n = sh.stores_n - missing.length; }
+      }
+    }
+    sessionStorage.removeItem(SNAP_KEY);
+  }catch(e){}
+}
+async function schCopyLastWeek(){
+  var p = SCH.page;
+  if(!p.prior_week){ alert("There is no sheet for the week of " + schMD(schAddDays(p.week_start, -7)) + " to copy from."); return; }
+  if(!confirm("Copy the codes from the week of " + schMD(p.prior_week.week_start) + " into every EMPTY cell of this week? Codes you already typed are kept.")) return;
+  schSaving(1);
+  try{ var j = await schPost({ action:"sched_week_copy" }); alert(j.result.msg); schReload(); }
+  catch(e){ alert("Copy failed: " + (e && e.message ? e.message : e)); }
+  finally{ schSaving(-1); }
+}
+async function schHoursDialog(){
+  var p = SCH.page;
+  var o = prompt("Store OPEN hour for this week, 0 to 23 (4 = 4 AM; 0 = midnight for a 24 hour store). Used by codes like 0-1.", String(p.week.open_hour)); if(o == null) return;
+  var c = prompt("Store CLOSE hour for this week, 1 to 24 (24 = midnight; 23 = 11 PM). Used by codes like 3-CL.", String(p.week.close_hour)); if(c == null) return;
+  var on = Number(o), cn = Number(c);
+  if(isNaN(on) || isNaN(cn) || on < 0 || on > 23 || cn < 1 || cn > 24 || cn <= on){ alert("Enter an open hour 0 to 23 and a close hour 1 to 24, close after open."); return; }
+  schSaving(1);
+  try{ await schPost({ action:"sched_save_week", open_hour:on, close_hour:cn }); schReload(); }
+  catch(e){ alert("Save failed: " + (e && e.message ? e.message : e)); }
+  finally{ schSaving(-1); }
+}
+
+/* ---- navigation, preview, print ---- */
+function schGo(store, week){
+  if(store != null && store !== "") SCH.store = String(store);
+  if(week != null && week !== "") SCH.week = String(week);
+  try{
+    var u = new URL(location.href); u.searchParams.set("p", "schedule");
+    if(SCH.store) u.searchParams.set("store", SCH.store);
+    if(SCH.week) u.searchParams.set("week", SCH.week);
+    history.replaceState({ page:"schedule" }, "", u);
+  }catch(e){}
+  schReload();
+}
+function schGoStore(el){ schGo(el.getAttribute("data-store"), el.getAttribute("data-week")); }
+function schReload(){
+  for(var k in PAGE_CACHE){ if(k === "schedule" || k.indexOf("schedule?") === 0) delete PAGE_CACHE[k]; }
+  openPage("schedule", { noHistory:true });
+}
+function schTogglePreview(){
+  SCH.printView = !SCH.printView;
+  var root = document.getElementById("schRoot"); if(root) root.classList.toggle("preview", SCH.printView);
+  schRepaintChrome(); schPaintAll();
+}
+function schPrint(){
+  document.body.classList.add("sch-print");
+  // zoom the sheet to fit ONE landscape page: letter 612pt tall less 2 x 8mm = 567pt = 756px
+  try{
+    var root = document.documentElement, sheet = document.getElementById("schSheet");
+    root.style.setProperty("--sch-print-zoom", "1");
+    var h = sheet ? sheet.getBoundingClientRect().height : 0, avail = 756;
+    var z = (h > avail) ? Math.max(0.4, avail / h) : 1;
+    root.style.setProperty("--sch-print-zoom", String(Math.floor(z * 100) / 100));
+  }catch(e){}
+  var done = function(){ document.body.classList.remove("sch-print"); window.removeEventListener("afterprint", done); };
+  window.addEventListener("afterprint", done);
+  setTimeout(function(){ window.print(); }, 80);
+  setTimeout(done, 90000);
+}
+window.schGo = schGo; window.schGoStore = schGoStore; window.schAddDays = schAddDays; window.SCH = SCH;
+window.schCopyLastWeek = schCopyLastWeek; window.schHoursDialog = schHoursDialog; window.schPublish = schPublish;
+window.schTogglePreview = schTogglePreview; window.schPrint = schPrint; window.schAddCustom = schAddCustom;
+
+/* ---- the TODAY home tile (data.schedule_home: Owner / Sup / GM; never RO) ---- */
+function renderScheduleHomeTile(data){
+  var sh = data.schedule_home; if(!sh) return "";
+  var wk = "week of " + schMD(sh.week_start);
+  var body;
+  if(sh.stores_n === 1){
+    if(sh.published) body = '<div class="sch-hero ok">✓ ' + esc(wk) + ' published</div><div class="sch-sub">' + esc(sh.published_at ? "published " + schTs(sh.published_at) : "") + '</div>';
+    else body = '<div class="sch-hero' + (sh.is_late ? " late" : "") + '">' + esc(wk) + ': not yet published</div><div class="sch-sub">' + (sh.drafted ? "draft started" : "nothing entered yet") + ' · publish by Thursday</div>';
+  } else {
+    body = '<div class="sch-hero' + (sh.published_n < sh.stores_n && sh.is_late ? " late" : "") + '">' + esc(sh.published_n) + ' of ' + esc(sh.stores_n) + ' stores published</div>'
+      + '<div class="sch-sub">' + esc(wk) + ' · due Thursday' + ((sh.missing || []).length ? ' · not yet: ' + esc(sh.missing.join(", ")) : "") + '</div>';
+  }
+  return card("Manager Schedule", body, { icon:"📅", info:"next week’s sheet · tap to open", newBadge:true, drill:{ kind:"page:schedule" } });
+}
 
 /* =========================================================================
    Q3 BONUS — shared formatting + the ranker page + the home tile.
@@ -6510,6 +7266,10 @@ const MANIFEST = [
   // pre-meeting). Hides itself on RO/guest tokens (data.read_only; the server
   // POST guard is the real gate). Opens the task_form PAGE.
   { id:"today_new_task",   lane:"TODAY", title:"New Task / Ticket",       render: renderNewTaskTile,     newBadge:true },
+  // v2-0.71: Manager Schedule tile (Owner/Sup/GM; self-gates on data.schedule_home,
+  // which the fn never sends to RO). "week of <date> published" / "not yet" for a
+  // GM, N of M stores for Sup/Owner. Whole card taps into the schedule PAGE.
+  { id:"today_schedule",   lane:"TODAY", title:"Manager Schedule",        render: renderScheduleHomeTile, newBadge:true },
   // v2-0.54: The Brain hub owner tile (self-gates: renders "" for non-owners).
   // Opens the server-gathered brain hub (?page=brain); the fn requireOwner is the
   // real gate. The hub's ASK section reuses the ask box inline.
@@ -6761,7 +7521,7 @@ window.renderBoard = renderBoard;
    through mergePostPayload — NEVER a wholesale STATE swap, which would null
    every loaded lane the lane-scoped response did not carry. */
 const ALWAYS_MERGE_KEYS = ["fn_version","manager","stores","scope_all","tasks","complaints",
-                           "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home",
+                           "financials","cleanliness_race","osat_incentive","bonus_home","sl_oepe_home","schedule_home",
                            "grill_temps_home","check_in","_meta",
                            // v2-0.47 brain slice that rides the lean TODAY/NUMBERS gather
                            // (todays_brief + temp_watch removed with their cards):
