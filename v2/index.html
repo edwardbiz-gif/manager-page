@@ -9,6 +9,23 @@
   Phase 0 + scaffold, then Phase 1 = the GM TODAY lane
   (docs/plans/manager-page-redesign/plan-spec.md §3.1, §4, §5).
 
+  v2-0.73 — SCHEDULER: ADD A PERSON + TASK TIMES (fn+shell lockstep 2026-11-11, task #2404,
+  Eddie's supervisor-meeting feedback; grilled 11-11). (1) "+ Add a person" under the grid:
+  name, salaried manager / hourly manager / shift leader, an optional note (printed under
+  the name), then "This week only" (a borrowed manager) or "Keep on roster" (a new hire);
+  typed-in rows carry an "added" / "this week" tag and a remove x. (2) Every placed routine,
+  one off and pull unit gets a who + when line: tap it for a small picker, WHO defaults to
+  the section's role owner (pull: pick a person) and can be handed to anyone on the sheet;
+  WHEN lists only that person's shift that day in 30 minute steps (9-5 -> 9:00 AM to
+  5:00 PM; OFF / RQ / V / blank = "not scheduled", no times). (3) A time that no longer
+  fits after the shift changes is KEPT and turns red (outside shift / not scheduled).
+  (4) PUBLISH GATE: a GM cannot publish when the GM's own row has no close that week, or
+  (on the month's last week) no Friday / Saturday close or no Sunday shift that month, or
+  an hourly shift leader is over 39 h (HRS or PAY WK); the panel under the header lists
+  why, the GM's try is recorded and a Supervisor / Owner publishes with a reason. Weeks
+  before Nov 22 are never gated. (5) Template edits (11/11) + Pull schedule renamed
+  Equipment detail cleaning.
+
   v2-0.72 — SCHEDULER: DAYPART OWNERS FROM THE GRID (shell logic; fn stamp in lockstep,
   2026-11-05, Eddie: no picking a manager's name twice). Who runs Breakfast / Lunch / Dinner
   fills itself from the codes in the grid (the longest shift inside the window; managers
@@ -1185,6 +1202,42 @@ body.sch-wide .phone{max-width:1180px}
 .sch-addin::placeholder{color:var(--ink-muted)}
 .sch-t td.sch-addcell{text-align:left;padding:0 8px}
 .sch-addday{font:inherit;font-size:11.5px;padding:3px 6px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+/* v2-0.73: who + when line on a placed task, the picker, add a person, the publish gate */
+.sch-t td.r .g{display:block;line-height:1.1}
+.sch-t td .when{display:block;font-size:9.5px;font-weight:700;color:var(--ink-2);line-height:1.15;padding:1px 2px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:normal}
+.sch-t td .when[role=button]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.sch-t td .when.set{color:var(--ink-muted);font-weight:600}
+.sch-t td .when.bad{color:var(--bad)}
+.sch-t td.tflag{box-shadow:inset 0 0 0 2px var(--bad)}
+.sch-t td.pull .when{margin-top:-2px}
+.sch-pop{position:fixed;z-index:9999;width:270px;max-width:calc(100vw - 16px);background:var(--surface);color:var(--ink);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--sh-2,0 8px 24px rgba(0,0,0,.18));padding:10px 12px;font-size:12px}
+.sch-pop-h{font-weight:800;font-size:12.5px;margin-bottom:8px;line-height:1.3}
+.sch-pop-h span{display:block;font-weight:600;font-size:11px;color:var(--ink-muted)}
+.sch-pop-f{display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:700;font-size:11px;color:var(--ink-2)}
+.sch-pop-f select{flex:1;min-width:0;font:inherit;font-size:12px;font-weight:600;padding:5px 6px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+.sch-pop-msg{font-size:11px;color:var(--ink-muted);margin:6px 0 2px;line-height:1.35}
+.sch-pop-msg.bad{color:var(--bad);font-weight:700}
+.sch-pop-b{display:flex;gap:6px;margin-top:8px}
+.sch-added{display:inline-block;margin-left:5px;font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);vertical-align:1px}
+.sch-rm{float:right;border:0;background:transparent;color:var(--ink-muted);font-size:15px;line-height:1;padding:2px 0 2px 6px;cursor:pointer}
+.sch-rm:hover{color:var(--bad)}
+.sch-addp{margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sch-addp-form{display:none;flex-basis:100%;flex-wrap:wrap;align-items:center;gap:6px;padding:8px;border:1px dashed var(--line-2);border-radius:10px;background:var(--surface-2)}
+.sch-addp.open .sch-addp-form{display:flex}
+.sch-apin{font:inherit;font-size:12px;padding:5px 8px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);min-width:180px;flex:1 1 180px}
+.sch-gate{margin:0 0 8px;border-radius:10px;font-size:12px;line-height:1.4}
+.sch-gate:empty{display:none}
+.sch-gate.bad{border:1px solid var(--bad);background:var(--bad-bg);padding:8px 10px}
+.sch-gate.warn{border:1px solid var(--warn);background:var(--warn-bg);padding:8px 10px}
+.sch-gate.ok{border:1px solid var(--good);background:var(--good-bg);padding:6px 10px;color:var(--good)}
+.sch-gate-h{font-weight:800;color:var(--bad)}
+.sch-gate ul{margin:4px 0 0;padding-left:18px} .sch-gate ul.warn{color:var(--warn)}
+.sch-gate-okline{font-weight:700} .sch-gate-wait{margin-top:4px;font-weight:700;color:var(--warn)}
+.sch-gate-ov{font-weight:700;color:var(--ink-2)}
+.sch-ovtag{font-size:9.5px;color:var(--bad);text-transform:uppercase;letter-spacing:.3px}
+body.sch-print .sch-t td .when{font-size:7.5px;padding:0;color:#000;text-decoration:none}
+body.sch-print .sch-t td .when.set,body.sch-print .sch-rm,body.sch-print .sch-gate{display:none}
+body.sch-print .sch-t td.tflag{box-shadow:none}
 .sch-legend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:8px;font-size:11px;color:var(--ink-2)}
 .sch-legend code{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-weight:800;color:var(--ink)}
 .sch .muted{color:var(--ink-muted)}
@@ -1568,7 +1621,7 @@ body.sch-print .sch-foot{margin-top:6px;padding-top:4px;font-size:8.5px;color:#4
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.72"; // Manager Scheduler: daypart owners auto fill from the grid (Eddie 2026-11-05; fn stamp in lockstep, no fn logic change). PRIOR: // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
+const SHELL_VERSION = "v2-0.73"; // Manager Scheduler: add a person (this week only or keep on roster) + who and start time on every placed task, times inside that shift (Eddie 2026-11-11, fn lockstep). PRIOR v2-0.72: // Manager Scheduler: daypart owners auto fill from the grid (Eddie 2026-11-05; fn stamp in lockstep, no fn logic change). PRIOR: // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -4982,13 +5035,13 @@ function renderSchedulePage(payload){
   var h = '<div class="sch' + (SCH.printView ? " preview" : "") + '" id="schRoot">';
   h += schUnpublishedBox(p);
   h += schBar(p);
-  h += '<div class="sch-sheet" id="schSheet">' + schHead(p)
+  h += '<div class="sch-sheet" id="schSheet">' + schHead(p) + '<div class="sch-gate nopr" id="schGate"></div>'
      + '<div class="sch-sec"><h2>Manager and shift leader schedule <span class="sch-hint nopr">one row per person, Sun to Sat, hours auto totaled</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schGrid">' + schGridHead(p) + '<tbody id="schGridBody"></tbody></table></div>'
-     + schLegend(p) + '</div>'
+     + schAddPersonBox(p) + schLegend(p) + '</div>'
      + '<div class="sch-sec"><h2>Who runs the shift <span class="sch-hint nopr">fills itself from the grid (italic = auto, the longest shift in that window); pick a name only to override; Food Safety is a hand pick; red = that person is not scheduled that day</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schDp"><thead><tr><th class="name">Shift</th>' + schDayHeads(p, false) + '<th class="hrs">days</th></tr></thead><tbody id="schDpBody"></tbody></table></div></div>'
-     + '<div class="sch-sec"><h2>Routines <span class="sch-hint nopr">tap a day to plan (box), again to tick done (check), a third time to clear</span></h2>'
+     + '<div class="sch-sec"><h2>Routines <span class="sch-hint nopr">tap a day to plan (box), again to tick done (check), a third time to clear; tap the time line under a placed task to set who does it and when (times follow that person&rsquo;s shift)</span></h2>'
      + '<div class="sch-scroll"><table class="sch-t" id="schRt"><thead><tr><th class="name">Routine</th>' + schDayHeads(p, false) + '<th class="hrs">done</th></tr></thead><tbody id="schRtBody"></tbody></table></div></div>'
      + schFoot(p)
      + '</div></div>';
@@ -5006,7 +5059,7 @@ function schPaintAll(){ schPaintGrid(); schPaintDayparts(); schPaintRoutines(); 
 
 function schUnpublishedBox(p){
   var u = p.unpublished; if(!u) return "";
-  var names = (u.stores || []).map(function(s){ return '<span class="sch-link" data-store="' + s.id + '" data-week="' + esc(u.week_start) + '" onclick="schGoStore(this)">' + esc(s.name) + '</span>'; });
+  var names = (u.stores || []).map(function(s){ return '<span class="sch-link" data-store="' + s.id + '" data-week="' + esc(u.week_start) + '" onclick="schGoStore(this)">' + esc(s.name) + (s.needs_override ? ' <b class="sch-ovtag">needs override</b>' : "") + '</span>'; });
   var cls = "sch-unpub nopr" + (names.length && u.is_late ? " late" : "");
   return '<div class="' + cls + '"><b>Next week (' + esc(schMD(u.week_start)) + ' to ' + esc(schMD(u.week_end)) + '):</b> '
     + esc(u.published_n) + ' of ' + esc(u.stores_n) + ' stores published'
@@ -5041,7 +5094,7 @@ function schBar(p){
 function schHead(p){
   var w = p.week || {};
   var st = w.status === "published"
-    ? "Published " + (w.published_at ? schTs(w.published_at) : "") + (w.published_by ? " by " + w.published_by : "")
+    ? "Published " + (w.published_at ? schTs(w.published_at) : "") + (w.published_by ? " by " + w.published_by : "") + (w.override_by ? " (supervisor override)" : "")
     : (w.exists ? "Draft" : "Draft, nothing entered yet");
   return '<div class="sch-head"><h1><span class="sch-store">' + esc(p.store.name) + '</span> <span class="sch-num">#' + esc(p.store.number) + '</span></h1>'
     + '<div class="sch-week">Week of <b>Sun ' + esc(schMD(p.week_start)) + '</b> to <b>Sat ' + esc(schMDY(p.week_end)) + '</b></div>'
@@ -5083,7 +5136,9 @@ function schPaintGrid(){
     var rows = people.filter(function(x){ return x.kind === g[0]; });
     html += '<tr class="sub"><th colspan="10">' + g[1] + (rows.length ? "" : ' <span class="sch-hint">none on the roster yet</span>') + '</th></tr>';
     rows.forEach(function(x){
-      var hrs = 0, wk = 0, h = '<td class="name"><span class="nm">' + esc(x.display_name) + '</span><span class="rl">' + esc(x.role_label) + '</span></td>';
+      var tagAdd = x.manual ? '<span class="sch-added" title="' + (x.week_only ? "added for this week only" : "added on the board, on the roster every week") + '">' + (x.week_only ? "this week" : "added") + '</span>' : "";
+      var rmBtn = (x.manual && edit) ? '<button type="button" class="sch-rm nopr" data-p="' + x.id + '" title="remove ' + esc(x.display_name) + '" aria-label="remove ' + esc(x.display_name) + '">×</button>' : "";
+      var hrs = 0, wk = 0, h = '<td class="name">' + rmBtn + '<span class="nm">' + esc(x.display_name) + '</span>' + tagAdd + '<span class="rl">' + esc(x.role_label) + '</span></td>';
       for(var d = 0; d < 7; d++){
         var pc = schParseCode(x.codes[d], openH, closeH); hrs += pc.hours || 0; if(d < 6) wk += pc.hours || 0;
         var iso = schAddDays(p.week_start, d);
@@ -5121,9 +5176,12 @@ function schPaintGrid(){
     pcv.innerHTML = lowDays ? 'Coverage <b>' + lowDays + ' day' + (lowDays > 1 ? "s" : "") + ' under ' + lowUnder + ' leaders</b>' : 'Coverage <b>' + lowUnder + ' or more leaders every day</b>';
   }
   if(edit) schBindGrid(tb);
+  schPaintGate();   // v2-0.73: the publish rules re-check on every code change
 }
 function schBindGrid(tb){
   var p = SCH.page;
+  var rms = tb.querySelectorAll("button.sch-rm");
+  for(var k = 0; k < rms.length; k++) (function(b){ b.addEventListener("click", function(){ schRemovePerson(Number(b.getAttribute("data-p"))); }); })(rms[k]);
   var inputs = tb.querySelectorAll("td.cell input");
   for(var i = 0; i < inputs.length; i++) (function(inp){
     inp.addEventListener("input", function(){
@@ -5132,7 +5190,7 @@ function schBindGrid(tb){
       person.codes[d] = inp.value;
       if(person.hours) person.hours[d] = undefined;    // stored hours unknown until the receipt lands
       var pos = inp.selectionStart;
-      schPaintGrid(); schPaintDayparts();
+      schPaintGrid(); schPaintDayparts(); schPaintRoutines();   // v2-0.73: task times re-check against the new shift
       var again = tb.querySelector('td.cell[data-p="' + pid + '"][data-d="' + d + '"] input');
       if(again){ again.focus(); try{ again.setSelectionRange(pos, pos); }catch(e){} }
       schQueueShift(pid, d, inp.value);
@@ -5298,7 +5356,8 @@ function schPaintRoutines(){
         var st = r ? r.state : "";
         if(r) planned++; if(st === "done") done++;
         var title = !r ? "tap to plan" : st === "planned" ? "planned, tap to tick done" : "done" + (r.done_by ? " by " + r.done_by : "") + (r.done_at ? " " + schTs(r.done_at) : "") + ", tap to clear";
-        h += '<td class="r ' + (st || "") + (edit ? " can" : "") + '" data-key="' + key + '" data-item="' + (it.item_id == null ? "" : it.item_id) + '" data-custom="' + esc(it.custom || "") + '" data-d="' + d + '" title="' + esc(title) + '">' + (SCH_GLYPH[st] || "") + '</td>';
+        var wh = r ? schWhenHtml(p, r, edit) : null;
+        h += '<td class="r ' + (st || "") + (edit ? " can" : "") + (wh && wh.flag ? " tflag" : "") + '" data-key="' + key + '" data-item="' + (it.item_id == null ? "" : it.item_id) + '" data-custom="' + esc(it.custom || "") + '" data-d="' + d + '" title="' + esc(title + (wh && wh.title ? "; " + wh.title : "")) + '"><span class="g">' + (SCH_GLYPH[st] || "") + '</span>' + (wh ? wh.html : "") + '</td>';
       }
       h += '<td class="owner">' + (planned ? done + "/" + planned + " done" : '<span class="muted">not placed</span>') + '</td>';
       html += '<tr>' + h + '</tr>';
@@ -5309,19 +5368,20 @@ function schPaintRoutines(){
         + '<td colspan="7" class="sch-addcell"><select class="sch-addday" data-key="' + key + '" aria-label="day">' + dayOpts + '</select> <button type="button" class="sch-btn small" data-key="' + key + '" onclick="schAddCustom(this)">Add</button></td><td></td></tr>';
     }
   });
-  html += '<tr class="sub"><th colspan="9">Pull schedule <span class="sch-owner">one unit pulled and deep cleaned per day; tick when done</span></th></tr>';
+  html += '<tr class="sub"><th colspan="9">Equipment detail cleaning <span class="sch-owner">one unit detail cleaned per day; pick who does it and when; tick when done</span></th></tr>';   // v2-0.73: was Pull schedule (Eddie 2026-11-11)
   var pulls = tpl.filter(function(t){ return t.role_key === "pull"; });
-  var h2 = '<td class="name"><span class="nm light">Equipment pull</span></td>', pd = 0;
+  var h2 = '<td class="name"><span class="nm light">Equipment detail cleaning</span></td>', pd = 0;
   for(var d2 = 0; d2 < 7; d2++){
     var pr = schFind(placed, function(x){ return x.role_key === "pull" && x.dow === d2; });
     var cur = pr ? pr.routine_item_id : null, isDone = !!pr && pr.state === "done"; if(isDone) pd++;
+    var pwh = pr ? schWhenHtml(p, pr, edit) : null;
     if(edit){
       var opts = '<option value="">none</option>';
       pulls.forEach(function(t){ opts += '<option value="' + t.id + '"' + (t.id === cur ? " selected" : "") + '>' + esc(t.label) + '</option>'; });
-      h2 += '<td class="pull' + (isDone ? " done" : "") + '" data-d="' + d2 + '"><select aria-label="pull ' + SCH_DAYS[d2] + '">' + opts + '</select>' + (pr ? '<span class="tick" title="toggle done">' + (isDone ? "✓ done" : "tick when done") + '</span>' : "") + '</td>';
+      h2 += '<td class="pull' + (isDone ? " done" : "") + (pwh && pwh.flag ? " tflag" : "") + '" data-d="' + d2 + '"' + (pwh && pwh.title ? ' title="' + esc(pwh.title) + '"' : "") + '><select aria-label="pull ' + SCH_DAYS[d2] + '">' + opts + '</select>' + (pr ? '<span class="tick" title="toggle done">' + (isDone ? "✓ done" : "tick when done") + '</span>' : "") + (pwh ? pwh.html : "") + '</td>';
     } else {
       var t0 = schFind(pulls, function(t){ return t.id === cur; });
-      h2 += '<td class="pull' + (isDone ? " done" : "") + '"><span class="ro">' + esc(t0 ? t0.label : "") + (isDone ? " ✓" : "") + '</span></td>';
+      h2 += '<td class="pull' + (isDone ? " done" : "") + (pwh && pwh.flag ? " tflag" : "") + '"' + (pwh && pwh.title ? ' title="' + esc(pwh.title) + '"' : "") + '><span class="ro">' + esc(t0 ? t0.label : "") + (isDone ? " ✓" : "") + '</span>' + (pwh ? pwh.html : "") + '</td>';
     }
   }
   h2 += '<td class="owner">' + pd + '/7 done</td>';
@@ -5329,7 +5389,12 @@ function schPaintRoutines(){
   tb.innerHTML = html;
   if(edit){
     var cells = tb.querySelectorAll("td.r.can"), i2;
-    for(i2 = 0; i2 < cells.length; i2++) (function(td){ td.addEventListener("click", function(){ schCycleRoutine(td); }); })(cells[i2]);
+    for(i2 = 0; i2 < cells.length; i2++) (function(td){ td.addEventListener("click", function(ev){
+      if(ev.target && ev.target.closest && ev.target.closest(".when")){ schOpenTask(td); return; }   // v2-0.73: who + when picker
+      schCycleRoutine(td);
+    }); })(cells[i2]);
+    var pwhen = tb.querySelectorAll("td.pull .when");
+    for(i2 = 0; i2 < pwhen.length; i2++) (function(w){ w.addEventListener("click", function(){ schOpenTask(w.parentNode); }); })(pwhen[i2]);
     var psel = tb.querySelectorAll("td.pull select");
     for(i2 = 0; i2 < psel.length; i2++) (function(sel){ sel.addEventListener("change", function(){ schPickPull(sel); }); })(psel[i2]);
     var ticks = tb.querySelectorAll("td.pull .tick");
@@ -5381,8 +5446,9 @@ async function schPickPull(sel){
   var d = Number(sel.parentNode.getAttribute("data-d")), v = sel.value, placed = SCH.page.routines.placed;
   var idx = schFindIdx(placed, function(x){ return x.role_key === "pull" && x.dow === d; });
   var prevItem = idx >= 0 ? placed[idx].routine_item_id : null;
+  var keepWho = idx >= 0 ? placed[idx].person_id : null, keepAt = idx >= 0 ? placed[idx].start_min : null;   // the fn carries who + time on a unit swap
   if(idx >= 0) placed.splice(idx, 1);
-  if(v) placed.push({ id:null, routine_item_id:Number(v), role_key:"pull", custom_label:null, dow:d, state:"planned", done_by_manager_id:null, done_at:null });
+  if(v) placed.push({ id:null, routine_item_id:Number(v), role_key:"pull", custom_label:null, dow:d, state:"planned", done_by_manager_id:null, done_at:null, person_id:keepWho == null ? null : keepWho, start_min:keepAt == null ? null : keepAt });
   schPaintRoutines();
   schSaving(1);
   try{
@@ -5412,16 +5478,256 @@ async function schTogglePull(td){
   finally{ schSaving(-1); }
 }
 
+/* ---- v2-0.73: WHO + WHEN on a placed task (Eddie 2026-11-11) ----
+   Who defaults to the section's role owner (owner_ids, the first roster row with that
+   role); the equipment detail cleaning row has no owner, so it needs a pick. The start
+   time list holds ONLY that person's shift that day in 30 minute steps (9-5 -> 9:00 AM
+   to 5:00 PM); OFF / RQ / V / blank = not scheduled, no times. A saved time that no
+   longer fits after a shift change is kept and painted red (the fn never clears it). */
+var SCH_OWNER_KEYS = { gm:1, people:1, kitchen:1, guest_service:1 };
+function schClockLong(min){ return schHourLabel(Number(min) / 60); }
+function schClockShort(min){ return schClockLong(min).replace(" AM", "a").replace(" PM", "p"); }
+function schShortName(n){ var parts = String(n || "").trim().split(/\s+/); return parts.length > 1 && !/\.$/.test(parts[1]) ? parts[0] + " " + parts[1].charAt(0) + "." : String(n || ""); }
+function schTaskDoer(p, t){
+  if(t.person_id != null){ var x = schFind(p.people, function(q){ return q.id === t.person_id; }); return { person:x, assigned:true, removed:!x }; }
+  var oid = (p.owner_ids && SCH_OWNER_KEYS[t.role_key]) ? p.owner_ids[t.role_key] : null;
+  return { person: oid != null ? schFind(p.people, function(q){ return q.id === oid; }) : null, assigned:false, removed:false };
+}
+function schTimeSlots(pc){
+  var out = []; if(!pc || pc.kind !== "shift") return out;
+  for(var m = Math.ceil(pc.start * 60 / 30) * 30; m <= pc.end * 60; m += 30) out.push(m);
+  return out;
+}
+function schTaskState(p, t){
+  var dr = schTaskDoer(p, t), who = dr.person, d = t.dow, flag = "", why = "";
+  var pc = who ? schParseCode(who.codes[d], p.week.open_hour, p.week.close_hour) : null;
+  if(dr.removed){ flag = "removed"; why = "the person picked for this is no longer on the sheet"; }
+  else if(t.start_min != null){
+    if(!who){ flag = "nobody"; why = "pick who does it"; }
+    else if(pc.kind !== "shift"){ flag = "off"; why = who.display_name + " is not scheduled " + SCH_DAYS[d] + (who.codes[d] ? " (" + who.codes[d] + ")" : ""); }
+    else if(t.start_min < pc.start * 60 || t.start_min > pc.end * 60){ flag = "outside"; why = schClockLong(t.start_min) + " is outside " + who.display_name + "’s " + String(who.codes[d]).toUpperCase() + " shift"; }
+  }
+  return { doer:dr, who:who, pc:pc, flag:flag, why:why };
+}
+function schWhenHtml(p, t, edit){
+  var s = schTaskState(p, t), who = s.who;
+  var showName = s.doer.removed ? "removed" : (who && (s.doer.assigned || !SCH_OWNER_KEYS[t.role_key])) ? schShortName(who.display_name) : "";
+  var txt = (t.start_min != null ? schClockShort(t.start_min) : "") + (t.start_min != null && showName ? " · " : "") + showName;
+  if(!txt && !edit) return null;
+  var placeholder = !txt;
+  if(placeholder) txt = "+ time";
+  var info = s.why || (who ? (s.doer.assigned ? "" : "role owner ") + who.display_name + (s.pc && s.pc.kind === "shift" ? " works " + String(who.codes[t.dow]).toUpperCase() : " is not scheduled " + SCH_DAYS[t.dow]) : (SCH_OWNER_KEYS[t.role_key] ? "no role owner on the roster" : "pick who does it"));
+  var cls = "when" + (s.flag ? " bad" : "") + (placeholder ? " set nopr" : "");
+  return { html:'<span class="' + cls + '"' + (edit ? ' role="button" tabindex="0" aria-label="who and when"' : "") + '>' + esc(txt) + '</span>', flag:s.flag, title:info };
+}
+function schTaskFromTd(td){
+  var placed = SCH.page.routines.placed, d = Number(td.getAttribute("data-d"));
+  if(td.classList.contains("pull")) return schFind(placed, function(x){ return x.role_key === "pull" && x.dow === d; });
+  var itemRaw = td.getAttribute("data-item");
+  return schFind(placed, schRoutineMatch({ item_id: itemRaw ? Number(itemRaw) : null, custom: td.getAttribute("data-custom") || null }, td.getAttribute("data-key"), d));
+}
+function schTaskLabel(p, t){
+  if(t.custom_label) return t.custom_label;
+  var it = schFind(p.routines.template, function(x){ return x.id === t.routine_item_id; });
+  return (t.role_key === "pull" ? "Detail clean: " : "") + (it ? it.label : "task");
+}
+function schCloseTask(){ var el = document.getElementById("schPop"); if(el && el.parentNode) el.parentNode.removeChild(el); SCH.popTd = null; }
+/* the picker is position:fixed beside its cell and follows it on scroll / resize (never
+   closes on scroll: a phone scrolls when its keyboard or a dropdown opens) */
+function schPlaceTask(){
+  var pop = document.getElementById("schPop"), td = SCH.popTd; if(!pop || !td) return;
+  if(!td.isConnected){ var t2 = null; try{ t2 = document.querySelector(td.classList.contains("pull") ? '#schRtBody td.pull[data-d="' + td.getAttribute("data-d") + '"]' : '#schRtBody td.r[data-key="' + td.getAttribute("data-key") + '"][data-item="' + td.getAttribute("data-item") + '"][data-custom="' + (td.getAttribute("data-custom") || "").replace(/"/g, '\\"') + '"][data-d="' + td.getAttribute("data-d") + '"]'); }catch(e){} if(!t2){ schCloseTask(); return; } SCH.popTd = td = t2; }
+  var r = td.getBoundingClientRect(), pw = pop.offsetWidth || 270, ph = pop.offsetHeight || 190;
+  pop.style.left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2)) + "px";
+  pop.style.top = Math.max(8, (r.bottom + 4 + ph > window.innerHeight && r.top - ph - 4 > 0) ? (r.top - ph - 4) : (r.bottom + 4)) + "px";
+}
+function schOpenTask(td){
+  var p = SCH.page, t = schTaskFromTd(td); if(!t || !p.can_edit) return;
+  if(t.id == null){ alert("Still saving that task. Try again in a second."); return; }
+  schCloseTask();
+  var d = t.dow, oh = p.week.open_hour, ch = p.week.close_hour, isOwnerRole = !!SCH_OWNER_KEYS[t.role_key];
+  var ownerId = (isOwnerRole && p.owner_ids) ? p.owner_ids[t.role_key] : null;
+  var owner = ownerId != null ? schFind(p.people, function(q){ return q.id === ownerId; }) : null;
+  var codeOf = function(x){ var pc = schParseCode(x.codes[d], oh, ch); return pc.kind === "blank" ? "no shift" : pc.kind === "bad" ? "?" : String(x.codes[d]).toUpperCase(); };
+  var opts = isOwnerRole
+    ? '<option value="">' + esc(owner ? "Role owner · " + owner.display_name + " (" + codeOf(owner) + ")" : "Role owner (none on the roster)") + '</option>'
+    : '<option value="">pick who</option>';
+  p.people.forEach(function(x){ opts += '<option value="' + x.id + '"' + (t.person_id === x.id ? " selected" : "") + '>' + esc(x.display_name + " (" + codeOf(x) + ")") + '</option>'; });
+  var pop = document.createElement("div"); pop.className = "sch-pop"; pop.id = "schPop";
+  pop.innerHTML = '<div class="sch-pop-h">' + esc(schTaskLabel(p, t)) + '<span>' + SCH_DAYS[d] + ' ' + esc(schMD(schAddDays(p.week_start, d))) + '</span></div>'
+    + '<label class="sch-pop-f">Who<select id="schPopWho">' + opts + '</select></label>'
+    + '<label class="sch-pop-f">Start<select id="schPopAt"></select></label>'
+    + '<div class="sch-pop-msg" id="schPopMsg"></div>'
+    + '<div class="sch-pop-b"><button type="button" class="sch-btn small primary" id="schPopSave">Save</button><button type="button" class="sch-btn small" id="schPopX">Cancel</button></div>';
+  document.body.appendChild(pop);
+  SCH.popTd = td; schPlaceTask();
+  var who = pop.querySelector("#schPopWho"), at = pop.querySelector("#schPopAt"), msg = pop.querySelector("#schPopMsg"), save = pop.querySelector("#schPopSave");
+  function fill(){
+    var pid = who.value ? Number(who.value) : null;
+    var x = pid != null ? schFind(p.people, function(q){ return q.id === pid; }) : owner;
+    var pc = x ? schParseCode(x.codes[d], oh, ch) : null, slots = schTimeSlots(pc), html = "";
+    msg.className = "sch-pop-msg"; msg.textContent = "";
+    if(!x){ at.disabled = true; html = '<option value="">pick who first</option>'; }
+    else if(!slots.length){
+      at.disabled = true; html = '<option value="">not scheduled ' + SCH_DAYS[d] + '</option>';
+      msg.className = "sch-pop-msg bad";
+      msg.textContent = x.display_name + " is not scheduled " + SCH_DAYS[d] + (x.codes[d] ? " (" + String(x.codes[d]).toUpperCase() + ")" : "") + ", so there are no times. Pick someone who works that day, or schedule them in the grid.";
+    } else {
+      at.disabled = false; html = '<option value="">no set time</option>';
+      slots.forEach(function(s){ html += '<option value="' + s + '"' + (s === t.start_min ? " selected" : "") + '>' + esc(schClockLong(s)) + '</option>'; });
+      if(t.start_min != null && slots.indexOf(t.start_min) < 0){ msg.className = "sch-pop-msg bad"; msg.textContent = "The saved " + schClockLong(t.start_min) + " is outside this shift; pick a new time."; }
+      else msg.textContent = x.display_name + " works " + String(x.codes[d]).toUpperCase() + " " + SCH_DAYS[d] + ": " + schClockLong(slots[0]) + " to " + schClockLong(slots[slots.length - 1]) + ".";
+    }
+    at.innerHTML = html;
+  }
+  fill();
+  who.addEventListener("change", fill);
+  pop.querySelector("#schPopX").addEventListener("click", schCloseTask);
+  save.addEventListener("click", async function(){
+    save.disabled = true; schSaving(1);
+    try{
+      var j = await schPost({ action:"sched_save_task_time", routine_id:t.id, person_id: who.value || "", start_min: at.disabled ? "" : at.value }), rc = j.receipt || {};
+      t.person_id = rc.person_id == null ? null : Number(rc.person_id); t.start_min = rc.start_min == null ? null : Number(rc.start_min);
+      schCloseTask(); schPaintRoutines(); schSaved();
+    }catch(e){ msg.className = "sch-pop-msg bad"; msg.textContent = (e && e.message) ? e.message : String(e); save.disabled = false; }
+    finally{ schSaving(-1); }
+  });
+}
+document.addEventListener("mousedown", function(ev){
+  var el = document.getElementById("schPop"); if(!el) return;
+  if(el.contains(ev.target) || (ev.target && ev.target.closest && ev.target.closest(".when"))) return;
+  schCloseTask();
+}, true);
+document.addEventListener("keydown", function(ev){
+  if(ev.key === "Escape") schCloseTask();
+  if((ev.key === "Enter" || ev.key === " ") && ev.target && ev.target.classList && ev.target.classList.contains("when")){ ev.preventDefault(); ev.target.click(); }
+});
+window.addEventListener("resize", schPlaceTask);
+document.addEventListener("scroll", schPlaceTask, true);
+window.schOpenTask = schOpenTask; window.schTaskState = schTaskState; window.schTimeSlots = schTimeSlots;
+
+/* ---- v2-0.73: add a person who is not on the roster (Eddie 2026-11-11) ---- */
+function schAddPersonBox(p){
+  if(!p.can_edit) return "";
+  return '<div class="sch-addp nopr" id="schAddP"><button type="button" class="sch-btn small" onclick="schAddPersonOpen(true)">+ Add a person</button> <span class="sch-hint">not on the roster: a borrowed manager or a new hire</span>'
+    + '<div class="sch-addp-form">'
+    + '<input id="schApName" class="sch-apin" placeholder="First name and last initial" maxlength="40" autocomplete="off" aria-label="name">'
+    + '<select id="schApKind" class="sch-addday" aria-label="type"><option value="mgr_salaried">Salaried manager</option><option value="mgr_hourly">Hourly manager</option><option value="sl">Shift leader</option></select>'
+    + '<input id="schApNote" class="sch-apin" placeholder="note under the name, e.g. from Eola (optional)" maxlength="40" autocomplete="off" aria-label="note">'
+    + '<button type="button" class="sch-btn small" onclick="schAddPerson(1)">This week only</button>'
+    + '<button type="button" class="sch-btn small primary" onclick="schAddPerson(0)">Keep on roster</button>'
+    + '<button type="button" class="sch-btn small" onclick="schAddPersonOpen(false)">Cancel</button></div></div>';
+}
+function schAddPersonOpen(on){
+  var b = document.getElementById("schAddP"); if(!b) return;
+  b.classList.toggle("open", !!on);
+  if(on){ var n = document.getElementById("schApName"); if(n) n.focus(); }
+}
+async function schAddPerson(weekOnly){
+  var nameEl = document.getElementById("schApName"), name = ((nameEl && nameEl.value) || "").replace(/\s+/g, " ").trim();
+  if(name.length < 2){ alert("Type the name: first name and last initial."); if(nameEl) nameEl.focus(); return; }
+  var kind = document.getElementById("schApKind").value, note = (document.getElementById("schApNote").value || "").trim();
+  schSaving(1);
+  try{ await schPost({ action:"sched_add_person", display_name:name, kind:kind, role_label:note, week_only: weekOnly ? 1 : 0 }); schSaved(); schReload(); }
+  catch(e){ alert("Add failed: " + (e && e.message ? e.message : e)); }
+  finally{ schSaving(-1); }
+}
+async function schRemovePerson(pid){
+  var x = schFind(SCH.page.people, function(q){ return q.id === pid; }); if(!x) return;
+  if(!confirm("Remove " + x.display_name + (x.week_only ? " from this week" : " from the roster (every week)") + "? Codes already typed stay saved but drop off the sheet.")) return;
+  schSaving(1);
+  try{ await schPost({ action:"sched_save_person", person_id:pid, active:0 }); schSaved(); schReload(); }
+  catch(e){ alert("Remove failed: " + (e && e.message ? e.message : e)); }
+  finally{ schSaving(-1); }
+}
+window.schAddPersonOpen = schAddPersonOpen; window.schAddPerson = schAddPerson; window.schRemovePerson = schRemovePerson;
+
+/* ---- v2-0.73: PUBLISH GATE (Eddie 2026-11-11). Mirror of schGateEval() in the fn:
+   the GM's own row needs one close this week (a shift ending at store close), and over
+   the month one Friday / Saturday close and one Sunday shift (enforced on the month's
+   last week, a warning before); no hourly shift leader over 39 h (HRS or PAY WK).
+   Breaking a rule = a Supervisor / Owner publishes with an override reason. The fn
+   re-checks on publish, so this panel is guidance, never the gate itself. */
+function schGateIssues(p){
+  var g = p && p.gate; if(!g || !g.applies) return [];
+  var out = [], oh = p.week.open_hour, ch = p.week.close_hour, mn = g.month_name || "this month", lim = g.sl_max || 39, d;
+  var isClose = function(code, o, c){ var pc = schParseCode(code, o, c); return pc.kind === "shift" && pc.end >= Number(c); };
+  var gm = schFind(p.people, function(q){ return q.role_key === "gm"; });
+  if(!gm) out.push({ rule:"no_gm", msg:"No General Manager row on this sheet, so the close rules were not checked.", blocking:false });
+  else {
+    var hasClose = false; for(d = 0; d < 7; d++) if(isClose(gm.codes[d], oh, ch)) hasClose = true;
+    if(!hasClose) out.push({ rule:"close_week", msg: gm.display_name + " has no close this week.", blocking:true });
+    var wkClose = isClose(gm.codes[5], oh, ch) || isClose(gm.codes[6], oh, ch), sun = schParseCode(gm.codes[0], oh, ch).kind === "shift";
+    (g.month_weeks || []).forEach(function(w){
+      if(isClose(w.gm_codes[5], w.open_hour, w.close_hour) || isClose(w.gm_codes[6], w.open_hour, w.close_hour)) wkClose = true;
+      if(schParseCode(w.gm_codes[0], w.open_hour, w.close_hour).kind === "shift") sun = true;
+    });
+    var when = g.last_of_month ? "" : " (needed by the last week of " + mn + ")";
+    if(!wkClose) out.push({ rule:"weekend_close", msg: gm.display_name + " has no Friday or Saturday close in " + mn + when + ".", blocking: !!g.last_of_month });
+    if(!sun) out.push({ rule:"sunday", msg: gm.display_name + " has no Sunday shift in " + mn + when + ".", blocking: !!g.last_of_month });
+  }
+  p.people.forEach(function(x){
+    if(x.role_key !== "shift_leader" || x.is_salaried) return;
+    var tot = 0, wk = 0;
+    for(var k = 0; k < 7; k++){ var h = schParseCode(x.codes[k], oh, ch).hours || 0; tot += h; if(k < 6) wk += h; }
+    var pay = x.prior_sat ? wk + (schParseCode(x.prior_sat.code, oh, ch).hours || 0) : null;
+    if(tot > lim || (pay != null && pay > lim)) out.push({ rule:"sl_over_39", msg: x.display_name + " is scheduled " + schFmtH(tot) + " h this week" + (pay != null ? " (PAY WK " + schFmtH(pay) + " h)" : "") + ", over " + lim + ".", blocking:true });
+  });
+  return out;
+}
+window.schGateIssues = schGateIssues;
+function schPaintGate(){
+  var p = SCH.page, el = document.getElementById("schGate"); if(!el || !p || !p.week) return;
+  var g = p.gate || {}, w = p.week, pub = w.status === "published";
+  var h = "", blk = [], warn = [];
+  if(w.override_by && pub) h += '<div class="sch-gate-ov">Published with a supervisor override by <b>' + esc(w.override_by) + '</b>' + (w.override_reason ? ": " + esc(w.override_reason) : "") + '</div>';
+  if(g.applies){
+    var iss = schGateIssues(p);
+    blk = iss.filter(function(i){ return i.blocking; }); warn = iss.filter(function(i){ return !i.blocking; });
+    if(blk.length) h += '<div class="sch-gate-h">' + (pub ? "This week now breaks the publish rules:" : (g.can_override ? "Breaks the publish rules: publishing needs your override and a reason" : "Needs a supervisor override to publish:")) + '</div><ul>' + blk.map(function(i){ return '<li>' + esc(i.msg) + '</li>'; }).join("") + '</ul>';
+    if(warn.length) h += '<ul class="warn">' + warn.map(function(i){ return '<li>' + esc(i.msg) + '</li>'; }).join("") + '</ul>';
+    if(!blk.length && !warn.length && !pub) h += '<div class="sch-gate-okline">Meets the publish rules: GM close this week, a Friday or Saturday close and a Sunday this month, no shift leader over ' + esc(g.sl_max || 39) + ' h.</div>';
+    if(w.gate_blocked_at && !pub) h += '<div class="sch-gate-wait">Waiting on a supervisor override since ' + esc(schTs(w.gate_blocked_at)) + '.</div>';
+  }
+  el.className = "sch-gate nopr" + (h ? (blk.length ? " bad" : warn.length ? " warn" : " ok") : "");
+  el.innerHTML = h;
+  var btn = document.getElementById("schPublishBtn");
+  if(btn && !pub) btn.textContent = blk.length ? (g.can_override ? "Override and publish" : "Needs supervisor override") : "Publish week";
+}
+
 /* ---- week level actions ---- */
 async function schPublish(){
-  var p = SCH.page, undo = p.week.status === "published";
-  if(!confirm(undo
+  var p = SCH.page, undo = p.week.status === "published", body = { action:"sched_publish", undo: undo ? 1 : 0 };
+  // v2-0.73 publish gate: a broken rule = a GM asks for a supervisor override; a Sup / Owner types a reason
+  var blk = undo ? [] : schGateIssues(p).filter(function(i){ return i.blocking; });
+  if(blk.length){
+    var list = blk.map(function(i){ return "- " + i.msg; }).join("\n");
+    if(p.gate && p.gate.can_override){
+      var why = prompt("This week breaks the publish rules:\n" + list + "\n\nTo publish anyway, type the override reason:", "");
+      if(why == null) return;
+      if(!why.trim()){ alert("An override needs a reason."); return; }
+      body.override_reason = why.trim().slice(0, 300);
+    } else {
+      if(!confirm("This week needs a supervisor override to publish:\n" + list + "\n\nSend it to your supervisor for an override? (Or fix the sheet and publish again.)")) return;
+      schSaving(1);
+      try{ await schPost(body); schReload(); }
+      catch(e){
+        var m = (e && e.message) ? e.message : String(e);
+        if(/supervisor override/i.test(m)){ p.week.gate_blocked_at = new Date().toISOString(); p.week.exists = true; schPaintGate(); schSaved(); alert("Sent. Your supervisor now sees this week as waiting on an override."); }
+        else alert("Publish failed: " + m);
+      }
+      finally{ schSaving(-1); }
+      return;
+    }
+  }
+  if(!body.override_reason && !confirm(undo
       ? "Set the week of " + schMD(p.week_start) + " back to draft?"
       : "Publish the week of " + schMD(p.week_start) + " for " + p.store.name + "? The supervisor and the office will see it as final. You can still edit it after.")) return;
   schSaving(1);
   try{
-    var j = await schPost({ action:"sched_publish", undo: undo ? 1 : 0 }), r = j.receipt || {};
+    var j = await schPost(body), r = j.receipt || {};
     p.week.status = r.status || (undo ? "draft" : "published");
+    if(!undo){ p.week.gate_blocked_at = null; p.week.override_by = r.override_by || null; p.week.override_reason = r.override_reason || null; }
     p.week.published_at = r.published_at || null; p.week.published_by = r.published_by || null;
     if(r.week_id) p.week.id = r.week_id; p.week.exists = true;
     var w = schFind(p.weeks, function(x){ return x.week_start === p.week_start; }); if(w) w.status = p.week.status;
