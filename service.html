@@ -1,5 +1,6 @@
 <!doctype html>
-<!-- service.html v12 (2026-11-13, Eddie: "markedly improve the service and kitchen screens, make it amazing").
+<!-- service.html v13 (2026-11-13; v13 = every drive thru speed number is the THREE PEAK average,
+     breakfast + lunch + dinner, per Eddie: "overnight adversely impacts some stores"; pairs with fn v15) (v12: Eddie: "markedly improve the service and kitchen screens, make it amazing").
      Crew Service Area TV (drive thru / front counter). Point the Fire Stick at:
        https://edwardbiz-gif.github.io/manager-page/service.html?t=<service-screen token>&store=3444
      v12 is a full redesign on the shared screen kit (assets/screen-kit.css + screen-kit.js):
@@ -15,6 +16,8 @@
        * the YTD card is folded into the race card (its R2P/KVS tiles ran on data that stops at May)
        * McDelivery shows only when its month is recent (the feed's last month is stated either way)
        * numbers refresh in place every 10 minutes; last good numbers stay up if the network drops
+       * v13: the product race picks itself: products launched in the last 45 days (fn v15 rankers,
+         product_race_rank), with "day N of 45" on the card
      Safety net: if this page fails to start, the TV falls back to service-classic.html (the v11 screen).
      Crew facing: store level only, no employee names or pay. &today=YYYY-MM-DD still tests the champion card.
      Test hooks: &src=_fx/<file>.json &card=<id> &speed=<n> &hour=<0-23> &lite=1 (see screen-kit.js). -->
@@ -33,9 +36,9 @@ setTimeout(__classic, 25000);
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/screen-kit.css?v=2">
+<link rel="stylesheet" href="assets/screen-kit.css?v=3">
 </head><body>
-<script src="assets/screen-kit.js?v=2"></script>
+<script src="assets/screen-kit.js?v=3"></script>
 <script>
 (function () {
   var E = TV.esc, F = TV.fmt;
@@ -77,18 +80,18 @@ setTimeout(__classic, 25000);
     var month = TV.mon(mr.month);
     return { id: "speed", dur: 18, html:
       '<div class="split"><div class="col-hero">' +
-        TV.head({ eb: "Drive Thru Speed Race · " + E(month), ebEs: "Carrera de velocidad · " + E(TV.mes(month)), h: "Drive thru speed", hEs: "Velocidad del drive thru" }) +
+        TV.head({ eb: "Drive Thru Speed Race · " + E(month), ebEs: "Carrera de velocidad · " + E(TV.mes(month)), h: "Drive thru speed", hEs: "Velocidad en horas pico · 3 peaks" }) +
         TV.rankBlock(mr.rank, mr.total) +
         TV.coach(rows, i, { dec: 0, unitEn: "sec", unitEs: "seg", lower: true }) +
         TV.movement("oepe", mr.rank) +
         '<div class="stats a" style="--i:6">' +
-          TV.stat("Our OEPE", "Nuestro OEPE", TV.cu(v, 0) + '<span class="u">s</span>', t === "ok" ? "gold" : t) +
+          TV.stat("3 peak OEPE", "Horas pico", TV.cu(v, 0) + '<span class="u">s</span>', t === "ok" ? "gold" : t) +
           (nextGoal != null ? TV.stat("Next goal", "Próxima meta", nextGoal + '<span class="u">s</span>') : TV.stat("Goal", "Meta", "🏆")) +
           (d.ytd && d.ytd.oepe_s != null ? TV.stat(E(d.ytd.label), "Año a la fecha", F(d.ytd.oepe_s, 0) + '<span class="u">s</span>') : TV.stat("Days left", "Días restantes", TV.cu(ctx.daysLeft, 0))) +
         "</div>" +
       '</div><div class="col-main">' + TV.ladder(rows, { dec: 0, unit: "s" }) + "</div></div>",
-      foot: "OEPE = order end to present end, parked cars excluded · " + E(month) + " through " +
-        E(TV.isoLabel(mr.through)) + (lm.days ? " · " + lm.days + " days · " + TV.commas(lm.cars) + " cars" : "") + " · faster is better" };
+      foot: "OEPE at the 3 peaks (breakfast 4 to 11, lunch 11 to 2, dinner 4 to 9), parked cars excluded · " + E(month) + " through " +
+        E(TV.isoLabel(mr.through)) + (lm.days ? " · " + lm.days + " days" : "") + " · faster is better" };
   }
 
   // 14 day OEPE line with the 130 s goal marked
@@ -111,23 +114,24 @@ setTimeout(__classic, 25000);
     var lv = d.live || {}, ld = lv.day, g = d.goals || {};
     if (!ld) return null;
     var dps = lv.dayparts || [], mx = Math.max.apply(null, dps.map(function (p) { return +p.oepe_s || 0; }).concat([g.oepe_g * 1.15 || 150]));
-    var when = TV.isoLabel(lv.date), t = tone(ld.oepe_s, g);
+    var has3 = ld.oepe_3pk_s != null, dayOepe = has3 ? ld.oepe_3pk_s : ld.oepe_s, dayCars = has3 ? ld.cars_3pk : ld.dt_cars;
+    var when = TV.isoLabel(lv.date), t = tone(dayOepe, g);
     return { id: "day", dur: 16, html:
       TV.head({ eb: "Latest full day · " + E(when), ebEs: "Último día completo · " + E(TV.mes(when)), h: "Where the clock ran", hEs: "Dónde corrió el reloj" }) +
       '<div class="split"><div class="col-hero" style="justify-content:center"><div class="tiles col">' +
-        '<div class="tile a ' + (t === "ok" ? "" : t) + '" style="--i:3"><div class="tl">OEPE <span class="es">· ' + TV.commas(ld.dt_cars) + ' cars · autos</span></div><div class="tv num">' + TV.cu(ld.oepe_s, 0) + '<span class="u">s</span></div></div>' +
+        '<div class="tile a ' + (t === "ok" ? "" : t) + '" style="--i:3"><div class="tl">' + (has3 ? "3 peak OEPE" : "OEPE") + ' <span class="es">· ' + TV.commas(dayCars) + ' cars · autos</span></div><div class="tv num">' + TV.cu(dayOepe, 0) + '<span class="u">s</span></div></div>' +
         '<div class="tile a" style="--i:4"><div class="tl">Parked <span class="es">· Estacionados</span></div><div class="tv num">' + TV.cu(ld.park_pct, 1) + '<span class="u">%</span></div></div>' +
         (ld.fc_r2p_s != null ? '<div class="tile a" style="--i:5"><div class="tl">Front counter <span class="es">· Mostrador</span></div><div class="tv num">' + TV.cu(ld.fc_r2p_s, 0) + '<span class="u">s</span></div></div>' : "") +
       '</div></div><div class="col-main" style="gap:2vh">' +
-        (dps.length ? '<div class="panel a" style="--i:4"><div class="ptitle">OEPE by daypart <span class="es">· por turno</span> · white line = ' + g.oepe_g + 's goal · meta</div><div class="dps">' +
+        (dps.length ? '<div class="panel a" style="--i:4"><div class="ptitle">OEPE by daypart <span class="es">· por turno</span> · bright = the 3 peaks · line = ' + g.oepe_g + 's</div><div class="dps">' +
           dps.map(function (p, k) {
-            return '<div class="dp"><span class="nm">' + E(p.daypart) + '<span class="es">' + E(DP_ES[p.daypart] || "") + '</span></span>' +
+            return '<div class="dp' + (p.peak === false ? " off" : "") + '"><span class="nm">' + E(p.daypart) + '<span class="es">' + E(DP_ES[p.daypart] || "") + '</span></span>' +
               '<span class="tr"><span class="fl ' + tone(p.oepe_s, g) + '" style="width:' + (100 * p.oepe_s / mx).toFixed(1) + "%;--i:" + k + '"></span><span class="goal" style="left:' + (100 * g.oepe_g / mx).toFixed(1) + '%"></span></span>' +
               '<span class="vl num">' + F(p.oepe_s, 0) + "s<small>" + TV.commas(p.cars) + " cars</small></span></div>";
           }).join("") + "</div></div>" : "") +
-        (lv.trend && lv.trend.length >= 3 ? '<div class="panel a" style="--i:5"><div class="ptitle">Last ' + lv.trend.length + ' days <span class="es">· Últimos ' + lv.trend.length + " días</span></div>" + spark(lv.trend, g) + "</div>" : "") +
+        (lv.trend && lv.trend.length >= 3 ? '<div class="panel a" style="--i:5"><div class="ptitle">Last ' + lv.trend.length + ' days · 3 peak OEPE <span class="es">· Últimos ' + lv.trend.length + " días</span></div>" + spark(lv.trend, g) + "</div>" : "") +
       "</div></div>",
-      foot: "Drive thru on " + E(when) + " · OEPE excludes parked cars · green ≤ " + g.oepe_o + "s, gold ≤ " + g.oepe_g + "s, red above · DataPass" };
+      foot: "Drive thru on " + E(when) + " · 3 peaks = breakfast, lunch, dinner · parked cars excluded · green ≤ " + g.oepe_o + "s, gold ≤ " + g.oepe_g + "s, red above" };
   }
 
   function gxCard(d, ctx) {
@@ -211,8 +215,9 @@ setTimeout(__classic, 25000);
       .map(function (r) { return { nsn: r.nsn, name: r.location_name, v: r.per_1k, me: r.me, rk: r.rank_per1k }; });
     var me = rk.me, pos = function (n) { return n === 1 ? "🏆 #1" : TV.ord(n); };
     return { id: "rank-" + rk.lto_key, dur: 17, html:
-      '<div class="split"><div class="col-hero" style="flex-basis:27%">' +
-        TV.head({ eb: "Product race · last 7 days", ebEs: "Carrera de producto", h: E(rk.label), hEs: "" }) +
+      '<div class="split"><div class="col-hero" style="flex-basis:29%">' +
+        TV.head({ eb: "New product" + (rk.day_n ? " · day " + rk.day_n + " of " + (rk.days_max || 45) : " · last 7 days"),
+          ebEs: "Producto nuevo" + (rk.day_n ? " · día " + rk.day_n + " de " + (rk.days_max || 45) : ""), h: E(rk.label), hEs: "" }) +
         (me ? '<div class="stats a" style="--i:3;margin-top:2vh;flex-direction:column;gap:2.4vh">' +
           TV.stat("By units", "Por unidades", pos(me.rank_units) + '<span class="u">of ' + rk.total + " · " + TV.commas(me.units) + "</span>", me.rank_units === 1 ? "gold" : "") +
           TV.stat("Per 1,000 guests", "Por 1,000 clientes", pos(me.rank_per1k) + '<span class="u">of ' + rk.total + " · " + F(me.per_1k, 1) + "</span>", me.rank_per1k === 1 ? "gold" : "") + "</div>"
@@ -221,7 +226,8 @@ setTimeout(__classic, 25000);
         '<div><div class="lcap">Units sold <span class="es">· Unidades</span></div>' + TV.ladder(byU, { dec: 0, compact: true }) + "</div>" +
         '<div><div class="lcap">Per 1,000 guests <span class="es">· Por 1,000 clientes</span></div>' + TV.ladder(byR, { dec: 1, compact: true }) + "</div>" +
       "</div></div></div>",
-      foot: E(rk.label) + " sold " + E(TV.isoLabel(rk.win_from)) + " to " + E(TV.isoLabel(rk.data_through)) + " · by units and per 1,000 guests · all " + rk.total + " stores · DataPass" };
+      foot: E(rk.label) + (rk.launch_date ? ", launched " + E(TV.isoLabel(rk.launch_date)) : "") + " · units sold " + E(TV.isoLabel(rk.win_from)) + " to " + E(TV.isoLabel(rk.data_through)) +
+        " · by units and per 1,000 guests · " + rk.total + " stores selling it · R365 item sales" };
   }
 
   function deliveryCard(d) {
@@ -239,7 +245,7 @@ setTimeout(__classic, 25000);
   }
 
   TV.boot({
-    kind: "service", ver: "s12", label: "Service", labelEs: "Servicio",
+    kind: "service", ver: "s13", label: "Service", labelEs: "Servicio",
     fn: "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/service-screen",
     build: function (d, ctx) {
       var cards = [], safe = function (f) { try { var c = f(); if (c) cards.push(c); } catch (e) { if (window.console) console.error(e); } };

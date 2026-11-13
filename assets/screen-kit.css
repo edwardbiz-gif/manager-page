@@ -180,6 +180,7 @@ body.nomotion #now .dot{animation:none}
 .dps{display:flex;flex-direction:column;gap:.8vh}
 .dp{display:flex;align-items:center;gap:1vw;font-family:var(--disp);font-weight:700;font-size:3vh;line-height:1}
 .dp .nm{flex:0 0 14vw;text-transform:uppercase;white-space:nowrap}
+.dp.off{opacity:.42}
 .dp .nm .es{display:block;font-size:2vh;color:var(--es);font-weight:600;margin-top:.2vh}
 .dp .tr{flex:1;height:2.5vh;border-radius:1.5vh;background:rgba(255,255,255,.08);position:relative}
 .dp .fl{position:absolute;left:0;top:0;bottom:0;border-radius:1.5vh;transform-origin:left center;
