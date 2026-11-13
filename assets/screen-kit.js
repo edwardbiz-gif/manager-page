@@ -1,4 +1,4 @@
-/* screen-kit.js v1 (2026-11-13) — shared engine for the crew TV screens (kitchen.html + service.html).
+/* screen-kit.js v2 (2026-11-13) — shared engine for the crew TV screens (kitchen.html + service.html).
    Frame (team scorebug + clock + "on now" shift + progress rail), card rotation with per-card timing,
    in-place data refresh (no white flash), offline cache, count-ups, ladders, line charts.
    Plain ES2017, no dependencies: it has to run on a Fire Stick browser. Each screen supplies only
@@ -397,7 +397,8 @@ var TV = (function () {
     if (dev && /^_fx\/[\w.-]+\.json$/.test(dev)) url = dev;
     else {
       var today = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("today") || "") ? "&today=" + qs.get("today") : "";
-      url = cfg.fn + "?t=" + encodeURIComponent(qs.get("t") || "") + "&store=" + encodeURIComponent(STORE) + today;
+      // &sh= tells the function logs which shell version a TV is running (the classic fallback sends none)
+      url = cfg.fn + "?t=" + encodeURIComponent(qs.get("t") || "") + "&store=" + encodeURIComponent(STORE) + today + "&sh=" + encodeURIComponent(cfg.ver || "kit");
     }
     fetch(url).then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.ok) {

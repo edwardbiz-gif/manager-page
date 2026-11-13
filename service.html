@@ -33,9 +33,9 @@ setTimeout(__classic, 25000);
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/screen-kit.css?v=1">
+<link rel="stylesheet" href="assets/screen-kit.css?v=2">
 </head><body>
-<script src="assets/screen-kit.js?v=1"></script>
+<script src="assets/screen-kit.js?v=2"></script>
 <script>
 (function () {
   var E = TV.esc, F = TV.fmt;
@@ -239,7 +239,7 @@ setTimeout(__classic, 25000);
   }
 
   TV.boot({
-    kind: "service", label: "Service", labelEs: "Servicio",
+    kind: "service", ver: "s12", label: "Service", labelEs: "Servicio",
     fn: "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/service-screen",
     build: function (d, ctx) {
       var cards = [], safe = function (f) { try { var c = f(); if (c) cards.push(c); } catch (e) { if (window.console) console.error(e); } };
