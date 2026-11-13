@@ -1,287 +1,164 @@
 <!doctype html>
-<!-- kitchen.html v9 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
-     https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
-     (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
-     Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
-     v9 (2026-07-16, Eddie): TREND card redesigned — the flat/near-equal bar chart was replaced
-     with an animated auto-scaled LINE graph (amber→red draw-in, glowing pulse nodes, big value
-     labels, month axis, YTD dashed reference line). The y-band auto-fits the data so e.g. 57 vs 68
-     reads as a real difference (the old bars looked near-equal). Re-animates each time the card
-     rotates in. Same data shape (d.trend=[{m,v}], d.qualityThrough, d.qualityYtd); the bilingual
-     header (kick2/title2es) + rotate/fade behavior are unchanged. (Base = out/kitchen-trend-designs
-     design-a "Glow & Flow"; grafted the YTD reference line + rotate-in re-animation from design-b.)
-     v8 (2026-07-13, Eddie ruling): Shift Showdown empty rows prefer fn-provided `state_copy`
-     (fn v12) — the late-night row now reads "Not enough overnight surveys / Pocas encuestas
-     nocturnas" (Base 12a-5a retired as a daily expectation; "Data delayed" implied data was
-     coming). Dimmed styling + generic fallbacks unchanged.
-     v7 (2026-07-12, Eddie): SHIFT SHOWDOWN card (fn v10 `shiftShowdown` payload) — the store's own
-     dayparts ranked by current-month MTD guest OSAT (SMG VOICE daypart feeds), medal podium rows,
-     crown on the leading shift, delta-vs-org-same-daypart pill + trend arrow vs prior month,
-     bilingual EN/ES. A daypart whose feed is delayed (registry is_fresh=false) renders a dimmed
-     "Data delayed" row — never a stale number as current. Data-through date stated on the card.
-     v6 (2026-07-10, Eddie): (1) BILINGUAL — every card now renders English + Spanish (crew-facing;
-     editable kitchen_screen_cards render as authored — author them bilingual with // line breaks).
-     (2) NEW MTD KVS RACE card (fn v8 `kvs` payload): current-month make-line speed, all 12 stores,
-     screens 1+2, calibrated ×1.08 to QSRSoft, faster = better, with days/through coverage stated.
-     v5 (2026-06-24): race already runs on the current month; trend card now shows the data-through month
-     + a 2026 YTD average. Page reloads every 10 min + re-queries each load (daily-fresh).
-     Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
-<html><head><meta charset="utf-8">
+<!-- kitchen.html v10 (2026-11-13, Eddie: "markedly improve the service and kitchen screens, make it amazing").
+     Crew Kitchen TV. Point the Fire Stick at:
+       https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<kitchen-screen token>&store=3444
+     v10 is a full redesign on the shared screen kit (assets/screen-kit.css + screen-kit.js):
+       * game day frame: the store's team crest and name, live clock, the shift that is on now,
+         a progress rail, and the data-through line for the card on screen
+       * the race and the board are ONE card: giant rank, what it takes to pass the next store,
+         days left in the month, and all 12 stores as animated bars with their crests
+       * same for the KVS speed race; Shift Showdown marks the shift that is working right now
+       * food variance is a picture (actual vs recipe bars), fed by kitchen-screen fn v14 `foodVariance`
+       * numbers refresh in place every 10 minutes (no white reload flash); the last good numbers stay
+         up if the store network drops; a new shell is picked up every 30 minutes
+       * bilingual EN/ES on every card
+     Safety net: if this page fails to start, the TV falls back to kitchen-classic.html (the v9 screen).
+     Hand-written cards (kitchen_screen_cards): lines split on //, Spanish after " | ", bold lead-in before " — ".
+     Test hooks: &src=_fx/<file>.json &card=<id> &speed=<n> &hour=<0-23> &lite=1 (see screen-kit.js). -->
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kitchen Quality Race</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
-  html,body{height:100%;background:#101010;color:#fff;overflow:hidden}
-  #stage{position:fixed;inset:0}
-  .card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:4vh 6vw;opacity:0;transition:opacity .8s ease;gap:2.2vh}
-  .card.on{opacity:1}
-  .card.red{background:radial-gradient(circle at 50% 30%,#7a1a12,#101010 75%)}
-  .card.yellow{background:radial-gradient(circle at 50% 30%,#3a3000,#101010 75%)}
-  .card.gold{background:radial-gradient(circle at 50% 30%,#4d3800,#0d0d0d 75%)}
-  .wl-arch{width:18vh;height:auto;margin-bottom:2.2vh}
-  .wl-kick{font-size:3.1vh;letter-spacing:.35em;color:#ffc72c;font-weight:800;text-transform:uppercase}
-  .wl-name{font-size:8.5vh;font-weight:900;color:#fff;line-height:1.05;margin:1.4vh 0 .6vh}
-  .wl-ln{font-size:3.2vh;color:#e9e9e9;margin-top:1vh;max-width:82vw;text-align:center}
-  .wl-ln.mocni{color:#ffc72c;font-weight:700;letter-spacing:.06em}
-  .kicker{color:#FFC72C;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
-  .kicker .es{display:block;letter-spacing:.08em;color:#e0ad1f;font-size:2.2vh;margin-top:.4vh}
-  .title{font-size:7vh;font-weight:900}.title2{font-size:5.5vh;font-weight:900;color:#FFC72C}
-  .t-es{font-size:3.2vh;font-weight:800;color:#e0ad1f;margin-top:-.8vh}
-  .huge{font-size:22vh;font-weight:900;line-height:.9;color:#FFC72C}
-  .huge .of{font-size:6vh;color:#fff;font-weight:700}
-  .sub{font-size:4.2vh;font-weight:700;max-width:80vw}.score{font-size:3.4vh;color:#ddd}
-  .sub-es{font-size:3.4vh;font-weight:700;max-width:80vw;color:#e8c766}
-  .board{width:72vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:3vh}
-  .board.compact{max-height:58vh;gap:.45vh;font-size:2.3vh}
-  .board.compact .row{padding:.5vh 2vw}
-  .row{display:flex;align-items:center;gap:1.5vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
-  .row.me{background:#DA291C;font-weight:900}
-  .row .rk{width:4vw;color:#FFC72C;font-weight:900}.row.me .rk{color:#fff}
-  .row .nm{flex:1;text-align:left}.row .vl{font-weight:800}.row .un{font-size:2.2vh;color:#ccc;font-weight:700}
-  .quotes{display:flex;flex-direction:column;gap:2.4vh;max-width:84vw}.q{font-size:4vh;font-style:italic}
-  .body{display:flex;flex-direction:column;gap:2.2vh;max-width:82vw}.ln{font-size:4.6vh;font-weight:700}
-  .bars{display:flex;align-items:flex-end;gap:2.5vw;height:48vh}
-  .bar{width:11vw;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-  .fill{width:100%;background:linear-gradient(#FFC72C,#DA291C);border-radius:1vh 1vh 0 0;min-height:2vh}
-  .bv{font-size:2.6vh;font-weight:800;margin-top:1vh}.bm{font-size:2.4vh;color:#bbb}
-  .fine{font-size:2.2vh;color:#999}
-  /* v7 Shift Showdown — podium rows */
-  .sdrow{display:flex;align-items:center;gap:1.4vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
-  .sdrow.lead{background:linear-gradient(90deg,#6e5600,#1c1c1c 70%);box-shadow:inset 0 0 0 .35vh #FFC72C}
-  .sdrow.dim{opacity:.5}
-  .sdrow .md{font-size:4.4vh;width:5.5vw;text-align:center}
-  .sdrow .shift{flex:1;text-align:left;display:flex;flex-direction:column;gap:.2vh}
-  .sdrow .sn{font-size:3.4vh;font-weight:900}
-  .sdrow .sn .es{color:#e0ad1f;font-weight:800;font-size:2.7vh}
-  .sdrow .sw{font-size:2vh;color:#aaa;font-weight:600}
-  .sdrow .osat{font-size:5.2vh;font-weight:900;color:#FFC72C;min-width:13vw;text-align:right;line-height:1}
-  .sdrow .osat .u{font-size:2.6vh;color:#fff;font-weight:700}
-  .sdrow .pills{display:flex;flex-direction:column;align-items:flex-end;gap:.5vh;min-width:17vw}
-  .sdpill{font-size:2vh;font-weight:800;border-radius:1vh;padding:.3vh 1.2vw;background:#262626;color:#ccc}
-  .sdpill.up{color:#46e07a}.sdpill.dn{color:#ff7a6b}
-  .sdrow .dly{font-size:2.5vh;font-weight:800;color:#bbb;text-align:right;flex:1}
-  #foot{position:fixed;bottom:1.5vh;width:100%;text-align:center;color:#777;font-size:2vh}
-  #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#FFC72C;text-align:center;padding:6vw}
-  /* v9 quality-trend line graph (design-a "Glow & Flow" base + design-b YTD line) */
-  .kt-chart{width:88vw;height:50vh;position:relative}
-  .kt-chart svg{width:100%;height:100%;display:block;overflow:visible}
-  .kt-line,.kt-glow{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);
-    animation:ktDraw 2.1s cubic-bezier(.4,0,.2,1) forwards}
-  @keyframes ktDraw{to{stroke-dashoffset:0}}
-  .kt-area{opacity:0;animation:ktReveal 1.4s ease .9s forwards}
-  .kt-ytd{opacity:0;animation:ktReveal .8s ease 1.1s forwards}
-  @keyframes ktReveal{to{opacity:1}}
-  .kt-halo{transform-box:fill-box;transform-origin:center;animation:ktHalo 2.4s ease-in-out infinite}
-  @keyframes ktHalo{0%,100%{opacity:.28;transform:scale(1)}50%{opacity:.65;transform:scale(1.7)}}
-  .kt-vlabel{opacity:0;animation:ktPop .5s cubic-bezier(.2,1.4,.3,1) forwards}
-  @keyframes ktPop{from{opacity:0;transform:translateY(10px) scale(.7)}to{opacity:1;transform:translateY(0) scale(1)}}
-  .kt-mlabel{opacity:0;animation:ktFade .6s ease forwards}
-  @keyframes ktFade{to{opacity:1}}
-</style></head><body>
-<div id="stage"></div><div id="foot"></div>
 <script>
-const FN = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/kitchen-screen";
-const qs = new URLSearchParams(location.search);
-const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const ord = n => { const s=["th","st","nd","rd"],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
-// Spanish month names (the fn sends English month labels)
-const MES = {January:"enero",February:"febrero",March:"marzo",April:"abril",May:"mayo",June:"junio",
-  July:"julio",August:"agosto",September:"septiembre",October:"octubre",November:"noviembre",December:"diciembre"};
-const mes = m => MES[m]||m;
-// two-line bilingual kicker + title helpers
-const kick2 = (en,es) => '<div class="kicker">'+en+'<span class="es">'+es+'</span></div>';
-const title2es = (en,es) => '<div class="title2">'+en+'</div>'+(es?'<div class="t-es">'+es+'</div>':'');
-
-// v9 quality-trend line graph. Consumes the SAME fn data shape: d.trend=[{m,v}], d.qualityYtd.
-// Auto-fits the y-band to the data (incl. YTD) so close months read as visibly different.
-function trendChart(d){
-  const T=d.trend, N=T.length, vals=T.map(t=>+t.v);
-  const W=1600,H=600,mL=80,mR=80,mT=96,mB=96,iw=W-mL-mR,ih=H-mT-mB,baseY=mT+ih;
-  let lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
-  const ytd=(d.qualityYtd!=null&&!isNaN(+d.qualityYtd))?+d.qualityYtd:null;
-  if(ytd!=null){ lo=Math.min(lo,ytd); hi=Math.max(hi,ytd); }
-  const span=Math.max(hi-lo,1), pad=span*0.35, yMin=lo-pad, yMax=hi+pad;
-  const X=i=> mL+(N===1?iw/2:(i/(N-1))*iw);
-  const Y=v=> mT+(1-(v-yMin)/(yMax-yMin))*ih;
-  const pts=T.map((t,i)=>({x:X(i),y:Y(+t.v),v:+t.v,m:t.m}));
-  // Catmull-Rom -> cubic bezier smoothing through every point
-  let line="M "+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
-  for(let i=0;i<N-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
-    const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
-    line+=" C "+c1x.toFixed(1)+" "+c1y.toFixed(1)+" "+c2x.toFixed(1)+" "+c2y.toFixed(1)+" "+p2.x.toFixed(1)+" "+p2.y.toFixed(1); }
-  const area=line+" L "+pts[N-1].x.toFixed(1)+" "+baseY+" L "+pts[0].x.toFixed(1)+" "+baseY+" Z";
-  let grid="";
-  for(let g=0;g<=3;g++){ const gy=mT+(g/3)*ih;
-    grid+='<line x1="'+mL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+gy.toFixed(1)+'" stroke="#fff" stroke-opacity="0.06" stroke-width="2"/>'; }
-  let ytdEl="";
-  if(ytd!=null){ const yy=Y(ytd), tagW=160, tagY=Math.max(yy-40,mT-30);
-    ytdEl='<g class="kt-ytd">'+
-      '<line x1="'+mL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+yy.toFixed(1)+'" stroke="#DA291C" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/>'+
-      '<rect x="'+(W-mR-tagW)+'" y="'+tagY.toFixed(1)+'" width="'+tagW+'" height="34" rx="8" fill="#DA291C"/>'+
-      '<text x="'+(W-mR-tagW/2)+'" y="'+(tagY+25).toFixed(1)+'" text-anchor="middle" font-size="24" font-weight="900" fill="#fff">YTD '+ytd.toFixed(1)+'</text></g>'; }
-  let dots="",vlabels="",mlabels="";
-  pts.forEach((p,i)=>{ const delay=(1.6+i*0.13).toFixed(2);
-    dots+='<circle class="kt-halo" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="16" fill="#FFC72C" style="animation-delay:'+(i*0.2).toFixed(2)+'s"/>'+
-      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="12" fill="#101010" stroke="#FFC72C" stroke-width="6" filter="url(#ktGlowf)"/>'+
-      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="5" fill="#fff"/>';
-    const ly=(p.y<mT+56)?p.y+60:p.y-38;
-    vlabels+='<text class="kt-vlabel" x="'+p.x.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="56" font-weight="900" fill="#fff" style="animation-delay:'+delay+'s" paint-order="stroke" stroke="#101010" stroke-width="7">'+p.v.toFixed(1)+'</text>';
-    mlabels+='<text class="kt-mlabel" x="'+p.x.toFixed(1)+'" y="'+(baseY+66)+'" text-anchor="middle" font-size="42" font-weight="800" fill="#FFC72C" fill-opacity="0.85" style="animation-delay:'+(0.8+i*0.08).toFixed(2)+'s">'+esc(p.m)+'</text>'; });
-  return '<div class="kt-chart"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
-    '<defs>'+
-      '<linearGradient id="ktStroke" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFC72C"/><stop offset="0.55" stop-color="#FF8A1E"/><stop offset="1" stop-color="#DA291C"/></linearGradient>'+
-      '<linearGradient id="ktFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9B1E" stop-opacity="0.55"/><stop offset="0.6" stop-color="#DA291C" stop-opacity="0.18"/><stop offset="1" stop-color="#DA291C" stop-opacity="0"/></linearGradient>'+
-      '<filter id="ktGlowf" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'+
-      '<filter id="ktBigglow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18"/></filter>'+
-    '</defs>'+grid+ytdEl+
-    '<path class="kt-area" d="'+area+'" fill="url(#ktFill)"/>'+
-    '<path class="kt-glow" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" filter="url(#ktBigglow)"/>'+
-    '<path class="kt-line" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>'+
-    dots+vlabels+mlabels+'</svg></div>';
+// Safety net: a script error before the first card, or nothing alive after 25 s, sends the TV to the classic screen.
+var __ok = false;
+function __classic() {
+  if (__ok || /[?&]nf=1/.test(location.search)) return;
+  location.replace("kitchen-classic.html" + (location.search ? location.search + "&nf=1" : "?nf=1"));
 }
-// Set the stroke-dash length from the real path so the line draws itself in.
-function initTrend(el){
-  const lp=el.querySelector('.kt-line'), gp=el.querySelector('.kt-glow');
-  if(!lp) return;
-  const len=lp.getTotalLength();
-  lp.style.setProperty('--len',len);
-  if(gp) gp.style.setProperty('--len',len);
-}
+window.onerror = function () { __classic(); };
+setTimeout(__classic, 25000);
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/screen-kit.css?v=1">
+</head><body>
+<script src="assets/screen-kit.js?v=1"></script>
+<script>
+(function () {
+  var E = TV.esc, F = TV.fmt;
 
-function buildCards(d){
-  const cards=[];
-  const mtd = d.isCurrentMonth===false;
-  // 1) THE RACE (bilingual)
-  const big = d.rank===1
-    ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' leads '+esc(d.monthName)+' on food quality. Hold the lead!</div>'+
-      '<div class="sub-es">¡'+esc(d.loc)+' lidera '+esc(mes(d.monthName))+' en calidad de comida — mantengan la delantera!</div>'
-    : '<div class="huge">'+(d.rank?ord(d.rank):"—")+'<span class="of"> of '+d.total+'</span></div>'+
-      '<div class="sub">'+(d.gap!=null?d.gap+' points from #1 — time to climb.':"Time to climb the board.")+'</div>'+
-      '<div class="sub-es">'+(d.gap!=null?'A '+d.gap+' puntos del #1 — ¡a subir!':'¡A subir en la tabla!')+'</div>';
-  // "month-to-date" ONLY when the board really is the current CT month (fn v7 isCurrentMonth).
-  cards.push({a:"red",h:kick2(
-      esc(d.monthName)+' Kitchen Quality Race'+(mtd?' · final':' · month-to-date'),
-      'Carrera de calidad de cocina · '+esc(mes(d.monthName))+(mtd?' · final':' · mes en curso'))+
-    '<div class="title">'+esc(d.loc)+'</div>'+big+
-    (d.score!=null?'<div class="score">Quality score / Puntuación: <b>'+esc(d.score)+'</b>'+(d.qualityYtd!=null?' &nbsp;·&nbsp; YTD / año a la fecha <b>'+esc(d.qualityYtd)+'</b>':"")+'</div>':"")});
-  // 2) BOARD (bilingual)
-  cards.push({a:"yellow",h:kick2('The Board · '+esc(d.monthName),'La Tabla · '+esc(mes(d.monthName)))+
-    title2es('Food quality — all '+d.total,'Calidad de comida — las '+d.total+' tiendas')+
-    '<div class="board">'+
-    d.standings.map((r,i)=>'<div class="row '+(r.store_number===d.store?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.score)+'</span></div>').join("")+'</div>'});
-  // 2b) MTD KVS RACE (fn v8) — make-line speed, all 12, faster = better (bilingual)
-  if(d.kvs&&d.kvs.standings&&d.kvs.standings.length){
-    const k=d.kvs;
-    cards.push({a:"red",h:kick2(
-        esc(k.month)+' KVS Race · month-to-date','Carrera KVS · '+esc(mes(k.month))+' · mes en curso')+
-      title2es('KVS (Kitchen Speed) — seconds per order · faster is better',
-               'KVS (Velocidad de Cocina) — segundos por orden · más rápido es mejor')+
-      (k.rank!=null?'<div class="sub" style="font-size:3.2vh">'+esc(d.loc)+': <b>'+ord(k.rank)+' of '+k.total+'</b> · '+esc(k.mine_s)+'s</div>':'')+
-      '<div class="board compact">'+
-      k.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.kvs_s)+'<span class="un">s</span></span></div>').join("")+'</div>'+
-      '<div class="fine">through / hasta '+esc(k.through||"")+' · '+esc(k.days)+' days · make-line screens 1+2, calibrated to QSRSoft / pantallas 1+2, calibrado a QSRSoft</div>'});
+  function raceCard(d, ctx) {
+    if (!d.standings || !d.standings.length) return null;
+    var mtd = d.isCurrentMonth !== false;
+    var rows = d.standings.map(function (r) { return { nsn: r.store_number, name: r.location_name, v: r.score, me: r.store_number === d.store }; });
+    var i = rows.findIndex(function (r) { return r.me; });
+    var yr = new Date().getFullYear();
+    return { id: "race", dur: 18, html:
+      '<div class="split"><div class="col-hero">' +
+        TV.head({ eb: "Kitchen Quality Race · " + E(d.monthName) + (mtd ? "" : " final"),
+          ebEs: "Carrera de calidad · " + E(TV.mes(d.monthName)), h: "Food quality", hEs: "Calidad de comida" }) +
+        TV.rankBlock(d.rank, d.total) +
+        TV.coach(rows, i, { dec: 1, unitEn: "pts", unitEs: "pts" }) +
+        TV.movement("quality", d.rank) +
+        '<div class="stats a" style="--i:6">' +
+          (d.score != null ? TV.stat("Our score", "Puntuación", TV.cu(d.score, 1), "gold") : "") +
+          (d.qualityYtd != null ? TV.stat(yr + " YTD", "Año a la fecha", TV.cu(d.qualityYtd, 1)) : "") +
+          (mtd ? TV.stat("Days left", "Días restantes", TV.cu(ctx.daysLeft, 0)) : "") +
+        "</div>" +
+      '</div><div class="col-main">' + TV.ladder(rows, { dec: 1 }) + "</div></div>",
+      foot: "Food quality rated by our guests (SMG VOICE) · " + E(d.monthName) + (mtd ? " month to date" : " final") +
+        (d.scoresUpdated ? ", updated " + E(d.scoresUpdated) : "") + " · higher is better" +
+        (d.seeded ? " · seeded from last month until surveys land" : "") };
   }
-  // 2c) SHIFT SHOWDOWN (fn v10) — dayparts ranked by MTD guest OSAT; crown the leader (bilingual)
-  if(d.shiftShowdown&&d.shiftShowdown.dayparts&&d.shiftShowdown.dayparts.some(p=>p.rank!=null)){
-    const sd=d.shiftShowdown, MD=["🥇","🥈","🥉","🏅"];
-    const rows=sd.dayparts.filter(p=>p.rank!=null).slice().sort((a,b)=>a.rank-b.rank);
-    const out=sd.dayparts.filter(p=>p.rank==null);
-    const tail=rows.length>1?rows[rows.length-1]:null;
-    const cheer=tail?(tail.key==="base_4p_12a"
-      ?'Beat the dinner slump — the crown is up for grabs!'
-      :esc(tail.label_en)+' crew — the crown is up for grabs!'):'';
-    const cheerEs=tail?(tail.key==="base_4p_12a"
-      ?'¡A vencer el bajón de la cena — la corona está en juego!'
-      :'¡Equipo de '+esc(tail.label_es.toLowerCase())+' — la corona está en juego!'):'';
-    const pills=p=>{
-      let h='';
-      if(p.delta!=null) h+='<span class="sdpill '+(p.delta>=0?'up':'dn')+'">'+(p.delta>=0?'+':'−')+Math.abs(p.delta).toFixed(1)+' vs org · same shift / mismo turno</span>';
-      if(p.arrow==='up') h+='<span class="sdpill up">▲ up vs '+esc(sd.prev_month)+' / sube vs '+esc(mes(sd.prev_month))+'</span>';
-      else if(p.arrow==='down') h+='<span class="sdpill dn">▼ down vs '+esc(sd.prev_month)+' / baja vs '+esc(mes(sd.prev_month))+'</span>';
-      else if(p.arrow==='flat') h+='<span class="sdpill">▬ even vs '+esc(sd.prev_month)+' / igual vs '+esc(mes(sd.prev_month))+'</span>';
-      return h;
-    };
-    const rowH=rows.map(p=>'<div class="sdrow'+(p.rank===1?' lead':'')+'">'+
-      '<span class="md">'+(MD[p.rank-1]||p.rank)+'</span>'+
-      '<span class="shift"><span class="sn">'+(p.rank===1?'👑 ':'')+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span>'+
-      '<span class="sw">'+esc(p.window)+(p.n!=null?' · '+p.n+' surveys / encuestas':'')+(p.org!=null?' · org '+p.org.toFixed(1)+'%':'')+'</span></span>'+
-      '<span class="osat">'+p.osat.toFixed(1)+'<span class="u">%</span></span>'+
-      '<span class="pills">'+pills(p)+'</span></div>').join("");
-    const outH=out.map(p=>'<div class="sdrow dim"><span class="md">⏳</span>'+
-      '<span class="shift"><span class="sn">'+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span><span class="sw">'+esc(p.window)+'</span></span>'+
-      '<span class="dly">'+esc(p.state_copy||(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados'))+'</span></div>').join("");
-    cards.push({a:"red",h:kick2(
-        'Shift Showdown · '+esc(sd.month)+' — month to date'+(sd.data_through?' · data through '+esc(sd.data_through):''),
-        'Duelo de turnos · '+esc(mes(sd.month))+' — mes en curso'+(sd.data_through?' · datos hasta '+esc(sd.data_through):''))+
-      title2es('Which shift wins our guests?','¿Qué turno conquista a nuestros clientes?')+
-      (cheer?'<div class="sub" style="font-size:3.3vh">'+cheer+'</div><div class="sub-es" style="font-size:2.7vh">'+cheerEs+'</div>':'')+
-      '<div class="board" style="width:82vw">'+rowH+outH+'</div>'+
-      '<div class="fine">MTD guest OSAT by shift vs the same shift org-wide · SMG VOICE daypart feeds / OSAT del mes por turno vs el mismo turno en toda la organización</div>'});
+
+  function kvsCard(d, ctx) {
+    var k = d.kvs;
+    if (!k || !k.standings || !k.standings.length) return null;
+    var rows = k.standings.map(function (r) { return { nsn: r.store_number, name: r.location_name, v: r.kvs_s, me: r.me }; });
+    var i = rows.findIndex(function (r) { return r.me; });
+    return { id: "kvs", dur: 18, html:
+      '<div class="split"><div class="col-hero">' +
+        TV.head({ eb: "KVS Speed Race · " + E(k.month), ebEs: "Carrera KVS · " + E(TV.mes(k.month)), h: "Kitchen speed", hEs: "Velocidad de cocina" }) +
+        TV.rankBlock(k.rank, k.total) +
+        TV.coach(rows, i, { dec: 0, unitEn: "sec", unitEs: "seg", lower: true }) +
+        TV.movement("kvs", k.rank) +
+        '<div class="stats a" style="--i:6">' +
+          (k.mine_s != null ? TV.stat("Our KVS", "Nuestro KVS", TV.cu(k.mine_s, 0) + '<span class="u">s</span>', "gold") : "") +
+          TV.stat("Fastest", "El más rápido", F(rows[0].v, 0) + '<span class="u">s</span>') +
+          TV.stat("Days left", "Días restantes", TV.cu(ctx.daysLeft, 0)) +
+        "</div>" +
+      '</div><div class="col-main">' + TV.ladder(rows, { dec: 0, unit: "s" }) + "</div></div>",
+      foot: "KVS = seconds per order on the make line (calibrated to QSRSoft) · " + E(k.month) + " through " +
+        E(TV.isoLabel(k.through)) + " · " + E(k.days) + " days · faster is better" };
   }
-  // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (bilingual header; quotes as written)
-  (d.feedback||[]).forEach(g=>{
-    cards.push({a:(g.tone==="good"?"yellow":"red"),h:
-      kick2('Guest feedback · food quality · last 90 days','Comentarios de clientes · últimos 90 días')+
-      title2es(esc(g.label),esc(g.label_es||''))+
-      '<div class="quotes">'+(g.items||[]).map(it=>
-        '<div class="q">'+(it.star?'<span style="color:#FFC72C">★ </span>':'')+'“'+esc(it.text)+'”'+
-        '<div class="score" style="margin-top:.5vh">'+(it.name?esc(it.name)+' · ':'')+esc(it.when)+(it.star?' · guest complaint':'')+'</div>'+
-        '</div>').join("")+'</div>'});
-  });
-  // 4) TREND (bilingual) — v9 animated auto-scaled LINE graph (was a flat bar chart)
-  if(d.trend&&d.trend.length>=2){
-    cards.push({a:"yellow",cls:"kt-trend",h:kick2(
-        'Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · YTD '+esc(d.qualityYtd):""),
-        'Nuestra tendencia de calidad'+(d.qualityYtd!=null?' · año a la fecha '+esc(d.qualityYtd):""))+
-      title2es('Overall quality','Calidad general')+trendChart(d)}); }
-  // 5..N) EDITABLE CARDS (rendered as authored — author bilingual via // line breaks)
-  (d.cards||[]).forEach(c=>{
-    if((c.section||"").toLowerCase()==="welcome"){
-      const ls=c.lines||[];
-      cards.push({a:"gold",h:'<img class="wl-arch" src="assets/mcd-arches.png" alt="">'
-        +'<div class="wl-kick">'+esc(ls[0]||"WELCOME · BIENVENIDO")+'</div>'
-        +'<div class="wl-name">'+esc(c.title)+'</div>'
-        +ls.slice(1).map(l=>'<div class="wl-ln'+(/MOCNI/.test(l)?' mocni':'')+'">'+esc(l)+'</div>').join("")});
-      return;
+
+  function trendCard(d) {
+    var T = d.trend;
+    if (!T || T.length < 2) return null;
+    var vals = T.map(function (t) { return +t.v; }), best = Math.max.apply(null, vals), bi = vals.lastIndexOf(best), li = T.length - 1;
+    var nowMonth = new Date().toLocaleString("en-US", { month: "long", timeZone: "America/Chicago" });
+    var soFar = TV.mon(d.qualityThrough) === nowMonth;
+    var gap = Math.round((best - vals[li]) * 10) / 10;
+    var msg = bi === li
+      ? "Best month yet: <b>" + F(best, 1) + '</b>. Keep it there!<span class="es">Nuestro mejor mes: ' + F(best, 1) + ". ¡A mantenerlo!</span>"
+      : "<b>" + F(gap, 1) + " pts</b> to beat our best (" + E(T[bi].m) + " " + F(best, 1) + ')<span class="es">A ' + F(gap, 1) + " pts de nuestro mejor mes (" + E(TV.mes(T[bi].m)) + " " + F(best, 1) + ")</span>";
+    return { id: "trend", dur: 14, html:
+      TV.head({ eb: "Our quality trend · last " + T.length + " months", ebEs: "Nuestra tendencia de calidad", h: "Beat our best", hEs: "A superar nuestro mejor mes" }) +
+      '<div class="msg a" style="--i:2">' + msg + "</div>" +
+      TV.lineChart(T, { dec: 1, ref: d.qualityYtd != null ? { v: d.qualityYtd, label: "YTD" } : null, lastNote: soFar ? "(so far)" : "" }),
+      foot: "Food quality by month, top box % (SMG VOICE)" + (d.qualityThrough ? " · through " + E(d.qualityThrough) + (soFar ? ", month to date" : "") : "") +
+        (d.qualityYtd != null ? " · dashed = year to date " + F(d.qualityYtd, 1) : "") };
+  }
+
+  // Food variance as a picture: actual food % vs the recipe (theoretical) %, per month.
+  function varianceCard(d) {
+    var fv = d.foodVariance;
+    if (!fv || !fv.length) return null;
+    var usd = function (n) { return "$" + TV.commas(Math.abs(n)); };
+    var panels = fv.map(function (m, k) {
+      var tag = m.isMtd ? "month to date · mes en curso" : (m.prelim ? "preliminary · preliminar" : "final");
+      var h = '<div class="fv a" style="--i:' + (k + 3) + '"><div class="mo">' + E(m.month) + ' <span class="es">· ' + E(TV.mes(m.month)) + '</span><span class="tag">' + tag + "</span></div>";
+      if (m.empty) return h + '<div class="delta open">' + E(m.noteEn) + "<span>" + E(m.noteEs) + "</span></div></div>";
+      var top = Math.max(m.actualPct || 0, m.theoPct || 0) * 1.12 || 1;
+      h += '<div class="pair">' +
+        (m.actualPct != null ? '<div class="pr"><span class="nm">Actual<span>Real</span></span><span class="tr"><span class="fl act" style="display:block;width:' + (100 * m.actualPct / top).toFixed(1) + '%"></span></span><span class="vl num">' + F(m.actualPct, 1) + "%</span></div>" : "") +
+        (m.theoPct != null ? '<div class="pr"><span class="nm">Recipe<span>Receta</span></span><span class="tr"><span class="fl" style="display:block;width:' + (100 * m.theoPct / top).toFixed(1) + '%"></span></span><span class="vl num">' + F(m.theoPct, 1) + "%</span></div>" : "") + "</div>";
+      if (m.varUsd == null) h += '<div class="delta open">Actuals not posted yet<span>Reales aún no registrados</span></div>';
+      // Actual far UNDER the recipe while the books are open means invoices are still posting, not a win.
+      else if (m.varUsd < 0 && m.prelim && m.varPts != null && m.varPts < -1.5) h += '<div class="delta open">Books still open, not final<span>Libros aún abiertos, no es final</span></div>';
+      else if (m.varUsd >= 0) h += '<div class="delta over">' + usd(m.varUsd) + " over recipe<span>" + usd(m.varUsd) + " por encima de la receta</span></div>";
+      else h += '<div class="delta under">' + usd(m.varUsd) + " under recipe<span>" + usd(m.varUsd) + " por debajo de la receta</span></div>";
+      if (m.items && m.items.length) {
+        h += '<div class="items"><div class="ptitle">Biggest food costs <span class="es">· Lo que más cuesta</span></div>' +
+          m.items.map(function (it, n) {
+            return '<div class="it"><span>' + (n + 1) + ". " + E(it.name) + '</span><span><b>' + usd(it.usd) + '</b> <span class="q">· ' + TV.commas(it.qty) + " " + E(it.unit) + "</span></span></div>";
+          }).join("") + "</div>";
+      }
+      return h + "</div>";
+    }).join("");
+    var last = fv[fv.length - 1], first = fv[0];
+    return { id: "variance", dur: 18, html:
+      TV.head({ eb: "Food cost · actual vs recipe", ebEs: "Costo de comida · real vs receta", h: "Food variance", hEs: "Variación de comida" }) +
+      '<div class="duo" style="gap:2vw">' + panels + "</div>",
+      foot: "Actual food cost % vs what the recipes call for · through " + E(TV.isoLabel(last.thru || first.thru)) +
+        " · about " + F(last.covPct != null ? last.covPct : first.covPct, 0) + "% of sales covered · costs are estimates" };
+  }
+
+  TV.boot({
+    kind: "kitchen", label: "Kitchen", labelEs: "Cocina",
+    fn: "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/kitchen-screen",
+    build: function (d, ctx) {
+      var cards = [], safe = function (f) { try { var c = f(); if (c) cards.push(c); } catch (e) { if (window.console) console.error(e); } };
+      safe(function () { return raceCard(d, ctx); });
+      safe(function () { return kvsCard(d, ctx); });
+      safe(function () { return TV.showdownCard(d.shiftShowdown, ctx); });
+      (d.feedback || []).forEach(function (g) {
+        safe(function () {
+          return TV.quotesCard("praise", g.items, { eb: "Crew wins · last 90 days", ebEs: "Victorias del equipo · últimos 90 días",
+            h: "Guests love our food", hEs: "A los clientes les encanta nuestra comida",
+            foot: "Guest survey comments about our food, last 90 days, in the guest's own words · SMG VOICE" }, ctx);
+        });
+      });
+      var hasFv = d.foodVariance && d.foodVariance.length;
+      (d.cards || []).forEach(function (c, i) {
+        if (hasFv && /^food variance/i.test(c.section || "")) return; // drawn as a picture below
+        safe(function () { return TV.editableCard(c, i); });
+      });
+      safe(function () { return trendCard(d); });
+      safe(function () { return varianceCard(d); });
+      return cards;
     }
-    cards.push({a:(c.section==="contest"?"yellow":"red"),h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'});
   });
-  return cards;
-}
-function render(d){
-  const cards=buildCards(d), stage=document.getElementById("stage");
-  stage.innerHTML=cards.map(c=>'<div class="card '+c.a+(c.cls?' '+c.cls:'')+'">'+c.h+'</div>').join("");
-  // v9: prime the trend line-graph draw-in (stash HTML so we can replay it on rotate-in)
-  [].slice.call(document.querySelectorAll('.kt-trend')).forEach(function(el){ el._html=el.innerHTML; initTrend(el); });
-  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+" / "+esc(mes(d.monthName))+(d.isCurrentMonth===false?" final":" month-to-date · mes en curso")+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from last month's VOICE — updates when this month's lands)":"");
-  const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
-  setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; const cur=els[i]; cur.classList.add("on");
-    // v9: replay the trend draw-in each time that card rotates into view
-    if(cur.classList.contains("kt-trend")&&cur._html){ cur.innerHTML=cur._html; initTrend(cur); } },12000);
-}
-fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
-  .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Kitchen screen: '+esc(d.error||"unavailable")+'. Check the link. / Pantalla no disponible — revisa el enlace.</div>';return;} render(d); })  // store default 3444 below
-  .catch(e=>{document.body.innerHTML='<div id="err">Kitchen screen offline — retrying… / Sin conexión — reintentando…</div>';setTimeout(()=>location.reload(),30000);});
-setTimeout(()=>location.reload(),600000); // refresh data every 10 min
-</script></body></html>
+})();
+</script>
+</body></html>

@@ -1,0 +1,289 @@
+<!doctype html>
+<!-- kitchen-classic.html: frozen copy of the pre-redesign screen (2026-11-13), kept as the automatic fallback for kitchen.html. -->
+<!-- kitchen.html v9 — crew Kitchen Quality Race TV screen. Point a Fire Stick browser at:
+     https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<token>&store=3444
+     (3444 = Boulder Hill, the live demo store as of 2026-06-12; default below is also 3444)
+     Fetches the kitchen-screen Edge Function (JSON) and rotates full-screen cards.
+     v9 (2026-07-16, Eddie): TREND card redesigned — the flat/near-equal bar chart was replaced
+     with an animated auto-scaled LINE graph (amber→red draw-in, glowing pulse nodes, big value
+     labels, month axis, YTD dashed reference line). The y-band auto-fits the data so e.g. 57 vs 68
+     reads as a real difference (the old bars looked near-equal). Re-animates each time the card
+     rotates in. Same data shape (d.trend=[{m,v}], d.qualityThrough, d.qualityYtd); the bilingual
+     header (kick2/title2es) + rotate/fade behavior are unchanged. (Base = out/kitchen-trend-designs
+     design-a "Glow & Flow"; grafted the YTD reference line + rotate-in re-animation from design-b.)
+     v8 (2026-07-13, Eddie ruling): Shift Showdown empty rows prefer fn-provided `state_copy`
+     (fn v12) — the late-night row now reads "Not enough overnight surveys / Pocas encuestas
+     nocturnas" (Base 12a-5a retired as a daily expectation; "Data delayed" implied data was
+     coming). Dimmed styling + generic fallbacks unchanged.
+     v7 (2026-07-12, Eddie): SHIFT SHOWDOWN card (fn v10 `shiftShowdown` payload) — the store's own
+     dayparts ranked by current-month MTD guest OSAT (SMG VOICE daypart feeds), medal podium rows,
+     crown on the leading shift, delta-vs-org-same-daypart pill + trend arrow vs prior month,
+     bilingual EN/ES. A daypart whose feed is delayed (registry is_fresh=false) renders a dimmed
+     "Data delayed" row — never a stale number as current. Data-through date stated on the card.
+     v6 (2026-07-10, Eddie): (1) BILINGUAL — every card now renders English + Spanish (crew-facing;
+     editable kitchen_screen_cards render as authored — author them bilingual with // line breaks).
+     (2) NEW MTD KVS RACE card (fn v8 `kvs` payload): current-month make-line speed, all 12 stores,
+     screens 1+2, calibrated ×1.08 to QSRSoft, faster = better, with days/through coverage stated.
+     v5 (2026-06-24): race already runs on the current month; trend card now shows the data-through month
+     + a 2026 YTD average. Page reloads every 10 min + re-queries each load (daily-fresh).
+     Deploy: push-pages.ps1 (laptop) -> GH Pages. -->
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitchen Quality Race</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+  html,body{height:100%;background:#101010;color:#fff;overflow:hidden}
+  #stage{position:fixed;inset:0}
+  .card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:4vh 6vw;opacity:0;transition:opacity .8s ease;gap:2.2vh}
+  .card.on{opacity:1}
+  .card.red{background:radial-gradient(circle at 50% 30%,#7a1a12,#101010 75%)}
+  .card.yellow{background:radial-gradient(circle at 50% 30%,#3a3000,#101010 75%)}
+  .card.gold{background:radial-gradient(circle at 50% 30%,#4d3800,#0d0d0d 75%)}
+  .wl-arch{width:18vh;height:auto;margin-bottom:2.2vh}
+  .wl-kick{font-size:3.1vh;letter-spacing:.35em;color:#ffc72c;font-weight:800;text-transform:uppercase}
+  .wl-name{font-size:8.5vh;font-weight:900;color:#fff;line-height:1.05;margin:1.4vh 0 .6vh}
+  .wl-ln{font-size:3.2vh;color:#e9e9e9;margin-top:1vh;max-width:82vw;text-align:center}
+  .wl-ln.mocni{color:#ffc72c;font-weight:700;letter-spacing:.06em}
+  .kicker{color:#FFC72C;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:2.6vh}
+  .kicker .es{display:block;letter-spacing:.08em;color:#e0ad1f;font-size:2.2vh;margin-top:.4vh}
+  .title{font-size:7vh;font-weight:900}.title2{font-size:5.5vh;font-weight:900;color:#FFC72C}
+  .t-es{font-size:3.2vh;font-weight:800;color:#e0ad1f;margin-top:-.8vh}
+  .huge{font-size:22vh;font-weight:900;line-height:.9;color:#FFC72C}
+  .huge .of{font-size:6vh;color:#fff;font-weight:700}
+  .sub{font-size:4.2vh;font-weight:700;max-width:80vw}.score{font-size:3.4vh;color:#ddd}
+  .sub-es{font-size:3.4vh;font-weight:700;max-width:80vw;color:#e8c766}
+  .board{width:72vw;max-height:74vh;display:flex;flex-direction:column;gap:.7vh;font-size:3vh}
+  .board.compact{max-height:58vh;gap:.45vh;font-size:2.3vh}
+  .board.compact .row{padding:.5vh 2vw}
+  .row{display:flex;align-items:center;gap:1.5vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
+  .row.me{background:#DA291C;font-weight:900}
+  .row .rk{width:4vw;color:#FFC72C;font-weight:900}.row.me .rk{color:#fff}
+  .row .nm{flex:1;text-align:left}.row .vl{font-weight:800}.row .un{font-size:2.2vh;color:#ccc;font-weight:700}
+  .quotes{display:flex;flex-direction:column;gap:2.4vh;max-width:84vw}.q{font-size:4vh;font-style:italic}
+  .body{display:flex;flex-direction:column;gap:2.2vh;max-width:82vw}.ln{font-size:4.6vh;font-weight:700}
+  .bars{display:flex;align-items:flex-end;gap:2.5vw;height:48vh}
+  .bar{width:11vw;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .fill{width:100%;background:linear-gradient(#FFC72C,#DA291C);border-radius:1vh 1vh 0 0;min-height:2vh}
+  .bv{font-size:2.6vh;font-weight:800;margin-top:1vh}.bm{font-size:2.4vh;color:#bbb}
+  .fine{font-size:2.2vh;color:#999}
+  /* v7 Shift Showdown — podium rows */
+  .sdrow{display:flex;align-items:center;gap:1.4vw;background:#1c1c1c;padding:1vh 2vw;border-radius:1vh}
+  .sdrow.lead{background:linear-gradient(90deg,#6e5600,#1c1c1c 70%);box-shadow:inset 0 0 0 .35vh #FFC72C}
+  .sdrow.dim{opacity:.5}
+  .sdrow .md{font-size:4.4vh;width:5.5vw;text-align:center}
+  .sdrow .shift{flex:1;text-align:left;display:flex;flex-direction:column;gap:.2vh}
+  .sdrow .sn{font-size:3.4vh;font-weight:900}
+  .sdrow .sn .es{color:#e0ad1f;font-weight:800;font-size:2.7vh}
+  .sdrow .sw{font-size:2vh;color:#aaa;font-weight:600}
+  .sdrow .osat{font-size:5.2vh;font-weight:900;color:#FFC72C;min-width:13vw;text-align:right;line-height:1}
+  .sdrow .osat .u{font-size:2.6vh;color:#fff;font-weight:700}
+  .sdrow .pills{display:flex;flex-direction:column;align-items:flex-end;gap:.5vh;min-width:17vw}
+  .sdpill{font-size:2vh;font-weight:800;border-radius:1vh;padding:.3vh 1.2vw;background:#262626;color:#ccc}
+  .sdpill.up{color:#46e07a}.sdpill.dn{color:#ff7a6b}
+  .sdrow .dly{font-size:2.5vh;font-weight:800;color:#bbb;text-align:right;flex:1}
+  #foot{position:fixed;bottom:1.5vh;width:100%;text-align:center;color:#777;font-size:2vh}
+  #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:3vh;color:#FFC72C;text-align:center;padding:6vw}
+  /* v9 quality-trend line graph (design-a "Glow & Flow" base + design-b YTD line) */
+  .kt-chart{width:88vw;height:50vh;position:relative}
+  .kt-chart svg{width:100%;height:100%;display:block;overflow:visible}
+  .kt-line,.kt-glow{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);
+    animation:ktDraw 2.1s cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes ktDraw{to{stroke-dashoffset:0}}
+  .kt-area{opacity:0;animation:ktReveal 1.4s ease .9s forwards}
+  .kt-ytd{opacity:0;animation:ktReveal .8s ease 1.1s forwards}
+  @keyframes ktReveal{to{opacity:1}}
+  .kt-halo{transform-box:fill-box;transform-origin:center;animation:ktHalo 2.4s ease-in-out infinite}
+  @keyframes ktHalo{0%,100%{opacity:.28;transform:scale(1)}50%{opacity:.65;transform:scale(1.7)}}
+  .kt-vlabel{opacity:0;animation:ktPop .5s cubic-bezier(.2,1.4,.3,1) forwards}
+  @keyframes ktPop{from{opacity:0;transform:translateY(10px) scale(.7)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .kt-mlabel{opacity:0;animation:ktFade .6s ease forwards}
+  @keyframes ktFade{to{opacity:1}}
+</style></head><body>
+<div id="stage"></div><div id="foot"></div>
+<script>
+const FN = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/kitchen-screen";
+const qs = new URLSearchParams(location.search);
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const ord = n => { const s=["th","st","nd","rd"],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+// Spanish month names (the fn sends English month labels)
+const MES = {January:"enero",February:"febrero",March:"marzo",April:"abril",May:"mayo",June:"junio",
+  July:"julio",August:"agosto",September:"septiembre",October:"octubre",November:"noviembre",December:"diciembre"};
+const mes = m => MES[m]||m;
+// two-line bilingual kicker + title helpers
+const kick2 = (en,es) => '<div class="kicker">'+en+'<span class="es">'+es+'</span></div>';
+const title2es = (en,es) => '<div class="title2">'+en+'</div>'+(es?'<div class="t-es">'+es+'</div>':'');
+
+// v9 quality-trend line graph. Consumes the SAME fn data shape: d.trend=[{m,v}], d.qualityYtd.
+// Auto-fits the y-band to the data (incl. YTD) so close months read as visibly different.
+function trendChart(d){
+  const T=d.trend, N=T.length, vals=T.map(t=>+t.v);
+  const W=1600,H=600,mL=80,mR=80,mT=96,mB=96,iw=W-mL-mR,ih=H-mT-mB,baseY=mT+ih;
+  let lo=Math.min.apply(null,vals), hi=Math.max.apply(null,vals);
+  const ytd=(d.qualityYtd!=null&&!isNaN(+d.qualityYtd))?+d.qualityYtd:null;
+  if(ytd!=null){ lo=Math.min(lo,ytd); hi=Math.max(hi,ytd); }
+  const span=Math.max(hi-lo,1), pad=span*0.35, yMin=lo-pad, yMax=hi+pad;
+  const X=i=> mL+(N===1?iw/2:(i/(N-1))*iw);
+  const Y=v=> mT+(1-(v-yMin)/(yMax-yMin))*ih;
+  const pts=T.map((t,i)=>({x:X(i),y:Y(+t.v),v:+t.v,m:t.m}));
+  // Catmull-Rom -> cubic bezier smoothing through every point
+  let line="M "+pts[0].x.toFixed(1)+" "+pts[0].y.toFixed(1);
+  for(let i=0;i<N-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
+    const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
+    line+=" C "+c1x.toFixed(1)+" "+c1y.toFixed(1)+" "+c2x.toFixed(1)+" "+c2y.toFixed(1)+" "+p2.x.toFixed(1)+" "+p2.y.toFixed(1); }
+  const area=line+" L "+pts[N-1].x.toFixed(1)+" "+baseY+" L "+pts[0].x.toFixed(1)+" "+baseY+" Z";
+  let grid="";
+  for(let g=0;g<=3;g++){ const gy=mT+(g/3)*ih;
+    grid+='<line x1="'+mL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+gy.toFixed(1)+'" stroke="#fff" stroke-opacity="0.06" stroke-width="2"/>'; }
+  let ytdEl="";
+  if(ytd!=null){ const yy=Y(ytd), tagW=160, tagY=Math.max(yy-40,mT-30);
+    ytdEl='<g class="kt-ytd">'+
+      '<line x1="'+mL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-mR)+'" y2="'+yy.toFixed(1)+'" stroke="#DA291C" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/>'+
+      '<rect x="'+(W-mR-tagW)+'" y="'+tagY.toFixed(1)+'" width="'+tagW+'" height="34" rx="8" fill="#DA291C"/>'+
+      '<text x="'+(W-mR-tagW/2)+'" y="'+(tagY+25).toFixed(1)+'" text-anchor="middle" font-size="24" font-weight="900" fill="#fff">YTD '+ytd.toFixed(1)+'</text></g>'; }
+  let dots="",vlabels="",mlabels="";
+  pts.forEach((p,i)=>{ const delay=(1.6+i*0.13).toFixed(2);
+    dots+='<circle class="kt-halo" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="16" fill="#FFC72C" style="animation-delay:'+(i*0.2).toFixed(2)+'s"/>'+
+      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="12" fill="#101010" stroke="#FFC72C" stroke-width="6" filter="url(#ktGlowf)"/>'+
+      '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="5" fill="#fff"/>';
+    const ly=(p.y<mT+56)?p.y+60:p.y-38;
+    vlabels+='<text class="kt-vlabel" x="'+p.x.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="56" font-weight="900" fill="#fff" style="animation-delay:'+delay+'s" paint-order="stroke" stroke="#101010" stroke-width="7">'+p.v.toFixed(1)+'</text>';
+    mlabels+='<text class="kt-mlabel" x="'+p.x.toFixed(1)+'" y="'+(baseY+66)+'" text-anchor="middle" font-size="42" font-weight="800" fill="#FFC72C" fill-opacity="0.85" style="animation-delay:'+(0.8+i*0.08).toFixed(2)+'s">'+esc(p.m)+'</text>'; });
+  return '<div class="kt-chart"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+
+    '<defs>'+
+      '<linearGradient id="ktStroke" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFC72C"/><stop offset="0.55" stop-color="#FF8A1E"/><stop offset="1" stop-color="#DA291C"/></linearGradient>'+
+      '<linearGradient id="ktFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9B1E" stop-opacity="0.55"/><stop offset="0.6" stop-color="#DA291C" stop-opacity="0.18"/><stop offset="1" stop-color="#DA291C" stop-opacity="0"/></linearGradient>'+
+      '<filter id="ktGlowf" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'+
+      '<filter id="ktBigglow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18"/></filter>'+
+    '</defs>'+grid+ytdEl+
+    '<path class="kt-area" d="'+area+'" fill="url(#ktFill)"/>'+
+    '<path class="kt-glow" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" filter="url(#ktBigglow)"/>'+
+    '<path class="kt-line" d="'+line+'" fill="none" stroke="url(#ktStroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>'+
+    dots+vlabels+mlabels+'</svg></div>';
+}
+// Set the stroke-dash length from the real path so the line draws itself in.
+function initTrend(el){
+  const lp=el.querySelector('.kt-line'), gp=el.querySelector('.kt-glow');
+  if(!lp) return;
+  const len=lp.getTotalLength();
+  lp.style.setProperty('--len',len);
+  if(gp) gp.style.setProperty('--len',len);
+}
+
+function buildCards(d){
+  const cards=[];
+  const mtd = d.isCurrentMonth===false;
+  // 1) THE RACE (bilingual)
+  const big = d.rank===1
+    ? '<div class="huge">🏆 #1!</div><div class="sub">'+esc(d.loc)+' leads '+esc(d.monthName)+' on food quality. Hold the lead!</div>'+
+      '<div class="sub-es">¡'+esc(d.loc)+' lidera '+esc(mes(d.monthName))+' en calidad de comida — mantengan la delantera!</div>'
+    : '<div class="huge">'+(d.rank?ord(d.rank):"—")+'<span class="of"> of '+d.total+'</span></div>'+
+      '<div class="sub">'+(d.gap!=null?d.gap+' points from #1 — time to climb.':"Time to climb the board.")+'</div>'+
+      '<div class="sub-es">'+(d.gap!=null?'A '+d.gap+' puntos del #1 — ¡a subir!':'¡A subir en la tabla!')+'</div>';
+  // "month-to-date" ONLY when the board really is the current CT month (fn v7 isCurrentMonth).
+  cards.push({a:"red",h:kick2(
+      esc(d.monthName)+' Kitchen Quality Race'+(mtd?' · final':' · month-to-date'),
+      'Carrera de calidad de cocina · '+esc(mes(d.monthName))+(mtd?' · final':' · mes en curso'))+
+    '<div class="title">'+esc(d.loc)+'</div>'+big+
+    (d.score!=null?'<div class="score">Quality score / Puntuación: <b>'+esc(d.score)+'</b>'+(d.qualityYtd!=null?' &nbsp;·&nbsp; YTD / año a la fecha <b>'+esc(d.qualityYtd)+'</b>':"")+'</div>':"")});
+  // 2) BOARD (bilingual)
+  cards.push({a:"yellow",h:kick2('The Board · '+esc(d.monthName),'La Tabla · '+esc(mes(d.monthName)))+
+    title2es('Food quality — all '+d.total,'Calidad de comida — las '+d.total+' tiendas')+
+    '<div class="board">'+
+    d.standings.map((r,i)=>'<div class="row '+(r.store_number===d.store?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.score)+'</span></div>').join("")+'</div>'});
+  // 2b) MTD KVS RACE (fn v8) — make-line speed, all 12, faster = better (bilingual)
+  if(d.kvs&&d.kvs.standings&&d.kvs.standings.length){
+    const k=d.kvs;
+    cards.push({a:"red",h:kick2(
+        esc(k.month)+' KVS Race · month-to-date','Carrera KVS · '+esc(mes(k.month))+' · mes en curso')+
+      title2es('KVS (Kitchen Speed) — seconds per order · faster is better',
+               'KVS (Velocidad de Cocina) — segundos por orden · más rápido es mejor')+
+      (k.rank!=null?'<div class="sub" style="font-size:3.2vh">'+esc(d.loc)+': <b>'+ord(k.rank)+' of '+k.total+'</b> · '+esc(k.mine_s)+'s</div>':'')+
+      '<div class="board compact">'+
+      k.standings.map((r,i)=>'<div class="row '+(r.me?"me":"")+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(r.location_name)+'</span><span class="vl">'+esc(r.kvs_s)+'<span class="un">s</span></span></div>').join("")+'</div>'+
+      '<div class="fine">through / hasta '+esc(k.through||"")+' · '+esc(k.days)+' days · make-line screens 1+2, calibrated to QSRSoft / pantallas 1+2, calibrado a QSRSoft</div>'});
+  }
+  // 2c) SHIFT SHOWDOWN (fn v10) — dayparts ranked by MTD guest OSAT; crown the leader (bilingual)
+  if(d.shiftShowdown&&d.shiftShowdown.dayparts&&d.shiftShowdown.dayparts.some(p=>p.rank!=null)){
+    const sd=d.shiftShowdown, MD=["🥇","🥈","🥉","🏅"];
+    const rows=sd.dayparts.filter(p=>p.rank!=null).slice().sort((a,b)=>a.rank-b.rank);
+    const out=sd.dayparts.filter(p=>p.rank==null);
+    const tail=rows.length>1?rows[rows.length-1]:null;
+    const cheer=tail?(tail.key==="base_4p_12a"
+      ?'Beat the dinner slump — the crown is up for grabs!'
+      :esc(tail.label_en)+' crew — the crown is up for grabs!'):'';
+    const cheerEs=tail?(tail.key==="base_4p_12a"
+      ?'¡A vencer el bajón de la cena — la corona está en juego!'
+      :'¡Equipo de '+esc(tail.label_es.toLowerCase())+' — la corona está en juego!'):'';
+    const pills=p=>{
+      let h='';
+      if(p.delta!=null) h+='<span class="sdpill '+(p.delta>=0?'up':'dn')+'">'+(p.delta>=0?'+':'−')+Math.abs(p.delta).toFixed(1)+' vs org · same shift / mismo turno</span>';
+      if(p.arrow==='up') h+='<span class="sdpill up">▲ up vs '+esc(sd.prev_month)+' / sube vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='down') h+='<span class="sdpill dn">▼ down vs '+esc(sd.prev_month)+' / baja vs '+esc(mes(sd.prev_month))+'</span>';
+      else if(p.arrow==='flat') h+='<span class="sdpill">▬ even vs '+esc(sd.prev_month)+' / igual vs '+esc(mes(sd.prev_month))+'</span>';
+      return h;
+    };
+    const rowH=rows.map(p=>'<div class="sdrow'+(p.rank===1?' lead':'')+'">'+
+      '<span class="md">'+(MD[p.rank-1]||p.rank)+'</span>'+
+      '<span class="shift"><span class="sn">'+(p.rank===1?'👑 ':'')+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span>'+
+      '<span class="sw">'+esc(p.window)+(p.n!=null?' · '+p.n+' surveys / encuestas':'')+(p.org!=null?' · org '+p.org.toFixed(1)+'%':'')+'</span></span>'+
+      '<span class="osat">'+p.osat.toFixed(1)+'<span class="u">%</span></span>'+
+      '<span class="pills">'+pills(p)+'</span></div>').join("");
+    const outH=out.map(p=>'<div class="sdrow dim"><span class="md">⏳</span>'+
+      '<span class="shift"><span class="sn">'+esc(p.label_en)+' <span class="es">/ '+esc(p.label_es)+'</span></span><span class="sw">'+esc(p.window)+'</span></span>'+
+      '<span class="dly">'+esc(p.state_copy||(p.state==="no_surveys"?'No surveys yet / Sin encuestas aún':'Data delayed / Datos retrasados'))+'</span></div>').join("");
+    cards.push({a:"red",h:kick2(
+        'Shift Showdown · '+esc(sd.month)+' — month to date'+(sd.data_through?' · data through '+esc(sd.data_through):''),
+        'Duelo de turnos · '+esc(mes(sd.month))+' — mes en curso'+(sd.data_through?' · datos hasta '+esc(sd.data_through):''))+
+      title2es('Which shift wins our guests?','¿Qué turno conquista a nuestros clientes?')+
+      (cheer?'<div class="sub" style="font-size:3.3vh">'+cheer+'</div><div class="sub-es" style="font-size:2.7vh">'+cheerEs+'</div>':'')+
+      '<div class="board" style="width:82vw">'+rowH+outH+'</div>'+
+      '<div class="fine">MTD guest OSAT by shift vs the same shift org-wide · SMG VOICE daypart feeds / OSAT del mes por turno vs el mismo turno en toda la organización</div>'});
+  }
+  // 3) FOOD-QUALITY FEEDBACK — bucketed quotes (bilingual header; quotes as written)
+  (d.feedback||[]).forEach(g=>{
+    cards.push({a:(g.tone==="good"?"yellow":"red"),h:
+      kick2('Guest feedback · food quality · last 90 days','Comentarios de clientes · últimos 90 días')+
+      title2es(esc(g.label),esc(g.label_es||''))+
+      '<div class="quotes">'+(g.items||[]).map(it=>
+        '<div class="q">'+(it.star?'<span style="color:#FFC72C">★ </span>':'')+'“'+esc(it.text)+'”'+
+        '<div class="score" style="margin-top:.5vh">'+(it.name?esc(it.name)+' · ':'')+esc(it.when)+(it.star?' · guest complaint':'')+'</div>'+
+        '</div>').join("")+'</div>'});
+  });
+  // 4) TREND (bilingual) — v9 animated auto-scaled LINE graph (was a flat bar chart)
+  if(d.trend&&d.trend.length>=2){
+    cards.push({a:"yellow",cls:"kt-trend",h:kick2(
+        'Our quality trend'+(d.qualityThrough?' · through '+esc(d.qualityThrough):"")+(d.qualityYtd!=null?' · YTD '+esc(d.qualityYtd):""),
+        'Nuestra tendencia de calidad'+(d.qualityYtd!=null?' · año a la fecha '+esc(d.qualityYtd):""))+
+      title2es('Overall quality','Calidad general')+trendChart(d)}); }
+  // 5..N) EDITABLE CARDS (rendered as authored — author bilingual via // line breaks)
+  (d.cards||[]).forEach(c=>{
+    if((c.section||"").toLowerCase()==="welcome"){
+      const ls=c.lines||[];
+      cards.push({a:"gold",h:'<img class="wl-arch" src="assets/mcd-arches.png" alt="">'
+        +'<div class="wl-kick">'+esc(ls[0]||"WELCOME · BIENVENIDO")+'</div>'
+        +'<div class="wl-name">'+esc(c.title)+'</div>'
+        +ls.slice(1).map(l=>'<div class="wl-ln'+(/MOCNI/.test(l)?' mocni':'')+'">'+esc(l)+'</div>').join("")});
+      return;
+    }
+    cards.push({a:(c.section==="contest"?"yellow":"red"),h:'<div class="kicker">'+esc((c.section||"").toUpperCase())+'</div><div class="title2">'+esc(c.title)+'</div><div class="body">'+(c.lines||[]).map(l=>'<div class="ln">'+esc(l)+'</div>').join("")+'</div>'});
+  });
+  return cards;
+}
+function render(d){
+  const cards=buildCards(d), stage=document.getElementById("stage");
+  stage.innerHTML=cards.map(c=>'<div class="card '+c.a+(c.cls?' '+c.cls:'')+'">'+c.h+'</div>').join("");
+  // v9: prime the trend line-graph draw-in (stash HTML so we can replay it on rotate-in)
+  [].slice.call(document.querySelectorAll('.kt-trend')).forEach(function(el){ el._html=el.innerHTML; initTrend(el); });
+  document.getElementById("foot").textContent=esc(d.loc)+" · #"+esc(d.store)+" · "+esc(d.monthName)+" / "+esc(mes(d.monthName))+(d.isCurrentMonth===false?" final":" month-to-date · mes en curso")+(d.qualityThrough?" · quality through "+esc(d.qualityThrough):"")+(d.qualityYtd!=null?" · YTD "+esc(d.qualityYtd):"")+(d.seeded?" (standings seeded from last month's VOICE — updates when this month's lands)":"");
+  const els=[].slice.call(document.querySelectorAll(".card")); let i=0; if(els.length) els[0].classList.add("on");
+  setInterval(function(){ els[i].classList.remove("on"); i=(i+1)%els.length; const cur=els[i]; cur.classList.add("on");
+    // v9: replay the trend draw-in each time that card rotates into view
+    if(cur.classList.contains("kt-trend")&&cur._html){ cur.innerHTML=cur._html; initTrend(cur); } },12000);
+}
+fetch(FN+"?t="+encodeURIComponent(qs.get("t")||"")+"&store="+encodeURIComponent(qs.get("store")||"3444"))
+  .then(r=>r.json()).then(d=>{ if(!d.ok){document.body.innerHTML='<div id="err">Kitchen screen: '+esc(d.error||"unavailable")+'. Check the link. / Pantalla no disponible — revisa el enlace.</div>';return;} render(d); })  // store default 3444 below
+  .catch(e=>{document.body.innerHTML='<div id="err">Kitchen screen offline — retrying… / Sin conexión — reintentando…</div>';setTimeout(()=>location.reload(),30000);});
+// classic fallback copy: when the TV landed here from the new screen (nf=1), try the new screen again in 10 min
+setTimeout(()=>{ if(/[?&]nf=1/.test(location.search)) location.replace('kitchen.html'+location.search.replace(/[?&]nf=1/,'')); else location.reload(); },600000);
+</script></body></html>
