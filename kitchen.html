@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- kitchen.html v10 (2026-11-13, Eddie: "markedly improve the service and kitchen screens, make it amazing").
+<!-- kitchen.html v11 (2026-11-13; v11 adds the new product race cards with product pictures, fn v15) (v10, Eddie: "markedly improve the service and kitchen screens, make it amazing").
      Crew Kitchen TV. Point the Fire Stick at:
        https://edwardbiz-gif.github.io/manager-page/kitchen.html?t=<kitchen-screen token>&store=3444
      v10 is a full redesign on the shared screen kit (assets/screen-kit.css + screen-kit.js):
@@ -30,9 +30,9 @@ setTimeout(__classic, 25000);
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/screen-kit.css?v=2">
+<link rel="stylesheet" href="assets/screen-kit.css?v=4">
 </head><body>
-<script src="assets/screen-kit.js?v=2"></script>
+<script src="assets/screen-kit.js?v=4"></script>
 <script>
 (function () {
   var E = TV.esc, F = TV.fmt;
@@ -135,7 +135,7 @@ setTimeout(__classic, 25000);
   }
 
   TV.boot({
-    kind: "kitchen", ver: "k10", label: "Kitchen", labelEs: "Cocina",
+    kind: "kitchen", ver: "k11", label: "Kitchen", labelEs: "Cocina",
     fn: "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/kitchen-screen",
     build: function (d, ctx) {
       var cards = [], safe = function (f) { try { var c = f(); if (c) cards.push(c); } catch (e) { if (window.console) console.error(e); } };
@@ -149,6 +149,8 @@ setTimeout(__classic, 25000);
             foot: "Guest survey comments about our food, last 90 days, in the guest's own words · SMG VOICE" }, ctx);
         });
       });
+      // v11: the automatic new product race, with product pictures (kitchen-screen fn v15 `rankers`)
+      (d.rankers || []).forEach(function (rk) { safe(function () { return TV.rankerCard(rk, d); }); });
       var hasFv = d.foodVariance && d.foodVariance.length;
       (d.cards || []).forEach(function (c, i) {
         if (hasFv && /^food variance/i.test(c.section || "")) return; // drawn as a picture below

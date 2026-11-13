@@ -1,4 +1,4 @@
-/* screen-kit.js v2 (2026-11-13) — shared engine for the crew TV screens (kitchen.html + service.html).
+/* screen-kit.js v3 (2026-11-13; v3 adds the shared product race card with product pictures) — shared engine for the crew TV screens (kitchen.html + service.html).
    Frame (team scorebug + clock + "on now" shift + progress rail), card rotation with per-card timing,
    in-place data refresh (no white flash), offline cache, count-ups, ladders, line charts.
    Plain ES2017, no dependencies: it has to run on a Fire Stick browser. Each screen supplies only
@@ -233,6 +233,33 @@ var TV = (function () {
       return '<div class="ln a" style="--i:' + (k + 3) + '">' + s.en + (s.es ? '<span class="es">' + s.es + "</span>" : "") + "</div>";
     }).join("") + "</div>", foot: c.foot || "" };
   }
+  // New product race card (both screens): product picture, our two ranks, all stores by units and per 1,000 guests.
+  function rankerCard(rk, d) {
+    if (!rk || !rk.standings || !rk.standings.length) return null;
+    var byU = rk.standings.slice().sort(function (a, b) { return a.rank_units - b.rank_units; })
+      .map(function (r) { return { nsn: r.nsn, name: r.location_name, v: r.units, me: r.me, rk: r.rank_units }; });
+    var byR = rk.standings.slice().sort(function (a, b) { return a.rank_per1k - b.rank_per1k; })
+      .map(function (r) { return { nsn: r.nsn, name: r.location_name, v: r.per_1k, me: r.me, rk: r.rank_per1k }; });
+    var me = rk.me, pos = function (n) { return n === 1 ? "🏆 #1" : ord(n); };
+    var pic = rk.image
+      ? '<div class="ptile a' + (rk.image_fit === "cover" ? " cover" : "") + '" style="--i:3"><img src="' + esc(rk.image) + '" alt="" onerror="this.parentNode.style.display=\'none\'"></div>'
+      : "";
+    return { id: "rank-" + rk.lto_key, dur: 17, html:
+      '<div class="split"><div class="col-hero" style="flex-basis:29%">' +
+        head({ eb: "New product" + (rk.day_n ? " · day " + rk.day_n + " of " + (rk.days_max || 45) : " · last 7 days"),
+          ebEs: "Producto nuevo" + (rk.day_n ? " · día " + rk.day_n + " de " + (rk.days_max || 45) : ""), h: esc(rk.label), hEs: "" }) +
+        pic +
+        (me ? '<div class="stats a' + (pic ? " pstats" : "") + '" style="--i:4;margin-top:' + (pic ? "1.6vh" : "2vh") + ';flex-direction:column;gap:' + (pic ? "1.2vh" : "2.4vh") + '">' +
+          stat("By units", "Por unidades", pos(me.rank_units) + '<span class="u">of ' + rk.total + " · " + commas(me.units) + "</span>", me.rank_units === 1 ? "gold" : "") +
+          stat("Per 1,000 guests", "Por 1,000 clientes", pos(me.rank_per1k) + '<span class="u">of ' + rk.total + " · " + fmt(me.per_1k, 1) + "</span>", me.rank_per1k === 1 ? "gold" : "") + "</div>"
+          : '<div class="msg a" style="--i:4">' + esc(d.loc) + ' is not selling this yet<span class="es">Aún no lo vendemos</span></div>') +
+      '</div><div class="col-main"><div class="duo">' +
+        '<div><div class="lcap">Units sold <span class="es">· Unidades</span></div>' + ladder(byU, { dec: 0, compact: true }) + "</div>" +
+        '<div><div class="lcap">Per 1,000 guests <span class="es">· Por 1,000 clientes</span></div>' + ladder(byR, { dec: 1, compact: true }) + "</div>" +
+      "</div></div></div>",
+      foot: esc(rk.label) + (rk.launch_date ? ", launched " + esc(isoLabel(rk.launch_date)) : "") + " · units sold " + esc(isoLabel(rk.win_from)) + " to " + esc(isoLabel(rk.data_through)) +
+        " · by units and per 1,000 guests · " + rk.total + " stores selling it · R365 item sales" };
+  }
   // Line chart on a zoomed scale: best point gold, latest ringed, optional dashed reference line.
   function lineChart(T, o) {
     o = o || {};
@@ -426,6 +453,6 @@ var TV = (function () {
 
   return { boot: boot, esc: esc, fmt: fmt, commas: commas, ord: ord, sfx: sfx, mes: mes, mon: mon, isoLabel: isoLabel, bi: bi,
     head: head, cu: cu, stat: stat, rankBlock: rankBlock, ladder: ladder, coach: coach, movement: movement,
-    showdownCard: showdownCard, quotesCard: quotesCard, editableCard: editableCard, lineChart: lineChart,
+    showdownCard: showdownCard, quotesCard: quotesCard, editableCard: editableCard, rankerCard: rankerCard, lineChart: lineChart,
     crest: crest, teamName: teamName, TEAMS: TEAMS, STORE: STORE, daysLeft: daysLeft };
 })();

@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- service.html v13 (2026-11-13; v13 = every drive thru speed number is the THREE PEAK average,
+<!-- service.html v14 (2026-11-13; v14 = product pictures on the product race cards, fn v16; v13 = every drive thru speed number is the THREE PEAK average,
      breakfast + lunch + dinner, per Eddie: "overnight adversely impacts some stores"; pairs with fn v15) (v12: Eddie: "markedly improve the service and kitchen screens, make it amazing").
      Crew Service Area TV (drive thru / front counter). Point the Fire Stick at:
        https://edwardbiz-gif.github.io/manager-page/service.html?t=<service-screen token>&store=3444
@@ -36,9 +36,9 @@ setTimeout(__classic, 25000);
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/screen-kit.css?v=3">
+<link rel="stylesheet" href="assets/screen-kit.css?v=4">
 </head><body>
-<script src="assets/screen-kit.js?v=3"></script>
+<script src="assets/screen-kit.js?v=4"></script>
 <script>
 (function () {
   var E = TV.esc, F = TV.fmt;
@@ -207,29 +207,6 @@ setTimeout(__classic, 25000);
         (o.ytd != null ? " · year to date " + F(o.ytd, 1) + "%" : "") };
   }
 
-  function rankerCard(rk, d) {
-    if (!rk.standings || !rk.standings.length) return null;
-    var byU = rk.standings.slice().sort(function (a, b) { return a.rank_units - b.rank_units; })
-      .map(function (r) { return { nsn: r.nsn, name: r.location_name, v: r.units, me: r.me, rk: r.rank_units }; });
-    var byR = rk.standings.slice().sort(function (a, b) { return a.rank_per1k - b.rank_per1k; })
-      .map(function (r) { return { nsn: r.nsn, name: r.location_name, v: r.per_1k, me: r.me, rk: r.rank_per1k }; });
-    var me = rk.me, pos = function (n) { return n === 1 ? "🏆 #1" : TV.ord(n); };
-    return { id: "rank-" + rk.lto_key, dur: 17, html:
-      '<div class="split"><div class="col-hero" style="flex-basis:29%">' +
-        TV.head({ eb: "New product" + (rk.day_n ? " · day " + rk.day_n + " of " + (rk.days_max || 45) : " · last 7 days"),
-          ebEs: "Producto nuevo" + (rk.day_n ? " · día " + rk.day_n + " de " + (rk.days_max || 45) : ""), h: E(rk.label), hEs: "" }) +
-        (me ? '<div class="stats a" style="--i:3;margin-top:2vh;flex-direction:column;gap:2.4vh">' +
-          TV.stat("By units", "Por unidades", pos(me.rank_units) + '<span class="u">of ' + rk.total + " · " + TV.commas(me.units) + "</span>", me.rank_units === 1 ? "gold" : "") +
-          TV.stat("Per 1,000 guests", "Por 1,000 clientes", pos(me.rank_per1k) + '<span class="u">of ' + rk.total + " · " + F(me.per_1k, 1) + "</span>", me.rank_per1k === 1 ? "gold" : "") + "</div>"
-          : '<div class="msg a" style="--i:3">' + E(d.loc) + ' is not selling this yet<span class="es">Aún no lo vendemos</span></div>') +
-      '</div><div class="col-main"><div class="duo">' +
-        '<div><div class="lcap">Units sold <span class="es">· Unidades</span></div>' + TV.ladder(byU, { dec: 0, compact: true }) + "</div>" +
-        '<div><div class="lcap">Per 1,000 guests <span class="es">· Por 1,000 clientes</span></div>' + TV.ladder(byR, { dec: 1, compact: true }) + "</div>" +
-      "</div></div></div>",
-      foot: E(rk.label) + (rk.launch_date ? ", launched " + E(TV.isoLabel(rk.launch_date)) : "") + " · units sold " + E(TV.isoLabel(rk.win_from)) + " to " + E(TV.isoLabel(rk.data_through)) +
-        " · by units and per 1,000 guests · " + rk.total + " stores selling it · R365 item sales" };
-  }
-
   function deliveryCard(d) {
     var dl = d.delivery;
     if (!dl || !dl.period_month) return null;
@@ -245,7 +222,7 @@ setTimeout(__classic, 25000);
   }
 
   TV.boot({
-    kind: "service", ver: "s13", label: "Service", labelEs: "Servicio",
+    kind: "service", ver: "s14", label: "Service", labelEs: "Servicio",
     fn: "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/service-screen",
     build: function (d, ctx) {
       var cards = [], safe = function (f) { try { var c = f(); if (c) cards.push(c); } catch (e) { if (window.console) console.error(e); } };
@@ -261,7 +238,7 @@ setTimeout(__classic, 25000);
           h: "Crew wins", hEs: "Victorias del equipo", foot: "Guest survey comments, most recent first, in the guest's own words (SMG VOICE)" }, ctx);
       });
       (d.editable || []).forEach(function (c, i) { safe(function () { return TV.editableCard(c, i); }); });
-      (d.rankers || []).forEach(function (rk) { safe(function () { return rankerCard(rk, d); }); });
+      (d.rankers || []).forEach(function (rk) { safe(function () { return TV.rankerCard(rk, d); }); });
       safe(function () { return deliveryCard(d); });
       return cards;
     }
