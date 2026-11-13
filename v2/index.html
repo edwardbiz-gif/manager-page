@@ -1621,7 +1621,7 @@ body.sch-print .sch-foot{margin-top:6px;padding-top:4px;font-size:8.5px;color:#4
 /* =========================================================================
    manager-page-v2 shell — Field-First scaffold
    ========================================================================= */
-const SHELL_VERSION = "v2-0.73"; // Manager Scheduler: add a person (this week only or keep on roster) + who and start time on every placed task, times inside that shift (Eddie 2026-11-11, fn lockstep). PRIOR v2-0.72: // Manager Scheduler: daypart owners auto fill from the grid (Eddie 2026-11-05; fn stamp in lockstep, no fn logic change). PRIOR: // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
+const SHELL_VERSION = "v2-0.74"; // Energy and utilities card on NUMBERS (task #423, 2026-11-13). PRIOR v2-0.73: Manager Scheduler: add a person (this week only or keep on roster) + who and start time on every placed task, times inside that shift (Eddie 2026-11-11, fn lockstep). PRIOR v2-0.72: // Manager Scheduler: daypart owners auto fill from the grid (Eddie 2026-11-05; fn stamp in lockstep, no fn logic change). PRIOR: // MANAGER SCHEDULER page (&p=schedule) + home tile (fn+shell lockstep 2026-11-05, task #2404). PRIOR: // RANKED BY CALIBRATED DOLLARS on the Brain page (fn+shell lockstep 2026-11-02, task #2300; data.today.ranking + data.money.open_book). PRIOR: // COPILOT FOLLOW-THROUGH card on the Owner/Supervisor TODAY lane (fn+shell lockstep 2026-10-27; data.follow_through). PRIOR: // BOARD PRUNE + TOP TABS (fn+shell lockstep 2026-09-09, Eddie): twelve modules removed, PAC%% trend drops the open month, lane tabs moved to the top chrome, Voice card gains a per-location toggle. SHELL-ONLY logic; the fn stamp moves in lockstep.
 const ENDPOINT = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/manager-page-v2";
 
 const QS = new URLSearchParams(location.search);
@@ -2708,6 +2708,83 @@ function renderNumbersDoorDash(data){
     + '<div class="cap"><b>'+nDown+'</b> down <span class="qdown">↓</span> · <b>'+nUp+'</b> up <span class="qup">↑</span> · rest flat. Rate keys off <b>ADWT</b>. DashPass &amp; Drive base constant across all 12. From <b>doordash_commission_rates</b>.</div>'
     + (dd.missing_latest_quarter ? '<div class="dd-misswarn">⚠ '+dd.missing_latest_quarter+' store'+(dd.missing_latest_quarter>1?"s":"")+' missing the latest-quarter DoorDash email — those rows show the prior quarter.</div>':"");
   return card("DoorDash rates", body, { icon:"🛵", info: "current vs prior quarter on file", newBadge:true, drill:{kind:"dd"} });
+}
+
+// MODULE — Energy and utilities (v2-0.74, task #423). Utilities as booked in R365 for the
+// latest CLOSED month (financials.energy). One store (a GM) gets the month, three
+// comparisons and a 6 month trend; an owner or supervisor gets one row per store.
+// The open month is never charted: utilities post by accrual, so a part month reads low.
+function renderNumbersEnergy(data){
+  const fin = data.financials || {};
+  if(fin.error) return "";
+  const en = fin.energy;
+  if(!en || !en.stores || !en.stores.length || !en.month) return "";
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const ml = (ym, yr) => { if(!ym) return ""; const m = MON[parseInt(String(ym).slice(5,7),10)-1] || ""; return yr ? m+" "+String(ym).slice(0,4) : m; };
+  const delta = (cur, base) => (cur==null || base==null || !Number(base)) ? null : Math.round(((cur-base)/Math.abs(base))*100);
+  const dtxt = (d) => d==null ? "—" : d>0 ? "▲ "+d+"%" : d<0 ? "▼ "+Math.abs(d)+"%" : "flat";
+  const dcls = (d) => d==null ? "qflat" : d>0 ? "qup" : d<0 ? "qdown" : "qflat";
+  const months = en.months || [];
+  const bars = (series) => {
+    const vals = (series||[]).map(v => (v==null||isNaN(v)) ? 0 : Math.max(0, Number(v)));
+    const mx = Math.max.apply(null, vals.concat([1]));
+    return '<div style="display:flex;align-items:flex-end;gap:6px;height:74px;margin:10px 0 6px">'
+      + vals.map((v,i) => {
+          const h = Math.max(3, Math.round((v/mx)*54)), last = i === vals.length-1;
+          return '<div style="flex:1;min-width:0;text-align:center">'
+            + '<div style="height:'+h+'px;border-radius:4px 4px 0 0;background:'+(last?"var(--accent)":"var(--line)")+'"></div>'
+            + '<div style="font-size:9px;font-weight:800;color:var(--ink-muted);margin-top:3px">'+esc(ml(months[i]))+'</div>'
+            + '<div style="font-size:9px;font-weight:700;color:var(--ink-muted)">'+((series||[])[i]==null?"—":"$"+moneyK(vals[i]))+'</div></div>';
+        }).join("")
+      + '</div>';
+  };
+  const tile = (label, base, cur) => { const d = delta(cur, base);
+    return '<div class="dd-tile"><div class="ddl">'+esc(label)+'</div><div class="ddv">'+moneyFull(base)+'</div>'
+      + '<div class="dds '+dcls(d)+'">'+(d==null?"no comparison":"now "+dtxt(d))+'</div></div>'; };
+  const monthLbl = ml(en.month, true);
+  const prelim = en.is_preliminary ? ' <span class="qflat" style="font-size:10px;font-weight:800">PRELIMINARY</span>' : "";
+  const om = en.open_month;
+  const openNote = (om && om.month)
+    ? '<div class="cap">'+esc(ml(om.month, true))+' is still open'+(om.through?' (booked through '+esc(String(om.through))+')':'')+' and is not shown here. Utilities post by accrual, so a part month reads low.</div>'
+    : "";
+  const foot = '<div class="cap">Utilities as booked in R365: electric, gas and water together. Accrual based, so a month can trail the real bill by a few weeks. From <b>r365_pnl_store_line</b>.</div>';
+  const single = !(data.scope_all) && en.stores.length === 1;
+
+  if(single){
+    const s = en.stores[0];
+    const body =
+        '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+      + '<span style="font-size:30px;font-weight:900;letter-spacing:-.5px;font-variant-numeric:tabular-nums">'+moneyFull(s.amount)+'</span>'
+      + '<span style="font-size:11px;font-weight:800;color:var(--ink-muted)">'+esc(monthLbl)+' · '+esc(s.store_name)+prelim+'</span></div>'
+      + (s.pct_sales!=null ? '<div style="font-size:11px;font-weight:700;color:var(--ink-muted);margin-top:2px">'+pct2(s.pct_sales)+' of net sales</div>' : "")
+      + bars(s.series)
+      + '<div class="dd-cur" style="grid-template-columns:1fr 1fr 1fr">'
+      + tile(ml(en.prev_month), s.prev, s.amount)
+      + tile(ml(en.yoy_month, true), s.yoy, s.amount)
+      + tile("Prior 3 mo avg", s.avg3, s.amount)
+      + '</div>' + openNote + foot;
+    return card("Energy and utilities", body, { icon:"⚡", through: en.data_through || monthLbl, newBadge:true });
+  }
+
+  const t = en.total || {};
+  const rows = en.stores.slice().sort((a,b) => (b.amount||0)-(a.amount||0)).map(s => {
+    const d = delta(s.amount, s.prev);
+    return '<div class="ddrow"><span class="ddn">'+esc(s.store_name)+'<small>#'+esc(s.nsn)+(s.pct_sales!=null?" · "+pct2(s.pct_sales)+" of sales":"")+'</small></span>'
+      + '<span class="ddmkt">'+moneyFull(s.amount)+'</span>'
+      + '<span class="ddtr '+dcls(d)+'" style="width:auto;min-width:54px;font-size:11px;text-align:right">'+dtxt(d)+'</span></div>';
+  }).join("");
+  const dT = delta(t.amount, t.prev), dY = delta(t.amount, t.yoy);
+  const body =
+      '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+    + '<span style="font-size:26px;font-weight:900;letter-spacing:-.5px;font-variant-numeric:tabular-nums">'+moneyFull(t.amount)+'</span>'
+    + '<span style="font-size:11px;font-weight:800;color:var(--ink-muted)">'+esc(monthLbl)+' · '+esc(String(t.store_count||en.stores.length))+' stores'+prelim+'</span></div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--ink-muted);margin-top:2px">'
+    + (t.pct_sales!=null ? pct2(t.pct_sales)+' of net sales · ' : "")
+    + '<span class="'+dcls(dT)+'">'+dtxt(dT)+'</span> vs '+esc(ml(en.prev_month))+' · <span class="'+dcls(dY)+'">'+dtxt(dY)+'</span> vs '+esc(ml(en.yoy_month, true))+'</div>'
+    + bars(t.series)
+    + '<div class="ddhdr"><span>Store</span><span>'+esc(ml(en.month))+'</span><span>vs '+esc(ml(en.prev_month))+'</span></div>' + rows
+    + openNote + foot;
+  return card("Energy and utilities", body, { icon:"⚡", through: en.data_through || monthLbl, newBadge:true });
 }
 
 // MODULE — LTO leaderboard (org-wide units per 1,000 guests; viewer's stores hi-lit).
@@ -7667,6 +7744,8 @@ const MANIFEST = [
   // first; PRELIMINARY-labeled actuals + all-costs-are-estimates footnote.
   { id:"numbers_avt",      lane:"NUMBERS", title:"Food Cost AvT",        render: renderAvtFoodCost,     newBadge:true },
   { id:"numbers_doordash", lane:"NUMBERS", title:"DoorDash rates",       render: renderNumbersDoorDash, newBadge:true },
+  // v2-0.74 (task #423): utilities as booked in R365, latest closed month + trend.
+  { id:"numbers_energy",   lane:"NUMBERS", title:"Energy and utilities", render: renderNumbersEnergy,   newBadge:true },
   { id:"numbers_lto",      lane:"NUMBERS", title:"LTO leaderboard",      render: renderNumbersLto      },
   // GUESTS — feedback · complaints SLA · polarity-aware voice (plan §5). Order:
   // needs-response feedback first, then the SLA resolve list, then the trend.
