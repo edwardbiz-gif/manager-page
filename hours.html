@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Holiday Hours</title>
+<style>
+  :root { --navy:#0c2440; --red:#cc1226; --amber:#ffbc0d; --ink:#1c1c20; --soft:#5d6878; --line:#d8dde6; --bg:#f3f5f8; --ok:#1f8a4c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); font-size:17px; line-height:1.4; }
+  header { background:var(--navy); color:#fff; padding:16px 16px 14px; border-top:6px solid var(--red); }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:4px 0 0; color:#c5d2e6; font-size:15px; }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin:0 0 14px; }
+  .card h2 { margin:0 0 2px; font-size:19px; color:var(--navy); }
+  .card .when { color:var(--soft); font-size:15px; margin:0 0 10px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  select, input[type=text], input[type=time], textarea { width:100%; font-size:17px; padding:11px 10px; border:1px solid #b9c2cf; border-radius:8px; background:#fff; color:var(--ink); }
+  .times { display:flex; gap:10px; margin-top:8px; }
+  .times > div { flex:1; }
+  .times small { display:block; color:var(--soft); margin-bottom:3px; }
+  button { width:100%; font-size:19px; font-weight:700; padding:15px; border:0; border-radius:10px; background:var(--red); color:#fff; }
+  button:disabled { opacity:.55; }
+  .lang { float:right; background:transparent; border:1px solid #6f86a6; color:#fff; width:auto; font-size:14px; padding:6px 10px; font-weight:600; }
+  .msg { padding:12px 14px; border-radius:10px; margin:0 0 14px; font-weight:600; }
+  .err { background:#fde8e8; color:#8a1420; border:1px solid #f3b6b6; }
+  .good { background:#e5f5ec; color:#14532d; border:1px solid #a9dcbd; }
+  .hide { display:none; }
+  .done { color:var(--ok); font-weight:700; }
+  table { border-collapse:collapse; width:100%; font-size:15px; }
+  th, td { border-bottom:1px solid var(--line); padding:7px 6px; text-align:left; vertical-align:top; }
+  th { color:var(--navy); font-size:13px; }
+  .miss { color:#8a1420; font-weight:600; }
+  footer { color:var(--soft); font-size:13px; padding:0 16px 30px; max-width:720px; margin:0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <button class="lang" id="langBtn" type="button">Español</button>
+  <h1 id="title">Holiday Hours</h1>
+  <p id="sub"></p>
+</header>
+<main>
+  <div id="msg" class="msg hide"></div>
+  <div id="form" class="hide">
+    <div class="card">
+      <label for="store" data-en="Your store" data-es="Su restaurante"></label>
+      <select id="store"></select>
+      <label for="by" data-en="Your name" data-es="Su nombre"></label>
+      <input id="by" type="text" maxlength="60" autocomplete="name">
+    </div>
+    <div id="days"></div>
+    <div class="card">
+      <label for="notes" data-en="Anything else we should know? (optional)" data-es="¿Algo más que debamos saber? (opcional)"></label>
+      <textarea id="notes" rows="3" maxlength="500"></textarea>
+    </div>
+    <button id="send" type="button" data-en="Send holiday hours" data-es="Enviar horarios"></button>
+  </div>
+  <div id="results" class="hide"></div>
+</main>
+<footer id="foot"></footer>
+<script>
+(function () {
+  var API = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/holiday-hours";
+  var qs = new URLSearchParams(location.search);
+  var T = qs.get("t") || "", R = qs.get("r") || "";
+  var lang = (navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en";
+  var C = null, STORES = [];
+  var MODES = [["regular", "Regular hours (no change)", "Horario normal (sin cambio)"], ["hours", "Special hours", "Horario especial"],
+               ["open24", "Open 24 hours", "Abierto 24 horas"], ["closed", "Closed", "Cerrado"]];
+  var $ = function (id) { return document.getElementById(id); };
+  function L(en, es) { return lang === "es" ? es : en; }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function show(el, on) { el.classList.toggle("hide", !on); }
+  function say(text, kind) { var m = $("msg"); m.textContent = text; m.className = "msg " + (kind || "err"); show(m, !!text); if (text) m.scrollIntoView({behavior: "smooth", block: "center"}); }
+  function fmtDate(iso) {
+    var d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(lang === "es" ? "es-MX" : "en-US", {weekday: "long", month: "long", day: "numeric"});
+  }
+  function t12(t) { if (!t) return ""; var p = t.split(":"), h = +p[0]; return ((h % 12) || 12) + ":" + p[1] + (h < 12 ? " AM" : " PM"); }
+  function modeText(mode, o, c) {
+    if (mode === "hours") return t12(o) + " " + L("to", "a") + " " + t12(c);
+    var m = MODES.filter(function (x) { return x[0] === mode; })[0];
+    return m ? L(m[1], m[2]) : mode;
+  }
+  function api(method, body, extra) {
+    var url = API + (extra || "");
+    var h = {};
+    if (method === "GET") { if (R) h["x-hh-r"] = R; else h["x-hh-t"] = T; }
+    else h["Content-Type"] = "application/json";
+    return fetch(url, {method: method, headers: h, body: body ? JSON.stringify(body) : undefined})
+      .then(function (r) { return r.json().catch(function () { return {ok: false, error: "Something went wrong."}; }); });
+  }
+  function areaBlock(key, date, labelEn, labelEs) {
+    var id = key + "_" + date;
+    var opts = MODES.map(function (m) { return '<option value="' + m[0] + '">' + esc(L(m[1], m[2])) + "</option>"; }).join("");
+    return '<label for="' + id + '">' + esc(L(labelEn, labelEs)) + '</label><select id="' + id + '" data-area="' + key + '" data-date="' + date + '">' + opts + "</select>" +
+      '<div class="times hide" id="' + id + '_t"><div><small>' + esc(L("Opens", "Abre")) + '</small><input type="time" id="' + id + '_o"></div>' +
+      "<div><small>" + esc(L("Closes", "Cierra")) + '</small><input type="time" id="' + id + '_c"></div></div>';
+  }
+  function paint() {
+    document.documentElement.lang = lang;
+    $("langBtn").textContent = lang === "es" ? "English" : "Español";
+    document.querySelectorAll("[data-en]").forEach(function (el) { el.textContent = L(el.getAttribute("data-en"), el.getAttribute("data-es")); });
+    if (!C) return;
+    $("title").textContent = L(C.title_en, C.title_es);
+    $("sub").textContent = C.due ? L("Please send by ", "Por favor envíe antes del ") + fmtDate(C.due) + "." : "";
+    $("foot").textContent = L("Your hours go to the office and then to Brandon, who sets them in Restaurant Profile. Sending again replaces what you sent before.",
+                              "Sus horarios van a la oficina y luego a Brandon, quien los activa en Restaurant Profile. Si envía otra vez, se reemplaza lo anterior.");
+  }
+  function buildForm(keep) {
+    var sel = $("store"), cur = keep ? sel.value : "";
+    sel.innerHTML = '<option value="">' + esc(L("Pick your store", "Elija su restaurante")) + "</option>" +
+      STORES.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + (s.done ? " ✓" : "") + "</option>"; }).join("");
+    sel.value = cur;
+    var saved = keep ? collect(true) : null;
+    $("days").innerHTML = C.dates.map(function (d) {
+      return '<div class="card"><h2>' + esc(L(d.en, d.es)) + '</h2><p class="when">' + esc(fmtDate(d.date)) + "</p>" +
+        areaBlock("lobby", d.date, "Lobby", "Lobby") + areaBlock("dt", d.date, "Drive thru", "Autoservicio") + "</div>";
+    }).join("");
+    document.querySelectorAll("#days select").forEach(function (s) {
+      s.addEventListener("change", function () { show($(s.id + "_t"), s.value === "hours"); });
+    });
+    if (saved) fill(saved.rows);
+  }
+  function fill(rows) {
+    (rows || []).forEach(function (r) {
+      ["lobby", "dt"].forEach(function (a) {
+        var id = a + "_" + (r.holiday_date || r.date), s = $(id);
+        if (!s) return;
+        s.value = r[a + "_mode"] || "regular";
+        show($(id + "_t"), s.value === "hours");
+        $(id + "_o").value = (r[a + "_open"] || "").slice(0, 5);
+        $(id + "_c").value = (r[a + "_close"] || "").slice(0, 5);
+      });
+    });
+  }
+  function collect(loose) {
+    var rows = C.dates.map(function (d) {
+      var r = {date: d.date};
+      ["lobby", "dt"].forEach(function (a) {
+        var id = a + "_" + d.date;
+        r[a + "_mode"] = $(id).value;
+        r[a + "_open"] = $(id + "_o").value;
+        r[a + "_close"] = $(id + "_c").value;
+      });
+      return r;
+    });
+    if (!loose) {
+      for (var i = 0; i < rows.length; i++) for (var j = 0; j < 2; j++) {
+        var a = ["lobby", "dt"][j];
+        if (rows[i][a + "_mode"] === "hours" && !(rows[i][a + "_open"] && rows[i][a + "_close"])) {
+          return {error: L("Enter an opening and a closing time for every day with special hours.", "Escriba la hora de abrir y de cerrar en cada día con horario especial.")};
+        }
+      }
+    }
+    return {rows: rows};
+  }
+  function loadStore() {
+    var sid = $("store").value;
+    if (!sid) return;
+    api("GET", null, "?store=" + encodeURIComponent(sid)).then(function (j) {
+      if (j.ok && j.rows && j.rows.length) {
+        fill(j.rows);
+        $("by").value = j.rows[0].submitted_by || $("by").value;
+        $("notes").value = j.rows[0].notes || "";
+        say(L("This store already sent hours. You can change them and send again.", "Este restaurante ya envió horarios. Puede cambiarlos y enviar otra vez."), "good");
+      } else { say(""); }
+    });
+  }
+  function send() {
+    var sid = $("store").value, by = $("by").value.trim();
+    if (!sid) return say(L("Pick your store.", "Elija su restaurante."));
+    if (by.length < 2) return say(L("Type your name.", "Escriba su nombre."));
+    var c = collect(false);
+    if (c.error) return say(c.error);
+    $("send").disabled = true;
+    api("POST", {t: T, store_id: +sid, submitted_by: by, notes: $("notes").value, rows: c.rows}).then(function (j) {
+      $("send").disabled = false;
+      if (!j.ok) return say(j.error || L("Could not save. Please try again.", "No se pudo guardar. Intente otra vez."));
+      STORES.forEach(function (s) { if (String(s.id) === String(sid)) s.done = true; });
+      buildForm(true);
+      say(L("Thank you. Your holiday hours were sent.", "Gracias. Sus horarios fueron enviados."), "good");
+    }).catch(function () { $("send").disabled = false; say(L("Could not save. Check your signal and try again.", "No se pudo guardar. Revise su señal e intente otra vez.")); });
+  }
+  function results(j) {
+    var by = {};
+    j.rows.forEach(function (r) { (by[r.store_id] = by[r.store_id] || []).push(r); });
+    var h = '<div class="card"><h2>' + esc(L("Posted so far", "Recibidos")) + ": " + j.stores.filter(function (s) { return s.done; }).length + " / " + j.stores.length + "</h2>" +
+      (j.missing.length ? '<p class="miss">' + esc(L("Still missing: ", "Faltan: ") + j.missing.join(", ")) + "</p>" : '<p class="done">' + esc(L("All stores are in.", "Todos enviaron.")) + "</p>") + "</div>";
+    j.stores.forEach(function (s) {
+      var rows = by[s.id];
+      if (!rows) return;
+      h += '<div class="card"><h2>' + esc(s.name) + " #" + esc(s.number) + '</h2><p class="when">' + esc(L("Sent by ", "Enviado por ") + rows[0].submitted_by) +
+        (rows[0].notes ? " · " + esc(rows[0].notes) : "") + "</p><table><tr><th>" + esc(L("Day", "Día")) + "</th><th>Lobby</th><th>" + esc(L("Drive thru", "Autoservicio")) + "</th></tr>";
+      rows.forEach(function (r) {
+        var d = (C.dates.filter(function (x) { return x.date === r.holiday_date; })[0]) || {en: r.holiday_date, es: r.holiday_date};
+        h += "<tr><td><b>" + esc(L(d.en, d.es)) + "</b><br>" + esc(fmtDate(r.holiday_date)) + "</td><td>" + esc(modeText(r.lobby_mode, r.lobby_open, r.lobby_close)) +
+          "</td><td>" + esc(modeText(r.dt_mode, r.dt_open, r.dt_close)) + "</td></tr>";
+      });
+      h += "</table></div>";
+    });
+    $("results").innerHTML = h;
+    show($("results"), true);
+  }
+  var LAST = null;
+  $("langBtn").addEventListener("click", function () {
+    lang = lang === "es" ? "en" : "es";
+    paint();
+    if (C && !R) buildForm(true);
+    if (C && R && LAST) results(LAST);
+  });
+  $("store").addEventListener("change", loadStore);
+  $("send").addEventListener("click", send);
+  paint();
+  if (!T && !R) { say(L("This link isn't working. Please text Eddie for a fresh one.", "Este enlace no funciona. Por favor escriba a Eddie.")); return; }
+  api("GET").then(function (j) {
+    if (!j.ok) return say(j.error || L("This link isn't working.", "Este enlace no funciona."));
+    C = j.campaign; STORES = j.stores;
+    paint();
+    if (j.mode === "results") { LAST = j; results(j); return; }
+    if (!C.is_open) return say(L("This form is closed. Please text Eddie.", "Este formulario está cerrado. Por favor escriba a Eddie."));
+    buildForm(false);
+    show($("form"), true);
+  }).catch(function () { say(L("Could not load. Check your signal and try again.", "No se pudo cargar. Revise su señal e intente otra vez.")); });
+})();
+</script>
+</body>
+</html>
