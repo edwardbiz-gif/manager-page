@@ -1,0 +1,307 @@
+<!doctype html>
+<!-- day2.html v1 (2026-11-16, task 1412): back room day 2 training launcher. Source of truth:
+     operations-system edge-functions/day2-training-static/day2.html; published as day2.html in the
+     manager-page repo (GH Pages). API: day2-training Edge Function. The new hire signs in to FRED
+     with their OWN eID and does every course themselves; this page only lists the courses in order
+     and times each one. It never asks for or stores a password. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="version" content="day2 v1">
+<title>Day 2 Training</title>
+<style>
+  :root { --bg:#f6f4ef; --card:#ffffff; --ink:#1d1d1b; --muted:#5f5f5a; --line:#dedad0;
+          --go:#1f7a3a; --go-ink:#ffffff; --done:#0b5cad; --warn:#9a5b00; --stop:#b3261e; --gold:#ffbc0d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:18px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background:#27251f; color:#fff; padding:14px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header .logo { width:34px; height:34px; border-radius:6px; background:var(--gold); color:#27251f; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  header h1 { font-size:22px; margin:0; flex:1; }
+  header .clock { font-variant-numeric:tabular-nums; font-size:18px; }
+  main { max-width:900px; margin:0 auto; padding:20px 16px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; }
+  h2 { margin:0 0 4px; font-size:24px; }
+  .es { color:var(--muted); font-size:0.9em; display:block; }
+  button { font:inherit; border:0; border-radius:10px; cursor:pointer; padding:14px 18px; min-height:56px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .big { width:100%; font-size:20px; font-weight:700; }
+  .go { background:var(--go); color:var(--go-ink); }
+  .done { background:var(--done); color:#fff; }
+  .plain { background:#ebe7dc; color:var(--ink); }
+  .stop { background:var(--stop); color:#fff; }
+  .names { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; margin-top:12px; }
+  .names button { background:#fff; border:2px solid var(--line); text-align:left; }
+  .names button b { display:block; font-size:22px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  input { font:inherit; font-size:20px; padding:12px; border:2px solid var(--line); border-radius:10px; min-height:56px; }
+  input.first { flex:2; min-width:180px; } input.init { width:90px; text-align:center; text-transform:uppercase; }
+  ol.courses { list-style:none; padding:0; margin:0; counter-reset:c; }
+  ol.courses li { display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; padding:14px 0; border-top:1px solid var(--line); }
+  ol.courses li:first-child { border-top:0; }
+  .num { width:40px; height:40px; border-radius:50%; background:#ebe7dc; display:flex; align-items:center; justify-content:center; font-weight:800; }
+  li.finished .num { background:var(--go); color:#fff; }
+  li.running .num { background:var(--gold); }
+  .title { font-weight:650; }
+  .meta { color:var(--muted); font-size:15px; }
+  .ask { color:var(--warn); font-size:15px; }
+  .btns { display:flex; gap:8px; }
+  .btns button { min-width:110px; }
+  .totals { display:flex; gap:24px; flex-wrap:wrap; font-size:20px; }
+  .totals b { font-variant-numeric:tabular-nums; font-size:28px; display:block; }
+  .note { background:#fff8e1; border:1px solid #f0d58a; border-radius:10px; padding:12px; margin-top:12px; font-size:16px; }
+  .err { color:var(--stop); font-weight:600; margin-top:10px; min-height:1em; }
+  .hidden { display:none !important; }
+  .step { font-size:14px; font-weight:800; letter-spacing:.06em; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">M</div>
+  <h1 id="hdr">Day 2 Training <span style="font-weight:400">/ Entrenamiento del día 2</span></h1>
+  <div class="clock" id="clock"></div>
+</header>
+<main>
+  <div id="loading" class="card">Loading... <span class="es">Cargando...</span></div>
+  <div id="fatal" class="card hidden"><h2>This link is not active.</h2><span class="es">Este enlace no está activo. Avísale a tu gerente.</span></div>
+
+  <!-- 1. who are you -->
+  <section id="who" class="hidden">
+    <div class="card">
+      <div class="step">Step 1 / Paso 1</div>
+      <h2>Who are you?</h2><span class="es">¿Quién eres?</span>
+      <div class="names" id="names"></div>
+      <p id="noNames" class="meta hidden">No new hires listed yet. Type your name below.<span class="es">Todavía no hay nuevos empleados en la lista. Escribe tu nombre abajo.</span></p>
+    </div>
+    <div class="card">
+      <h2 style="font-size:20px">Not on the list?</h2><span class="es">¿No estás en la lista?</span>
+      <div class="row">
+        <input class="first" id="first" placeholder="First name / Nombre" autocomplete="off" maxlength="40">
+        <input class="init" id="init" placeholder="L" autocomplete="off" maxlength="2" aria-label="First letter of your last name">
+        <button class="go" id="startTyped">Start / Empezar</button>
+      </div>
+      <p class="meta">First name and the first letter of your last name only.<span class="es">Solo tu nombre y la primera letra de tu apellido.</span></p>
+      <div class="err" id="whoErr"></div>
+    </div>
+  </section>
+
+  <!-- 2. training -->
+  <section id="train" class="hidden">
+    <div class="card">
+      <h2 id="hello"></h2>
+      <div class="totals">
+        <div>Time in courses<span class="es">Tiempo en cursos</span><b id="tCourses">0:00</b></div>
+        <div>Total time today<span class="es">Tiempo total hoy</span><b id="tTotal">0:00</b></div>
+        <div>Courses done<span class="es">Cursos terminados</span><b id="tDone">0</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="step">Step 2 / Paso 2</div>
+      <h2>Sign in to FRED with your eID</h2>
+      <span class="es">Inicia sesión en FRED con tu eID</span>
+      <p>Your eID starts with an e and has 7 numbers (e#######). Your manager gave it to you on day 1. If this is your first time, use the temporary password and FRED will ask you to make a new one.</p>
+      <p class="es">Tu eID empieza con una e y tiene 7 números (e#######). Tu gerente te lo dio el día 1. Si es tu primera vez, usa la contraseña temporal y FRED te pedirá una nueva.</p>
+      <button class="big go" id="openFred">Open FRED / Abrir FRED</button>
+      <div class="note">Never type your password on this page. Only in FRED.<span class="es">Nunca escribas tu contraseña en esta página. Solo en FRED.</span></div>
+    </div>
+    <div class="card">
+      <div class="step">Step 3 / Paso 3</div>
+      <h2>Your courses, in order</h2><span class="es">Tus cursos, en orden</span>
+      <p class="meta">Tap Start when you open a course in FRED, and Done when you finish its quiz.<span class="es">Toca Empezar cuando abras un curso en FRED, y Terminé cuando termines su prueba.</span></p>
+      <ol class="courses" id="courses"></ol>
+      <div class="err" id="trainErr"></div>
+    </div>
+    <div class="card">
+      <button class="big stop" id="finish">I am finished for today / Terminé por hoy</button>
+    </div>
+  </section>
+
+  <!-- 3. summary -->
+  <section id="summary" class="hidden">
+    <div class="card">
+      <h2>Great work!</h2><span class="es">¡Buen trabajo!</span>
+      <div class="totals" style="margin-top:12px">
+        <div>Courses done<span class="es">Cursos terminados</span><b id="sDone">0</b></div>
+        <div>Time in courses<span class="es">Tiempo en cursos</span><b id="sCourses">0:00</b></div>
+        <div>Total time<span class="es">Tiempo total</span><b id="sTotal">0:00</b></div>
+      </div>
+      <div class="note">Sign out of FRED before you leave. Tell your manager you are done.<span class="es">Cierra tu sesión de FRED antes de irte. Avísale a tu gerente que terminaste.</span></div>
+      <div class="row"><button class="big plain" id="next">Next person / Siguiente persona</button></div>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  "use strict";
+  var API = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/day2-training";
+  var params = new URLSearchParams(location.search);
+  var TOKEN = params.get("t") || "";
+  var DEVICE = params.get("device") || "backroom";
+  var KEY = "day2_session_" + TOKEN.slice(0, 8);
+  var state = { data: null, session: null, tick: null };
+
+  function $(id) { return document.getElementById(id); }
+  function show(id) { ["loading", "fatal", "who", "train", "summary"].forEach(function (s) { $(s).classList.toggle("hidden", s !== id); }); }
+  function fmt(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(s).padStart(2, "0");
+  }
+  function api(method, body) {
+    var opt = { method: method, headers: {} };
+    var url = API;
+    if (method === "GET") url += "?t=" + encodeURIComponent(TOKEN);
+    else { opt.headers["Content-Type"] = "application/json"; body.t = TOKEN; opt.body = JSON.stringify(body); }
+    return fetch(url, opt).then(function (r) { return r.json().then(function (j) { j._status = r.status; return j; }); });
+  }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function clock() {
+    $("clock").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderWho() {
+    var box = $("names"); box.innerHTML = "";
+    var r = state.data.roster || [];
+    $("noNames").classList.toggle("hidden", r.length > 0);
+    r.forEach(function (p) {
+      var b = el("button");
+      b.appendChild(el("b", null, p.first_name + " " + p.last_initial + "."));
+      b.appendChild(el("span", "meta", "Day 2 / Día 2: " + p.day2_date));
+      b.onclick = function () { start({ geid: p.geid, first_name: p.first_name, last_initial: p.last_initial }); };
+      box.appendChild(b);
+    });
+    $("whoErr").textContent = "";
+    show("who");
+  }
+
+  function start(who) {
+    who.action = "start"; who.device_label = DEVICE;
+    api("POST", who).then(function (j) {
+      if (!j.ok) { $("whoErr").textContent = j.error || "Try again."; return; }
+      state.session = j.session;
+      try { sessionStorage.setItem(KEY, String(j.session.id)); } catch (e) {}
+      renderTrain();
+    }).catch(function () { $("whoErr").textContent = "No connection. Try again. / Sin conexión. Intenta otra vez."; });
+  }
+
+  function running() {
+    var c = (state.session.courses || []).filter(function (x) { return !x.finished_at; });
+    return c.length ? c[0].course_id : null;
+  }
+
+  function renderTrain() {
+    var s = state.session;
+    $("hello").textContent = "Hi " + s.first_name + "! / ¡Hola " + s.first_name + "!";
+    var byId = {}; (s.courses || []).forEach(function (c) { byId[c.course_id] = c; });
+    var run = running();
+    var list = $("courses"); list.innerHTML = "";
+    var done = 0;
+    (state.data.courses || []).forEach(function (c, i) {
+      var t = byId[c.course_id];
+      var li = el("li");
+      if (t && t.finished_at) { li.className = "finished"; done++; }
+      else if (t && !t.finished_at) li.className = "running";
+      li.appendChild(el("div", "num", String(i + 1)));
+      var mid = el("div");
+      mid.appendChild(el("div", "title", c.title));
+      var meta = c.group + " · " + c.course_id;
+      if (t && t.finished_at) meta += " · done in " + fmt(t.seconds) + " / terminado en " + fmt(t.seconds);
+      mid.appendChild(el("div", "meta", meta));
+      if (!c.tracked) mid.appendChild(el("div", "ask", "Ask your manager where to find this one. / Pregúntale a tu gerente dónde encontrarlo."));
+      li.appendChild(mid);
+      var btns = el("div", "btns");
+      var bs = el("button", "go", t && t.finished_at ? "Again / Otra vez" : "Start / Empezar");
+      bs.disabled = !!run;
+      bs.onclick = function () { act("course_start", c.course_id); };
+      var bd = el("button", "done", "Done / Terminé");
+      bd.disabled = run !== c.course_id;
+      bd.onclick = function () { act("course_done", c.course_id); };
+      btns.appendChild(bs); btns.appendChild(bd);
+      li.appendChild(btns);
+      list.appendChild(li);
+    });
+    $("tDone").textContent = done + " / " + (state.data.courses || []).length;
+    $("trainErr").textContent = "";
+    show("train");
+    startTick();
+  }
+
+  function startTick() {
+    if (state.tick) clearInterval(state.tick);
+    var loaded = Date.now();
+    var base = state.session;
+    state.tick = setInterval(function () {
+      var extra = (Date.now() - loaded) / 1000;
+      $("tTotal").textContent = fmt(base.elapsed_seconds + extra);
+      var run = running();
+      var live = 0;
+      if (run) {
+        var c = base.courses.filter(function (x) { return x.course_id === run; })[0];
+        live = (Date.now() - new Date(c.started_at).getTime()) / 1000;
+      }
+      $("tCourses").textContent = fmt(base.course_seconds + live);
+    }, 1000);
+  }
+
+  function act(action, courseId) {
+    api("POST", { action: action, session_id: state.session.id, course_id: courseId }).then(function (j) {
+      if (!j.ok) { $("trainErr").textContent = j.error || "Try again."; if (j._status === 410) reset(); return; }
+      state.session = j.session; renderTrain();
+    }).catch(function () { $("trainErr").textContent = "No connection. Try again. / Sin conexión. Intenta otra vez."; });
+  }
+
+  function finish() {
+    if (running() && !confirmLeave()) return;
+    api("POST", { action: "end", session_id: state.session.id }).then(function (j) {
+      var s = j.ok ? j.session : state.session;
+      var done = (s.courses || []).filter(function (c) { return c.finished_at; }).length;
+      $("sDone").textContent = done; $("sCourses").textContent = fmt(s.course_seconds); $("sTotal").textContent = fmt(s.elapsed_seconds);
+      try { sessionStorage.removeItem(KEY); } catch (e) {}
+      if (state.tick) clearInterval(state.tick);
+      show("summary");
+    });
+  }
+  function confirmLeave() {
+    $("trainErr").textContent = "Tap Done on the course you are in first. / Primero toca Terminé en el curso que estás haciendo.";
+    return false;
+  }
+
+  function reset() {
+    state.session = null;
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+    if (state.tick) clearInterval(state.tick);
+    $("first").value = ""; $("init").value = "";
+    load();
+  }
+
+  function load() {
+    show("loading");
+    api("GET").then(function (j) {
+      if (!j.ok) { show("fatal"); return; }
+      state.data = j;
+      var saved = null; try { saved = sessionStorage.getItem(KEY); } catch (e) {}
+      if (saved) {
+        api("POST", { action: "session", session_id: Number(saved) }).then(function (k) {
+          if (k.ok && !k.session.ended_at) { state.session = k.session; renderTrain(); } else { try { sessionStorage.removeItem(KEY); } catch (e) {} renderWho(); }
+        }).catch(renderWho);
+      } else renderWho();
+    }).catch(function () { show("fatal"); });
+  }
+
+  $("startTyped").onclick = function () {
+    var f = $("first").value.trim(), i = $("init").value.trim().replace(/\.$/, "");
+    if (!f || !i) { $("whoErr").textContent = "Type your first name and the first letter of your last name. / Escribe tu nombre y la primera letra de tu apellido."; return; }
+    start({ first_name: f, last_initial: i });
+  };
+  $("openFred").onclick = function () { window.open((state.data && state.data.fred_url) || "https://fredatmcd.com", "_blank", "noopener"); };
+  $("finish").onclick = finish;
+  $("next").onclick = reset;
+  clock(); setInterval(clock, 15000);
+  if (!TOKEN) show("fatal"); else load();
+})();
+</script>
+</body>
+</html>
