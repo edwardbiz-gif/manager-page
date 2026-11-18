@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Exterior Lighting Check</title>
+<style>
+  :root { --navy:#0c2440; --red:#cc1226; --ink:#1c1c20; --soft:#5d6878; --line:#d8dde6; --bg:#f3f5f8; --ok:#1f8a4c; --bad:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); font-size:17px; line-height:1.4; }
+  header { background:var(--navy); color:#fff; padding:16px 16px 14px; border-top:6px solid var(--red); }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:4px 0 0; color:#c5d2e6; font-size:15px; }
+  main { max-width:720px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin:0 0 14px; }
+  .card h2 { margin:0 0 8px; font-size:18px; color:var(--navy); }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  select, input[type=text], input[type=datetime-local], textarea { width:100%; font-size:17px; padding:11px 10px; border:1px solid #b9c2cf; border-radius:8px; background:#fff; color:var(--ink); }
+  .seg { display:flex; gap:8px; flex-wrap:wrap; }
+  .seg button { flex:1; min-width:90px; width:auto; font-size:16px; font-weight:700; padding:11px 8px; border:2px solid #b9c2cf; border-radius:10px; background:#fff; color:var(--ink); }
+  .seg button.on[data-v=yes] { border-color:var(--ok); background:#e5f5ec; color:#14532d; }
+  .seg button.on[data-v=no] { border-color:var(--bad); background:#fde8e8; color:#8a1420; }
+  .seg button.on[data-v=na] { border-color:#6b7280; background:#eef0f3; color:#374151; }
+  .photo { margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .photo label.pick { display:inline-block; margin:0; font-weight:700; padding:10px 14px; border-radius:10px; background:var(--navy); color:#fff; font-size:15px; }
+  .photo input[type=file] { display:none; }
+  .photo img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  .photo .st { font-size:14px; color:var(--soft); }
+  .photo .st.ok { color:var(--ok); font-weight:700; }
+  .photo .st.err { color:var(--bad); font-weight:700; }
+  #send { width:100%; font-size:19px; font-weight:700; padding:15px; border:0; border-radius:10px; background:var(--red); color:#fff; }
+  #send:disabled { opacity:.55; }
+  .lang { float:right; background:transparent; border:1px solid #6f86a6; color:#fff; font-size:14px; padding:6px 10px; font-weight:600; border-radius:8px; }
+  .msg { padding:12px 14px; border-radius:10px; margin:0 0 14px; font-weight:600; }
+  .err { background:#fde8e8; color:#8a1420; border:1px solid #f3b6b6; }
+  .good { background:#e5f5ec; color:#14532d; border:1px solid #a9dcbd; }
+  .hide { display:none !important; }
+  .hint { color:var(--soft); font-size:14px; margin:4px 0 0; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th, td { border-bottom:1px solid var(--line); padding:6px 5px; text-align:left; vertical-align:top; }
+  th { color:var(--navy); font-size:13px; }
+  .y { color:var(--ok); font-weight:700; } .n { color:var(--bad); font-weight:700; } .na { color:#6b7280; }
+  .thumbs a { display:inline-block; margin:2px; } .thumbs img { width:56px; height:56px; object-fit:cover; border-radius:6px; border:1px solid var(--line); }
+  footer { color:var(--soft); font-size:13px; padding:0 16px 30px; max-width:720px; margin:0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <button class="lang" id="langBtn" type="button">Español</button>
+  <h1 id="title">Exterior Lighting Check</h1>
+  <p id="sub"></p>
+</header>
+<main>
+  <div id="msg" class="msg hide"></div>
+  <div id="form" class="hide">
+    <div class="card">
+      <p class="hint" data-en="Do this at night, with every outside light on. One check per store. Take a photo of each item." data-es="Hágalo de noche, con todas las luces de afuera prendidas. Una revisión por restaurante. Tome una foto de cada punto."></p>
+      <label for="store" data-en="Your store" data-es="Su restaurante"></label>
+      <select id="store"></select>
+      <label for="gm" data-en="Your name" data-es="Su nombre"></label>
+      <input id="gm" type="text" maxlength="60" autocomplete="name">
+      <label for="when" data-en="Date and time you checked the lights" data-es="Fecha y hora en que revisó las luces"></label>
+      <input id="when" type="datetime-local">
+    </div>
+    <div id="items"></div>
+    <div class="card">
+      <label for="notes" data-en="Notes: what is out, and where (required if anything is out)" data-es="Notas: qué no funciona y dónde (obligatorio si algo no funciona)"></label>
+      <textarea id="notes" rows="4" maxlength="1000"></textarea>
+    </div>
+    <button id="send" type="button" data-en="Send lighting check" data-es="Enviar revisión"></button>
+  </div>
+  <div id="results" class="hide"></div>
+</main>
+<footer id="foot"></footer>
+<script>
+(function () {
+  var API = "https://nnsuyrhubsidwmrrsumm.supabase.co/functions/v1/exterior-lights";
+  var qs = new URLSearchParams(location.search);
+  var T = qs.get("t") || "", R = qs.get("r") || "";
+  var lang = (navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en";
+  var C = null, ITEMS = [], STORES = [], ANS = {}, DATA = null;
+  var $ = function (id) { return document.getElementById(id); };
+  function L(en, es) { return lang === "es" ? es : en; }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function show(el, on) { el.classList.toggle("hide", !on); }
+  function say(text, kind) { var m = $("msg"); m.textContent = text; m.className = "msg " + (kind || "err"); show(m, !!text); if (text) m.scrollIntoView({behavior: "smooth", block: "center"}); }
+  function fmtDate(iso) { var d = new Date(iso + "T12:00:00"); return d.toLocaleDateString(lang === "es" ? "es-MX" : "en-US", {weekday: "long", month: "long", day: "numeric"}); }
+  function fmtWhen(iso) { var d = new Date(iso); return d.toLocaleString(lang === "es" ? "es-MX" : "en-US", {weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}); }
+  function api(method, body) {
+    var h = {};
+    if (method === "GET") { if (R) h["x-el-r"] = R; else h["x-el-t"] = T; } else h["Content-Type"] = "application/json";
+    return fetch(API, {method: method, headers: h, body: body ? JSON.stringify(body) : undefined})
+      .then(function (r) { return r.json().catch(function () { return {ok: false, error: L("Something went wrong.", "Algo salió mal.")}; }); });
+  }
+  function localNow() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
+  function paint() {
+    document.documentElement.lang = lang;
+    $("langBtn").textContent = lang === "es" ? "English" : "Español";
+    document.querySelectorAll("[data-en]").forEach(function (el) { el.textContent = L(el.getAttribute("data-en"), el.getAttribute("data-es")); });
+    if (!C) return;
+    $("title").textContent = L(C.title_en, C.title_es);
+    $("sub").textContent = C.due ? L("Please send by ", "Por favor envíe antes del ") + fmtDate(C.due) + "." : "";
+    $("foot").textContent = R ? "" : L("Your answers and photos go to the office. Sending again replaces what you sent before.",
+                                        "Sus respuestas y fotos van a la oficina. Si envía otra vez, se reemplaza lo anterior.");
+  }
+  function buildStores() {
+    var sel = $("store"), cur = sel.value;
+    sel.innerHTML = '<option value="">' + esc(L("Pick your store", "Elija su restaurante")) + "</option>" +
+      STORES.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + (s.done ? " ✓" : "") + "</option>"; }).join("");
+    sel.value = cur;
+  }
+  function buildItems() {
+    $("items").innerHTML = ITEMS.map(function (it) {
+      var a = ANS[it.key] || {};
+      var btns = [["yes", "Working", "Funciona"], ["no", "Not working", "No funciona"]];
+      if (it.na) btns.push(["na", "Not at this store", "No hay en este restaurante"]);
+      var st = a.busy ? L("Saving photo...", "Guardando foto...") : a.err ? a.err : a.path ? L("Photo saved", "Foto guardada") : L("No photo yet", "Sin foto todavía");
+      var cls = a.busy ? "" : a.err ? "err" : a.path ? "ok" : "";
+      return '<div class="card" id="c_' + it.key + '"><h2>' + esc(L(it.en, it.es)) + '</h2><div class="seg">' +
+        btns.map(function (b) { return '<button type="button" data-k="' + it.key + '" data-v="' + b[0] + '" class="' + (a.status === b[0] ? "on" : "") + '">' + esc(L(b[1], b[2])) + "</button>"; }).join("") +
+        '</div><div class="photo' + (a.status === "na" ? " hide" : "") + '"><label class="pick" for="f_' + it.key + '">' + esc(a.path ? L("Retake photo", "Tomar otra foto") : L("Add photo", "Agregar foto")) + "</label>" +
+        '<input type="file" accept="image/*" capture="environment" id="f_' + it.key + '" data-k="' + it.key + '">' +
+        (a.thumb ? '<img alt="" src="' + a.thumb + '">' : "") + '<span class="st ' + cls + '">' + esc(st) + "</span></div></div>";
+    }).join("");
+  }
+  function shrink(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1600, w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, max / Math.max(w, h));
+        var cv = document.createElement("canvas"); cv.width = Math.round(w * s); cv.height = Math.round(h * s);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        var data = cv.toDataURL("image/jpeg", 0.78); URL.revokeObjectURL(url);
+        resolve({mime: "image/jpeg", b64: data.split(",")[1], thumb: data});
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        var fr = new FileReader();
+        fr.onload = function () { var d = String(fr.result); resolve({mime: (file.type || "image/jpeg").toLowerCase(), b64: d.split(",")[1], thumb: ""}); };
+        fr.readAsDataURL(file);
+      };
+      img.src = url;
+    });
+  }
+  function upload(key, file) {
+    var sid = $("store").value;
+    if (!sid) { say(L("Pick your store first, then add photos.", "Primero elija su restaurante y luego agregue fotos.")); return; }
+    ANS[key] = ANS[key] || {}; ANS[key].busy = true; ANS[key].err = ""; buildItems();
+    shrink(file).then(function (p) {
+      return api("POST", {action: "photo", t: T, store_id: Number(sid), item: key, mime: p.mime, b64: p.b64}).then(function (r) {
+        ANS[key].busy = false;
+        if (r.ok) { ANS[key].path = r.path; ANS[key].thumb = p.thumb; ANS[key].store = sid; }
+        else ANS[key].err = r.error || L("The photo didn't save. Try again.", "La foto no se guardó. Intente otra vez.");
+        buildItems();
+      });
+    }).catch(function () { ANS[key].busy = false; ANS[key].err = L("The photo didn't save. Try again.", "La foto no se guardó. Intente otra vez."); buildItems(); });
+  }
+  function send() {
+    say("");
+    var sid = $("store").value, gm = $("gm").value.trim(), when = $("when").value, notes = $("notes").value.trim();
+    if (!sid) return say(L("Pick your store.", "Elija su restaurante."));
+    if (gm.length < 2) return say(L("Type your name.", "Escriba su nombre."));
+    if (!when) return say(L("Enter the date and time you checked the lights.", "Escriba la fecha y hora en que revisó las luces."));
+    var items = {}, anyNo = false;
+    for (var i = 0; i < ITEMS.length; i++) {
+      var it = ITEMS[i], a = ANS[it.key] || {};
+      if (!a.status) return say(L("Answer: ", "Conteste: ") + L(it.en, it.es) + ".");
+      if (a.busy) return say(L("Wait for the photos to finish saving.", "Espere a que se guarden las fotos."));
+      if (a.status !== "na" && !(a.path && a.store === sid)) return say(L("Add a photo for: ", "Agregue una foto de: ") + L(it.en, it.es) + ".");
+      if (a.status === "no") anyNo = true;
+      items[it.key] = {status: a.status, photo: a.status === "na" ? null : a.path};
+    }
+    if (anyNo && !notes) return say(L("Tell us in the notes what is out.", "Escriba en las notas qué no funciona."));
+    $("send").disabled = true;
+    api("POST", {action: "submit", t: T, store_id: Number(sid), gm_name: gm, checked_at: new Date(when).toISOString(), items: items, notes: notes}).then(function (r) {
+      $("send").disabled = false;
+      if (r.ok) {
+        say(L("Thank you! Your lighting check was sent.", "¡Gracias! Su revisión fue enviada."), "good");
+        STORES.forEach(function (s) { if (String(s.id) === sid) s.done = true; }); buildStores();
+      } else say(r.error || L("Something went wrong. Please try again.", "Algo salió mal. Intente otra vez."));
+    });
+  }
+  function results(d) {
+    var by = {}; (d.checks || []).forEach(function (c) { by[c.store_id] = c; });
+    var html = '<div class="card"><h2>' + esc(L("Sent", "Enviados")) + ": " + (d.checks || []).length + " / " + d.stores.length + "</h2>" +
+      (d.missing.length ? '<p class="n">' + esc(L("Missing: ", "Faltan: ") + d.missing.join(", ")) + "</p>" : '<p class="y">' + esc(L("Every store has sent.", "Todos enviaron.")) + "</p>") + "</div>";
+    d.stores.forEach(function (s) {
+      var c = by[s.id];
+      if (!c) return;
+      html += '<div class="card"><h2>' + esc(s.name) + " (#" + esc(s.number) + ')</h2><p class="hint">' + esc(c.gm_name) + ", " + esc(L("checked ", "revisado ") + fmtWhen(c.checked_at)) +
+        (c.out_count ? ' <span class="n">' + c.out_count + " " + esc(L("not working", "no funcionan")) + "</span>" : ' <span class="y">' + esc(L("all working", "todo funciona")) + "</span>") +
+        "</p><table><tr><th>" + esc(L("Item", "Punto")) + "</th><th>" + esc(L("Status", "Estado")) + "</th><th>" + esc(L("Photo", "Foto")) + "</th></tr>" +
+        d.items.map(function (it) {
+          var a = (c.items || {})[it.key] || {};
+          var stt = a.status === "yes" ? '<span class="y">' + esc(L("Working", "Funciona")) + "</span>" : a.status === "no" ? '<span class="n">' + esc(L("Not working", "No funciona")) + "</span>" : '<span class="na">' + esc(L("Not at store", "No hay")) + "</span>";
+          return "<tr><td>" + esc(L(it.en, it.es)) + "</td><td>" + stt + '</td><td class="thumbs">' + (a.url ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener"><img alt="" src="' + esc(a.url) + '"></a>' : "") + "</td></tr>";
+        }).join("") + "</table>" + (c.notes ? '<p><b>' + esc(L("Notes: ", "Notas: ")) + "</b>" + esc(c.notes) + "</p>" : "") + "</div>";
+    });
+    $("results").innerHTML = html;
+  }
+  $("langBtn").addEventListener("click", function () { lang = lang === "es" ? "en" : "es"; paint(); if (C && !R) { buildStores(); buildItems(); } if (R && DATA) results(DATA); });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(".seg button");
+    if (!b) return;
+    var k = b.getAttribute("data-k"); ANS[k] = ANS[k] || {}; ANS[k].status = b.getAttribute("data-v"); buildItems();
+  });
+  document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el && el.type === "file" && el.files && el.files[0]) upload(el.getAttribute("data-k"), el.files[0]);
+    if (el && el.id === "store") {
+      var had = Object.keys(ANS).some(function (k) { return ANS[k].path && ANS[k].store !== el.value; });
+      if (had) { Object.keys(ANS).forEach(function (k) { if (ANS[k].store !== el.value) { ANS[k].path = null; ANS[k].thumb = ""; } }); buildItems();
+        say(L("You changed stores, so please add the photos again.", "Cambió de restaurante; por favor agregue las fotos otra vez.")); }
+    }
+  });
+  $("send").addEventListener("click", send);
+  if (!T && !R) { paint(); say(L("This link isn't working. Please text Eddie for a fresh one.", "Este enlace no funciona. Mande un mensaje a Eddie para recibir uno nuevo.")); return; }
+  api("GET").then(function (d) {
+    if (!d.ok) { paint(); return say(d.error || L("This link isn't working.", "Este enlace no funciona.")); }
+    C = d.campaign; ITEMS = d.items || []; paint();
+    if (d.mode === "results") { DATA = d; show($("results"), true); results(d); return; }
+    STORES = d.stores || []; buildStores(); buildItems(); $("when").value = localNow(); show($("form"), true);
+    if (!C.is_open) say(L("This form is closed. Please text Eddie.", "Este formulario está cerrado. Mande un mensaje a Eddie."));
+  });
+})();
+</script>
+</body>
+</html>
